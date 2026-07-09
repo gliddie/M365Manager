@@ -98,6 +98,60 @@ public sealed class ExchangeService : IExchangeService
         .ToList();
     }
 
+    public async Task AddMemberAsync(DistributionGroupInfo group, string memberIdentity, CancellationToken ct = default)
+    {
+        var identity = string.IsNullOrWhiteSpace(group.PrimarySmtpAddress) ? group.Name : group.PrimarySmtpAddress;
+        var isUnified = group.RecipientTypeDetails.Contains("GroupMailbox", StringComparison.OrdinalIgnoreCase);
+
+        await _host.InvokeAsync(ps =>
+        {
+            if (isUnified)
+            {
+                ps.AddCommand("Add-UnifiedGroupLinks")
+                  .AddParameter("Identity", identity)
+                  .AddParameter("LinkType", "Members")
+                  .AddParameter("Links", memberIdentity)
+                  .AddParameter("ErrorAction", "Stop");
+            }
+            else
+            {
+                ps.AddCommand("Add-DistributionGroupMember")
+                  .AddParameter("Identity", identity)
+                  .AddParameter("Member", memberIdentity)
+                  .AddParameter("BypassSecurityGroupManagerCheck", true)
+                  .AddParameter("ErrorAction", "Stop");
+            }
+        }, ct: ct);
+    }
+
+    public async Task RemoveMemberAsync(DistributionGroupInfo group, string memberIdentity, CancellationToken ct = default)
+    {
+        var identity = string.IsNullOrWhiteSpace(group.PrimarySmtpAddress) ? group.Name : group.PrimarySmtpAddress;
+        var isUnified = group.RecipientTypeDetails.Contains("GroupMailbox", StringComparison.OrdinalIgnoreCase);
+
+        await _host.InvokeAsync(ps =>
+        {
+            if (isUnified)
+            {
+                ps.AddCommand("Remove-UnifiedGroupLinks")
+                  .AddParameter("Identity", identity)
+                  .AddParameter("LinkType", "Members")
+                  .AddParameter("Links", memberIdentity)
+                  .AddParameter("Confirm", false)
+                  .AddParameter("ErrorAction", "Stop");
+            }
+            else
+            {
+                ps.AddCommand("Remove-DistributionGroupMember")
+                  .AddParameter("Identity", identity)
+                  .AddParameter("Member", memberIdentity)
+                  .AddParameter("BypassSecurityGroupManagerCheck", true)
+                  .AddParameter("Confirm", false)
+                  .AddParameter("ErrorAction", "Stop");
+            }
+        }, ct: ct);
+    }
+
     // ----- mapping helpers -----
 
     private static DistributionGroupInfo MapGroup(PSObject o) => new()

@@ -24,6 +24,12 @@ public sealed partial class GroupsViewModel : ObservableObject
     /// <summary>Device-code sign-in instructions, shown prominently while connecting.</summary>
     [ObservableProperty] private string _deviceCodeMessage = "";
 
+    /// <summary>Just the sign-in code, for the copy button.</summary>
+    [ObservableProperty] private string _deviceCode = "";
+
+    [ObservableProperty] private GroupMemberInfo? _selectedMember;
+    [ObservableProperty] private string _newMemberAddress = "";
+
     private bool _browserOpened;
 
     public ObservableCollection<DistributionGroupInfo> SearchResults { get; } = new();
@@ -42,6 +48,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         IsBusy = true;
         _browserOpened = false;
         DeviceCodeMessage = "";
+        DeviceCode = "";
         StatusMessage = "Connecting to Exchange Online...";
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
         try
@@ -53,6 +60,7 @@ public sealed partial class GroupsViewModel : ObservableObject
                     // Accumulate all sign-in output so the full instructions stay visible.
                     DeviceCodeMessage = string.IsNullOrEmpty(DeviceCodeMessage) ? prompt : $"{DeviceCodeMessage}\n{prompt}";
                     StatusMessage = prompt;
+                    ExtractDeviceCode(prompt);
                     TryOpenBrowser(prompt);
                 }
 
@@ -64,18 +72,44 @@ public sealed partial class GroupsViewModel : ObservableObject
 
             IsConnected = _exchange.IsConnected;
             DeviceCodeMessage = "";
+            DeviceCode = "";
             StatusMessage = "Connected to Exchange Online. Enter a name and search.";
             await SafeLogAsync("Connect", null, Severity.Success, "Connected to Exchange Online.");
         }
         catch (Exception ex)
         {
             DeviceCodeMessage = "";
+            DeviceCode = "";
             StatusMessage = $"Connection failed: {ex.Message}";
             await SafeLogAsync("Connect", null, Severity.Error, $"Exchange connect failed: {ex.Message}");
         }
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    private void ExtractDeviceCode(string prompt)
+    {
+        // e.g. "...enter the code ABCD1234 to authenticate."
+        var match = System.Text.RegularExpressions.Regex.Match(prompt, @"code\s+([A-Za-z0-9][A-Za-z0-9-]{4,})");
+        if (match.Success)
+            DeviceCode = match.Groups[1].Value;
+    }
+
+    [RelayCommand]
+    private void CopyCode()
+    {
+        if (string.IsNullOrEmpty(DeviceCode))
+            return;
+        try
+        {
+            System.Windows.Clipboard.SetText(DeviceCode);
+            StatusMessage = $"Code {DeviceCode} copied to clipboard.";
+        }
+        catch
+        {
+            // Clipboard can occasionally be locked by another app; ignore.
         }
     }
 
@@ -167,6 +201,84 @@ public sealed partial class GroupsViewModel : ObservableObject
         catch (Exception ex)
         {
             StatusMessage = $"Could not load members: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task AddMemberAsync()
+    {
+        if (SelectedGroup is null)
+        {
+            StatusMessage = "Select a group first.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(NewMemberAddress))
+        {
+            StatusMessage = "Enter a member email or UPN to add.";
+            return;
+        }
+
+        var member = NewMemberAddress.Trim();
+        IsBusy = true;
+        try
+        {
+            await _exchange.AddMemberAsync(SelectedGroup, member);
+            await SafeLogAsync("AddMember", SelectedGroup.PrimarySmtpAddress, Severity.Success,
+                $"Added {member} to {SelectedGroup.DisplayName}.");
+            NewMemberAddress = "";
+            await LoadMembersAsync(SelectedGroup);
+            StatusMessage = $"Added {member} to {SelectedGroup.DisplayName}.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Add failed: {ex.Message}";
+            await SafeLogAsync("AddMember", SelectedGroup.PrimarySmtpAddress, Severity.Error,
+                $"Add {member} failed: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task RemoveMemberAsync()
+    {
+        if (SelectedGroup is null || SelectedMember is null)
+        {
+            StatusMessage = "Select a member to remove.";
+            return;
+        }
+
+        var member = SelectedMember;
+        var confirm = System.Windows.MessageBox.Show(
+            $"Remove {member.DisplayName} ({member.PrimarySmtpAddress}) from {SelectedGroup.DisplayName}?",
+            "Confirm removal",
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Warning);
+
+        if (confirm != System.Windows.MessageBoxResult.Yes)
+            return;
+
+        var identity = string.IsNullOrWhiteSpace(member.PrimarySmtpAddress) ? member.DisplayName : member.PrimarySmtpAddress;
+        IsBusy = true;
+        try
+        {
+            await _exchange.RemoveMemberAsync(SelectedGroup, identity);
+            await SafeLogAsync("RemoveMember", SelectedGroup.PrimarySmtpAddress, Severity.Success,
+                $"Removed {identity} from {SelectedGroup.DisplayName}.");
+            await LoadMembersAsync(SelectedGroup);
+            StatusMessage = $"Removed {member.DisplayName} from {SelectedGroup.DisplayName}.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Remove failed: {ex.Message}";
+            await SafeLogAsync("RemoveMember", SelectedGroup.PrimarySmtpAddress, Severity.Error,
+                $"Remove {identity} failed: {ex.Message}");
         }
         finally
         {

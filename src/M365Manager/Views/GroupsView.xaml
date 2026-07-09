@@ -29,9 +29,23 @@
                 <StackPanel>
                     <TextBlock Text="Sign-in required" FontFamily="Segoe UI" FontSize="13"
                                FontWeight="SemiBold" Foreground="{StaticResource UlRedDarkBrush}" Margin="0,0,0,6" />
-                    <TextBlock Text="{Binding DeviceCodeMessage}" FontFamily="Segoe UI" FontSize="15"
-                               Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" />
-                    <TextBlock Text="A browser opens automatically. Enter the code above, then sign in with your admin account."
+
+                    <!-- The code + copy button -->
+                    <StackPanel Orientation="Horizontal" Margin="0,2,0,8"
+                                Visibility="{Binding DeviceCode, Converter={StaticResource EmptyToCollapsed}}">
+                        <Border Background="White" BorderBrush="{StaticResource UlRedBrush}" BorderThickness="1"
+                                CornerRadius="6" Padding="14,6" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding DeviceCode}" FontFamily="Consolas" FontSize="22"
+                                       FontWeight="Bold" Foreground="{StaticResource UlRedDarkBrush}" />
+                        </Border>
+                        <Button Content="Copy code" Style="{StaticResource SecondaryButton}"
+                                Margin="12,0,0,0" VerticalAlignment="Center"
+                                Command="{Binding CopyCodeCommand}" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding DeviceCodeMessage}" FontFamily="Segoe UI" FontSize="13"
+                               Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="A browser opens automatically. Paste the code, then sign in with your admin account."
                                Style="{StaticResource Muted}" Margin="0,8,0,0" />
                 </StackPanel>
             </Border>
@@ -116,18 +130,41 @@
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0">
-                    <DataGrid ItemsSource="{Binding Members}" AutoGenerateColumns="False"
-                              IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                              RowHeight="28" FontFamily="Segoe UI" FontSize="12"
-                              Background="Transparent" BorderThickness="0"
-                              VerticalScrollBarVisibility="Auto">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Member" Width="*" Binding="{Binding DisplayName}" />
-                            <DataGridTextColumn Header="Address" Width="240" Binding="{Binding PrimarySmtpAddress}" />
-                            <DataGridTextColumn Header="Type" Width="140" Binding="{Binding RecipientType}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
+                <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0"
+                        Visibility="{Binding SelectedGroup, Converter={StaticResource NullToCollapsed}}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Member actions -->
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="14,12">
+                            <TextBox Style="{StaticResource ModernTextBox}" Width="230"
+                                     Text="{Binding NewMemberAddress, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Member email or UPN" />
+                            <Button Content="Add member" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"
+                                    Command="{Binding AddMemberCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                            <Button Content="Remove selected" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                    Command="{Binding RemoveMemberCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                        </StackPanel>
+
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding Members}"
+                                  SelectedItem="{Binding SelectedMember, Mode=TwoWay}"
+                                  AutoGenerateColumns="False" IsReadOnly="True"
+                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                                  RowHeight="28" FontFamily="Segoe UI" FontSize="12"
+                                  Background="Transparent" BorderThickness="0"
+                                  VerticalScrollBarVisibility="Auto">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Member" Width="*" Binding="{Binding DisplayName}" />
+                                <DataGridTextColumn Header="Address" Width="240" Binding="{Binding PrimarySmtpAddress}" />
+                                <DataGridTextColumn Header="Type" Width="140" Binding="{Binding RecipientType}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
                 </Border>
             </Grid>
         </Grid>

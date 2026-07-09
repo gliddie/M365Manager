@@ -16,4 +16,10 @@ public interface IExchangeService
 
     /// <summary>Lists the members of a group (handles distribution/security and M365 groups).</summary>
     Task<IReadOnlyList<GroupMemberInfo>> GetMembersAsync(DistributionGroupInfo group, CancellationToken ct = default);
+
+    /// <summary>Adds a member (email/UPN) to a group.</summary>
+    Task AddMemberAsync(DistributionGroupInfo group, string memberIdentity, CancellationToken ct = default);
+
+    /// <summary>Removes a member from a group.</summary>
+    Task RemoveMemberAsync(DistributionGroupInfo group, string memberIdentity, CancellationToken ct = default);
 }

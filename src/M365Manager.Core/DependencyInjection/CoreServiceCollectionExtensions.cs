@@ -1,4 +1,6 @@
+using M365Manager.Core.Exchange;
 using M365Manager.Core.M365;
+using M365Manager.Core.PowerShell;
 using M365Manager.Core.Settings;
 using M365Manager.Core.Sql;
 using M365Manager.Data.Logging;
@@ -15,6 +17,11 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IConnectionStringProvider, SettingsConnectionStringProvider>();
         services.AddSingleton<ILogService, SqlLogService>();
         services.AddSingleton<IM365AuthService, M365AuthService>();
+
+        // Embedded PowerShell + Exchange Online
+        services.AddSingleton<PowerShellHost>();
+        services.AddSingleton<IExchangeService, ExchangeService>();
+
         return services;
     }
 }

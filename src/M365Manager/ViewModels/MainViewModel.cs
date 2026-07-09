@@ -15,12 +15,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     public MainViewModel(
         DashboardViewModel dashboard,
+        GroupsViewModel groups,
         SettingsViewModel settings,
         LogsViewModel logs)
     {
         Pages = new ObservableCollection<NavItem>
         {
             new() { Title = "Dashboard", ViewModel = dashboard },
+            new() { Title = "Groups",    ViewModel = groups },
             new() { Title = "Logs",      ViewModel = logs },
             new() { Title = "Settings",  ViewModel = settings },
         };

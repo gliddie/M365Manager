@@ -12,10 +12,14 @@
             </ResourceDictionary.MergedDictionaries>
 
             <conv:InverseBoolConverter x:Key="InverseBool" />
+            <conv:NullToVisibilityConverter x:Key="NullToCollapsed" />
 
             <!-- Map each ViewModel to its View -->
             <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
                 <views:DashboardView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:GroupsViewModel}">
+                <views:GroupsView />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
                 <views:SettingsView />

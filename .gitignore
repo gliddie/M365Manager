@@ -496,3 +496,6 @@ docs/legacy-powershell/**/Log/
 docs/legacy-powershell/**/Logs/
 docs/legacy-powershell/**/Archive/
 docs/legacy-powershell/**/*.txt
+
+# Bundled PowerShell modules (large; restored via Save-Module, included at publish)
+src/M365Manager/Modules/

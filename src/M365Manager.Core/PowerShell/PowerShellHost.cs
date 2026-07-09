@@ -74,25 +74,51 @@ public sealed class PowerShellHost : IDisposable
         {
             return await Task.Run(() =>
             {
-                using var ps = PowerShellSdk.Create();
-                ps.Runspace = _runspace;
-                build(ps);
+                // Capture console output (the MSAL device-code prompt is written via
+                // Console.WriteLine and would otherwise be invisible in a GUI app).
+                TextWriter? originalOut = null;
+                TextWriter? originalError = null;
+                ForwardingTextWriter? forwarder = null;
 
-                // Surface host messages (e.g. the device-code sign-in prompt) live.
                 if (onInformation is not null)
                 {
-                    ps.Streams.Information.DataAdded += (_, e) =>
-                        onInformation(ps.Streams.Information[e.Index].ToString());
-                    ps.Streams.Warning.DataAdded += (_, e) =>
-                        onInformation(ps.Streams.Warning[e.Index].Message);
+                    forwarder = new ForwardingTextWriter(onInformation);
+                    originalOut = Console.Out;
+                    originalError = Console.Error;
+                    Console.SetOut(forwarder);
+                    Console.SetError(forwarder);
                 }
 
-                var results = ps.Invoke();
+                try
+                {
+                    using var ps = PowerShellSdk.Create();
+                    ps.Runspace = _runspace;
+                    build(ps);
 
-                if (ps.HadErrors && ps.Streams.Error.Count > 0)
-                    throw new PowerShellException(ps.Streams.Error[0].ToString());
+                    // Also surface PowerShell's own streams (Write-Host / warnings).
+                    if (onInformation is not null)
+                    {
+                        ps.Streams.Information.DataAdded += (_, e) =>
+                            onInformation(ps.Streams.Information[e.Index].ToString());
+                        ps.Streams.Warning.DataAdded += (_, e) =>
+                            onInformation(ps.Streams.Warning[e.Index].Message);
+                    }
 
-                return (IReadOnlyList<PSObject>)results.ToList();
+                    var results = ps.Invoke();
+
+                    if (ps.HadErrors && ps.Streams.Error.Count > 0)
+                        throw new PowerShellException(ps.Streams.Error[0].ToString());
+
+                    return (IReadOnlyList<PSObject>)results.ToList();
+                }
+                finally
+                {
+                    if (originalOut is not null)
+                        Console.SetOut(originalOut);
+                    if (originalError is not null)
+                        Console.SetError(originalError);
+                    forwarder?.Dispose();
+                }
             }, ct);
         }
         finally

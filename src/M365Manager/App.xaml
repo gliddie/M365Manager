@@ -13,6 +13,7 @@
 
             <conv:InverseBoolConverter x:Key="InverseBool" />
             <conv:NullToVisibilityConverter x:Key="NullToCollapsed" />
+            <conv:EmptyStringToVisibilityConverter x:Key="EmptyToCollapsed" />
 
             <!-- Map each ViewModel to its View -->
             <DataTemplate DataType="{x:Type vm:DashboardViewModel}">

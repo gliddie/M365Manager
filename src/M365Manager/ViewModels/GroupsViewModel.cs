@@ -21,6 +21,9 @@ public sealed partial class GroupsViewModel : ObservableObject
     [ObservableProperty] private DistributionGroupInfo? _selectedGroup;
     [ObservableProperty] private string _ownersText = "";
 
+    /// <summary>The device-code sign-in instructions, shown prominently while connecting.</summary>
+    [ObservableProperty] private string _deviceCodeMessage = "";
+
     private bool _deviceLoginOpened;
 
     public ObservableCollection<DistributionGroupInfo> SearchResults { get; } = new();
@@ -38,6 +41,7 @@ public sealed partial class GroupsViewModel : ObservableObject
     {
         IsBusy = true;
         _deviceLoginOpened = false;
+        DeviceCodeMessage = "";
         StatusMessage = "Connecting to Exchange Online...";
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
         try
@@ -56,6 +60,7 @@ public sealed partial class GroupsViewModel : ObservableObject
                     Show();
             });
             IsConnected = _exchange.IsConnected;
+            DeviceCodeMessage = "";
             StatusMessage = "Connected to Exchange Online. Enter a name and search.";
             await SafeLogAsync("Connect", null, Severity.Success, "Connected to Exchange Online.");
         }
@@ -143,7 +148,13 @@ public sealed partial class GroupsViewModel : ObservableObject
 
     private void TryOpenDeviceLogin(string prompt)
     {
-        if (_deviceLoginOpened || !prompt.Contains("devicelogin", StringComparison.OrdinalIgnoreCase))
+        if (!prompt.Contains("devicelogin", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        // Keep the full instructions (URL + code) visible in the prominent banner.
+        DeviceCodeMessage = prompt;
+
+        if (_deviceLoginOpened)
             return;
 
         _deviceLoginOpened = true;

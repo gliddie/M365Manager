@@ -1,0 +1,126 @@
+#################################################################################
+#
+# PowerShell source code
+# Revision Draft v0.5
+# ==========================================================================
+#    'Project      : UL Office 365 Exchange Online Migration
+#    'Description  : Add Members to Distribution Groups
+#    'Called By    :
+#    'Calls        :
+#    'Parameters   :
+#    'Returns      :
+#    'Author       : Mitch Skrove (HP)
+#    'Date Created : 09/07/2011 10:00:00 AM
+#    'Comments     :  
+#    '               Set-ExecutionPolicy Unrestricted
+#    '
+#    'History      :
+#
+#
+# ==========================================================================
+#
+#################################################################################
+
+# Declare Drive | Folders | and Files
+	$FileName		= "AddDgMembers"
+	$LogDrive		= "E:"
+	$LogPath		= "\Automation"
+	$LogFolder		= "\" + $FileNAme
+	$LogDirectory		= $LogDrive + $LogPath + $LogFolder + "\"
+	
+	$LogFile		= $LogDirectory + "Log-" + $FileName + ".log"
+	$InputFile		= $LogDirectory + "Input-" + $FileName + ".csv"
+	$ReportFile		= $LogDirectory + "Report-" + $FileName + "-Date" + ((get-date -uformat %D).Replace("/", "-")) + "-Time" + ((get-date -uformat %T).Replace(":", "")) + ".log"
+	
+# Retrieve the user name and set DG Owner
+	$WhoAmI			= WhoAmI
+	
+# Retrieve the local server name
+	$Machine = get-wmiobject "Win32_ComputerSystem"
+	$LocalMachineName = $Machine.Name
+	
+# =============================================================================================================================================
+
+function CheckLogFiles {
+	# Create Files folder $LogDirectory if it's not present
+	if (Test-Path $LogDirectory) {
+		# the directory is present
+	}
+	else { 
+		mkdir $LogDirectory
+	}
+} #end CheckLogFiles
+
+function WriteLogEvent {
+	$RecordEvent = (get-date -uformat %D) + "`t" + (get-date -uformat %T) + "`t" + $LocalMachineName + "`t" + $LineToWrite
+	Out-File -filepath $LogFile -append -noClobber -inputObject $RecordEvent
+} #end WriteLogEvent
+
+function WriteReportEvent {
+	$RecordEvent = (get-date -uformat %D) + "`t" + (get-date -uformat %T) + "`t" + $LineToWrite
+	Out-File -filepath $ReportFile -append -noClobber -inputObject $RecordEvent
+} #end WriteReportEvent
+
+# Setup Folders and Files	
+	CheckLogFiles
+		
+	$LineToWrite = "STAR" + "`t" + $FileName + " script has started"
+	WriteLogEvent
+	
+	$LineToWrite = "INFO" + "`t" + "Launched by: " + $WhoAmI + "`n"
+	WriteLogEvent
+		
+# =============================================================================================================================================
+
+# Connect to Office 365
+if ($Session.State -ne "Opened") {
+	Remove-PSSession $Session
+	write-host "Connect to Office 365."
+
+       $LiveCred	= Get-Credential
+       $global:Session	= New-PSSession `
+	   		-ConfigurationName Microsoft.Exchange `
+			-ConnectionUri https://ps.outlook.com/powershell/ `
+			-Credential $LiveCred `
+			-Authentication Basic `
+			-AllowRedirection
+
+		if ($? -eq $true) {
+			Import-PSSession $Session
+		}
+		else {
+			write-host "Could not estahblish session with Office 365."
+		}
+}
+else {
+	write-host "Office 365 Connection Ready"
+}
+
+write-host "Import CSV File."
+
+
+if (Test-Path $InputFile) {					
+	$DGroups = Import-CSV $InputFile
+
+	ForEach ($DG in $DGroups) {
+		$addMember  = $Dg.MemberMail.split(",")
+		$addMember.GetType()
+		$addMember
+		Update-DistributionGroupMember $Dg.DgMail -Members $addMember
+	}
+
+}
+
+else {
+	write-host "Input file not found."
+}
+
+
+# End of script #
+#	Remove-PSSession $Session
+#	$Session = $null
+
+	$LineToWrite = "STOP" + "`t" + "This instance is stopping." + "`n"
+	WriteLogEvent
+
+# =============================================================================================================================================

@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/M365Manager.Core/M365Manager.Core.csproj" />
+    <Project Path="src/M365Manager.Data/M365Manager.Data.csproj" />
+    <Project Path="src/M365Manager/M365Manager.csproj" />
+  </Folder>
+</Solution>

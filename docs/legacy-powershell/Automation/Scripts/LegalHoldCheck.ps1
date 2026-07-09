@@ -1,0 +1,2393 @@
+﻿# This prints details regarding mailbox access to the console and report file
+# 
+#  2024-0612  SAG  Added code in the rename hold process so that you can also change if the hold is silent or requires hardware hold
+#  2025-0113  SAG  Modified the iProSearch Group to LegalSearchGroup to allow the use of the new Legal Discovery Tool
+#  2025-0425  SAG  Modified the paths so that backup copies of files are placed in E:\O365AdminShared\Data\Data-Backups directory.
+#
+#  Writes events to the Report File
+<#
+function WriteReportEvent
+{
+#    If (($null -eq $ReportFile) -or ($ReportFile -eq ""))
+#    {
+#        $ReportFile = $Global:ReportFile
+#    }
+	$RecordEvent = (get-date -uformat %D) + "`t" + (get-date -uformat %T) + "`t" + $LineToWrite
+$RptWriter.Write($RecordEvent)
+$RptWriter.Close()
+#	Out-File -filepath $ReportFile -append -noClobber -inputObject $RecordEvent
+#    Add-Content -Path $ReportFile -Value $RecordEvent
+} #end WriteReportEvent
+#>
+
+Function Add-ViewFormStandardButtons
+{
+    #Add Buttons- ## Create the button panel to hold the OK and Cancel buttons 
+    $Script:ViewButtonPanel = New-Object Windows.Forms.Panel  
+    $Script:ViewButtonPanel.Size = New-Object Drawing.Size @(400,40) 
+    $Script:ViewButtonPanel.Dock = "Bottom"    
+    $Script:ViewCancelButton = New-Object Windows.Forms.Button  
+        $Script:ViewCancelButton.Top = $Script:ViewButtonPanel.Height - $Script:ViewCancelButton.Height - 10; $Script:ViewCancelButton.Left = $Script:ViewButtonPanel.Width - $Script:ViewCancelButton.Width - 10 
+        $Script:ViewCancelButton.TabIndex = 99
+        $Script:ViewCancelButton.Text = "Cancel" 
+        $Script:ViewCancelButton.DialogResult = "Cancel" 
+        $Script:ViewCancelButton.Anchor = "Right"
+    ## Create the OK button, which will anchor to the left of Cancel 
+    $Script:ViewokButton = New-Object Windows.Forms.Button
+        $Script:ViewokButton.Top = $ViewCancelButton.Top ;$Script:ViewokButton.Left = $Script:ViewCancelButton.Left - $Script:ViewokButton.Width - 10
+        $Script:ViewokButton.Text = "Next"
+        $Script:ViewokButton.DialogResult = "OK" 
+        $Script:ViewokButton.Anchor = "Right"
+    ## Add the buttons to the button panel 
+    $Script:ViewButtonPanel.Controls.Add($Script:ViewokButton) 
+    $Script:ViewButtonPanel.Controls.Add($Script:ViewCancelButton) 
+    ## Add the button panel to the form 
+    $Script:ViewForm.Controls.Add($Script:ViewButtonPanel)
+    ## Set Default actions for the buttons 
+    $Script:Viewform.AcceptButton = $Script:ViewokButton          # ENTER = ok 
+    $Script:Viewform.CancelButton = $Script:ViewCancelButton      # ESCAPE = Cancel
+}
+
+Function Add-ViewUsrDetailsForm
+{
+    $Script:ViewForm = New-Object Windows.Forms.Form 
+    $Script:ViewForm.FormBorderStyle = "FixedToolWindow" 
+    $Script:ViewForm.Text = "User Hold Details" 
+    $Script:ViewForm.StartPosition = "CenterScreen" 
+    $Script:ViewForm.Width = 670 ; $Viewform.Height = 400   # Make the form wider
+
+    $VTop = 20
+    $VLblLeft =15
+    $VTxtLeft = 160
+    $VLblLeft2 = 300
+    $VTxtLeft2 = 410
+
+    ## Employee Number
+    $Script:lblVEno = New-Object System.Windows.Forms.Label   
+        $Script:lblVEno.Text = "Employee Number:"  
+        $Script:lblVEno.Top = $VTop ; $Script:lblVEno.Left = $VLblLeft; $Script:lblVEno.Width=150 ;$Script:lblVEno.AutoSize = $true
+        $Script:lblVEno.Visible = $True 
+        $ViewForm.Controls.Add($Script:lblVEno)    # Add to Form 
+        # 
+        $Script:txtVENo = New-Object Windows.Forms.TextBox
+        $Script:txtVENo.ReadOnly = $True;
+        $Script:txtVENo.Top = $VTop; $Script:txtVENo.Left = $VTxtLeft; $Script:txtVENo.Width = 120;
+        $Script:txtVENo.Visible = $True
+        $Script:ViewForm.Controls.Add($Script:txtVENo)    # Add to Form 
+
+    $VTop = $VTop + 30
+    ## Employee Name
+    $Script:lblName = New-Object System.Windows.Forms.Label   
+        $Script:lblName.Text = "Employee Name:"  
+        $Script:lblName.Top = $VTop ; $Script:lblName.Left = $VLblLeft; $Script:lblName.Width=150 ;$Script:lblName.AutoSize = $true
+        $Script:lblName.Visible = $True 
+        $ViewForm.Controls.Add($Script:lblName)    # Add to Form 
+        # 
+        $Script:txtName = New-Object Windows.Forms.TextBox
+        $Script:txtName.ReadOnly = $True;
+        $Script:txtName.Top = $VTop; $Script:txtName.Left = $VTxtLeft; $Script:txtName.Width = 120;
+        $Script:txtName.Visible = $True
+        $Script:ViewForm.Controls.Add($Script:txtName)    # Add to Form 
+
+    ## Employee Type
+    $Script:lblType = New-Object System.Windows.Forms.Label   
+        $Script:lblType.Text = "Employee Type:"  
+        $Script:lblType.Top = $VTop ; $Script:lblType.Left = $VLblLeft2; $Script:lblType.Width=150 ;$Script:lblType.AutoSize = $true 
+        $Script:lblType.Visible = $True 
+        $ViewForm.Controls.Add($Script:lblType)    # Add to Form 
+        # 
+        $Script:txtType = New-Object Windows.Forms.TextBox
+        $Script:txtType.ReadOnly = $True;
+        $Script:txtType.Top = $VTop; $Script:txtType.Left = $VTxtLeft2; $Script:txtType.Width = 120;
+        $Script:txtType.Visible = $True
+        $Script:ViewForm.Controls.Add($Script:txtType)    # Add to Form 
+
+    $VTop = $VTop + 30
+    ## ADContainer
+    $Script:lblContainer = New-Object System.Windows.Forms.Label   
+        $Script:lblContainer.Text = "AD Container:"  
+        $Script:lblContainer.Top = $VTop ; $Script:lblContainer.Left = $VLblLeft; $Script:lblContainer.Width=150 ;$Script:lblContainer.AutoSize = $true 
+        $ViewForm.Controls.Add($Script:lblContainer)    # Add to Form 
+        # 
+        $Script:txtContainer = New-Object Windows.Forms.TextBox  
+        $Script:txtContainer.ReadOnly = $True; 
+        $Script:txtContainer.Top = $VTop; $Script:txtContainer.Left = $VTXTLeft; $Script:txtContainer.Width = 370;
+        $Script:ViewForm.Controls.Add($Script:txtContainer)    # Add to Form 
+
+    $VTop = $VTop + 30
+    ## Hold Enabled Date
+    $Script:lblDate = New-Object System.Windows.Forms.Label   
+        $Script:lblDate.Text = "Hold Enabled Date:"  
+        $Script:lblDate.Top = $VTop ; $Script:lblDate.Left = $VLblLeft; $Script:lblDate.Width=150 ;$Script:lblDate.AutoSize = $true 
+        $ViewForm.Controls.Add($Script:lblDate)    # Add to Form 
+        # 
+        $Script:txtDate = New-Object Windows.Forms.TextBox  
+        $Script:txtDate.ReadOnly = $True;
+        $Script:txtDate.Top = $VTop; $Script:txtDate.Left = $VTxtLeft; $Script:txtDate.Width = 120;  
+        $Script:txtDate.Text = ""
+        $Script:ViewForm.Controls.Add($Script:txtDate)    # Add to Form 
+
+    ## Hold Enabled By
+    $Script:lblBy = New-Object System.Windows.Forms.Label   
+        $Script:lblBy.Text = "Hold Enabled By:"  
+        $Script:lblBy.Top = $VTop; $Script:lblBy.Left = $VLblLeft2; $Script:lblBy.Width=100 ;$Script:lblBy.AutoSize = $true  
+        $ViewForm.Controls.Add($Script:lblBy)    # Add to Form 
+        # 
+        $Script:txtBy = New-Object Windows.Forms.TextBox  
+        $Script:txtBy.ReadOnly = $True; 
+        $Script:txtBy.Top = $VTop; $Script:txtBy.Left = $VTxtLeft2; $Script:txtBy.Width = 120;  
+        $Script:ViewForm.Controls.Add($Script:txtBy)    # Add to Form 
+
+    $VTop = $VTop + 30
+    ## Hold ADOjbect Protected
+    $Script:lblProtect = New-Object System.Windows.Forms.Label   
+        $Script:lblProtect.Text = "AD Object Protected:"  
+        $Script:lblProtect.Top = $VTop ; $Script:lblProtect.Left = $VLblLeft; $Script:lblProtect.Width=150 ;$Script:lblProtect.AutoSize = $true 
+        $ViewForm.Controls.Add($Script:lblProtect)    # Add to Form 
+        # 
+        $Script:txtProtect = New-Object Windows.Forms.TextBox  
+        $Script:txtProtect.ReadOnly = $True; 
+        $Script:txtProtect.Top = $VTop; $Script:txtProtect.Left = $VTxtLeft; $Script:txtProtect.Width = 120;
+        $Script:ViewForm.Controls.Add($Script:txtProtect)    # Add to Form 
+
+    ## Hold ADOjbect Hidden
+    $Script:lblHide = New-Object System.Windows.Forms.Label   
+        $Script:lblHide.Text = "AD Object Hidden:"  
+        $Script:lblHide.Top = $VTop ; $Script:lblHide.Left = $VLblLeft2; $Script:lblHide.Width=160 ;$Script:lblHide.AutoSize = $true 
+        $ViewForm.Controls.Add($Script:lblHide)    # Add to Form 
+        # 
+        $Script:txtHide = New-Object Windows.Forms.TextBox  
+        $Script:txtHide.ReadOnly = $True;
+        $Script:txtHide.Top = $VTop; $Script:txtHide.Left = $VTxtLeft2; $Script:txtHide.Width = 120;
+        $Script:ViewForm.Controls.Add($Script:txtHide)    # Add to Form 
+
+    $VTop = $VTop + 30
+    ## Accounts Granted Access
+    $Script:lblAccess = New-Object System.Windows.Forms.Label   
+        $Script:lblAccess.Text = "Accounts with Access:"  
+        $Script:lblAccess.Top = $VTop ; $Script:lblAccess.Left = $VLblLeft; $Script:lblAccess.Width=160 ;$Script:lblAccess.AutoSize = $true 
+        $ViewForm.Controls.Add($Script:lblAccess)    # Add to Form 
+        # 
+        $Script:txtAccess = New-Object Windows.Forms.TextBox  
+        $Script:txtAccess.ReadOnly = $True; 
+        $Script:txtAccess.Top = $VTop; $Script:txtAccess.Left = $VTxtLeft; $Script:txtAccess.Width = 370; 
+        $Script:txtAccess.Text = ""
+        $Script:ViewForm.Controls.Add($Script:txtAccess)    # Add to Form 
+ 
+     $VTop = $VTop + 30
+     ##InPlace Holds
+     $Script:lblInPlace = New-Object System.Windows.Forms.Label   
+        $Script:lblInPlace.Text = "InPlace Holds:"  
+        $Script:lblInPlace.Top = $VTop ; $Script:lblInPlace.Left = $VLblLeft; $Script:lblInPlace.Width=160 ;$Script:lblInPlace.AutoSize = $true 
+        $ViewForm.Controls.Add($Script:lblInPlace)    # Add to Form 
+        # 
+        $Script:txtInPlace = New-Object Windows.Forms.TextBox  
+        $Script:txtInPlace.ReadOnly = $True;
+        $Script:txtInPlace.Text = "(None)"
+        $Script:txtInPlace.Top = $VTop; $Script:txtInPlace.Left = $VTxtLeft; $Script:txtInPlace.Width = 370; 
+        $Script:ViewForm.Controls.Add($Script:txtInPlace)    # Add to Form           
+ 
+    $VTop = $VTop + 30
+    ## ListBox - Fill with Data From Azure Location Name 
+    $Script:lblLoc = New-Object System.Windows.Forms.Label   
+        $Script:lblLoc.Text = "Preservation Comment(s):"; $Script:lblLoc.Top = $VTop; $Script:lblLoc.Left = $VLblLeft; $Script:lblLoc.Autosize = $true  
+        $Script:ViewForm.Controls.Add($Script:lblLoc)  
+        # Listbox for Location Name 
+        $Script:locListBox = New-Object System.Windows.Forms.ListBox  
+        $Script:locListBox.Top = $VTop; $locListBox.Left = $VTxtLeft; $locListBox.Height = 100; $LocListBox.Width = 370;
+        $script:locListBox.TabIndex = 1
+        $Script:ViewForm.Controls.Add($Script:locListBox) #Add listbox to form 
+
+    Add-ViewFormStandardButtons
+}
+
+Function Build-HoldMenu
+{
+    $Global:form = New-Object Windows.Forms.Form 
+    $Global:form.FormBorderStyle = "FixedToolWindow" 
+    $Global:form.Text = "Legal Hold Menu" 
+    $Global:form.StartPosition = "CenterScreen" 
+    $Global:form.Width = 670 ; $form.Height = 400   # Make the form wider
+
+    $Top = 30
+    $Col2Top = 40
+    $Left = 100
+    $Col2Left = 340
+    $Col1Left = 130
+  
+    ## New Hold
+    $Script:chkNewHold = New-Object System.Windows.Forms.RadioButton
+        $Script:chkNewHold.Text = "Enable for New Legal Hold" 
+        $Script:chkNewHold.Top = $Top ; $Script:chkNewHold.Left = $Left; $Script:chkNewHold.Width=150 ;$Script:chkNewHold.AutoSize = $true 
+        $form.Controls.Add($Script:chkNewHold)    # Add to Form
+        $Script:chkNewHold.Add_Click({
+            Hide-All
+            Uncheck-Options
+            $Script:chk40Day.Visible = $True
+            $Script:chk180Day.Visible = $True
+            $Script:chkStd.Visible = $True
+            $Script:chkInv.Visible = $True
+            $Script:lblAttorney.Text = "Attorney Assigned:"
+            $Script:txtHRRep.Text = ""
+            $Script:lblENos.Text = "Staff to Hold:"
+            $Script:txtRelENos.Left = 130; $Script:txtRelENos.Width = 340;
+            $Script:txtRelDBOwner.Left = 130; $Script:txtRelDBOwner.Width = 340;
+            $Global:okButton.Text = "Enable"
+        })
+
+    ## 40 Day Hold
+    $Script:chk40Day = New-Object System.Windows.Forms.Checkbox
+        $Script:chk40Day.Text = "40 Day Hold"  
+        $Script:chk40Day.Top = $Top ; $Script:chk40Day.Left = $Col2Left; $Script:chk40Day.Width=150 ;$Script:chk40Day.AutoSize = $true 
+        $Script:chk40Day.Visible = $False
+        $form.Controls.Add($Script:chk40Day)    # Add to Form
+        $Script:chk40Day.Add_Click({
+            Hide-Details
+            $Script:lblHRRep.Text = ":HR Rep"
+            $Script:chk180Day.Checked = $False
+            $Script:chkStd.Checked = $False
+            $Script:chkInv.Checked = $False
+            $Script:chkEmergency.Checked = $False
+            $Script:ButGetENo.visible = $False
+            If ($Script:chkNewHold.checked -eq $True)
+            {
+                $Script:txtHoldName.Text = "40 Day Hold (PutNameHere) - "
+                If ($Script:chkSilent.checked -eq $True)
+                {
+                    $Script:txtHoldName.Text = "NonDisclosed - 40 Day Hold (PutNameHere) - "
+                }
+                $Script:lblHoldName.Visible = $True
+                $Script:txtHoldName.Visible = $True
+                $Script:chkEmergency.Visible = $True
+                $Script:lblENos.Visible = $True
+                $Script:txtENos.Visible = $False
+                $Script:txtRelENos.Visible = $True
+                $Script:lblDBOwner.Visible = $True
+                $Script:txtDBOwner.Visible = $False
+                $Script:txtRelDBOwner.Visible = $True
+                $Script:txtAttorney.Text = "B.Bogaerts"
+            }
+            If ($Script:chkExistHold.checked -eq $True)
+            {
+                ViewOpt-ExistingHold
+            }
+            Show-WhoSilent
+            $Script:txtActHolds.Items.Clear()
+            Foreach ($Hold in $Script:40DayHolds)
+            {
+                [void] $Script:txtActHolds.Items.Add($Hold.HoldName)
+            }
+        })
+
+    $Top = $Top + 20
+    ## Existng Hold
+    $Script:chkExistHold = New-Object System.Windows.Forms.RadioButton
+        $Script:chkExistHold.Text = "Enable Additional Staff for Existing Hold"  
+        $Script:chkExistHold.Top = $Top; $Script:chkExistHold.Left = $Left; $Script:chkExistHold.Width=150 ;$Script:chkExistHold.AutoSize = $true 
+        $form.Controls.Add($Script:chkExistHold)    # Add to Form
+        $Script:chkExistHold.Add_Click({
+            Hide-All
+            Uncheck-Options
+            $Script:chk40Day.Visible = $True
+            $Script:chk180Day.Visible = $True
+            $Script:chkStd.Visible = $True
+            $Script:chkInv.Visible = $True
+            $Script:lblENos.Text = "Current Staff on Hold:"
+            $Script:lblAttorney.Text = "Attorney Assigned:"
+            $Script:txtRelENos.Left = 330; $Script:txtRelENos.Width = 165
+            $Script:txtRelDBOwner.Left = 330; $Script:txtRelDBOwner.Width = 165
+            $Script:lblRelENos.Text = ":Staff to Add"
+            $Script:lblRelDBOwner.Text = ":DBOwner to Add"
+            $Global:okButton.Text = "Enable"
+        })
+
+    ## 180 Day
+    $Script:chk180Day = New-Object System.Windows.Forms.Checkbox
+        $Script:chk180Day.Text = "180 Day Hold"  
+        $Script:chk180Day.Top = $Top ; $Script:chk180Day.Left = $Col2Left; $Script:chk180Day.Width=150 ;$Script:chk180Day.AutoSize = $true 
+        $Script:chk180Day.Visible = $False
+        $form.Controls.Add($Script:chk180Day)    # Add to Form
+        $Script:chk180Day.Add_Click({
+            Hide-Details
+            $Script:lblHRRep.Text = ":HR Rep"
+            $Script:chk40Day.Checked = $False
+            $Script:chkStd.Checked = $False
+            $Script:chkInv.Checked = $False
+            $Script:chkEmergency.Checked = $False
+            $Script:ButGetENo.visible = $False
+            If ($Script:chkNewHold.checked -eq $True)
+            {
+                $Script:txtHoldName.Text = "180 Day Hold (PutNameHere) - "
+                If ($Script:chkSilent.checked -eq $True)
+                {
+                    $Script:txtHoldName.Text = "NonDisclosed - 180 Day Hold (PutNameHere) - "
+                }
+                $Script:lblHoldName.Visible = $True
+                $Script:txtHoldName.Visible = $True
+                $Script:chkEmergency.Visible = $True
+                $Script:lblENos.Visible = $True
+                $Script:txtENos.Visible = $False
+                $Script:txtRelENos.Visible = $True
+                $Script:lblDBOwner.Visible = $True
+                $Script:txtDBOwner.Visible = $False
+                $Script:txtRelDBOwner.Visible = $true
+                $Script:txtAttorney.Text = "B.Bogearts"
+            }
+            If ($Script:chkExistHold.checked -eq $True)
+            {
+                ViewOpt-ExistingHold
+            }
+            Show-WhoSilent
+            $Script:txtActHolds.Items.Clear()
+            Foreach ($Hold in $Script:180DayHolds)
+            {
+                [void] $Script:txtActHolds.Items.Add($Hold.HoldName)
+            }
+        })
+        
+    $Top = $Top + 20
+    ## Release Standard Hold
+    $Script:chkStdRel = New-Object System.Windows.Forms.RadioButton
+        $Script:chkStdRel.Text = "Release from Legal Hold" 
+        $Script:chkStdRel.Top = $Top ; $Script:chkStdRel.Left = $Left; $Script:chkStdRel.Width=150 ;$Script:chkStdRel.AutoSize = $true 
+        $form.Controls.Add($Script:chkStdRel)    # Add to Form
+        $Script:chkStdRel.Add_Click({
+            Hide-All
+            Uncheck-Options
+            $Script:chkInvHold.Visible = $True
+            $Script:chkStdHold.Visible = $True
+            $Script:chkfor40180.Visible = $True
+            $Script:lblAttorney.Text = "Released by:"
+            $Script:txtAttorney.Text = "A.Uteg"
+            $Script:lblENos.Text = "Staff on Hold:"
+            $Script:txtRelENos.Left = 330; $Script:txtRelENos.Width = 165
+            $Script:txtRelDBOwner.Left = 330; $Script:txtRelDBOwner.Width = 165
+            $Script:lblRelENos.Text = ":Staff to Release"
+            $Script:lblRelDBOwner.Text = ":DBOwner to Release"
+            $Global:okButton.Text = "Release"
+        })
+
+    ## Investigative Hold
+    $Script:chkInv = New-Object System.Windows.Forms.Checkbox
+        $Script:chkInv.Text = "Investigative Hold"  
+        $Script:chkInv.Top = $Top ; $Script:chkInv.Left = $Col2Left; $Script:chkInv.Width=150 ;$Script:chkInv.AutoSize = $true 
+        $Script:chkInv.Visible = $False
+        $form.Controls.Add($Script:chkInv)    # Add to Form
+        $Script:chkInv.Add_Click({
+            Hide-Details
+            $Script:lblHRRep.Text = ":Investigator"
+            $Script:chk40Day.Checked = $False
+            $Script:chk180Day.Checked = $False
+            $Script:chkStd.Checked = $False
+            $Script:chkEmergency.Visible = $False
+            $Script:chkEmergency.Checked = $False
+            $Script:ButGetENo.visible = $False
+            If ($Script:chkNewHold.Checked -eq $True)
+            {
+                $Script:txtHoldName.Text = "(PutNameHere) Investigative Hold - "
+                If ($Script:chkSilent.checked -eq $True)
+                {
+                    $Script:txtHoldName.Text = "NonDisclosed - (PutNameHere) Legal Hold - "
+                }                
+                $Script:txtAttorney.Text = "B.Bogaerts"
+                $Script:lblHoldName.Visible = $True
+                $Script:txtHoldName.Visible = $True
+                $Script:lblENos.Visible = $True
+                $Script:txtENos.Visible = $False
+                $Script:txtRelENos.Visible = $True
+                $Script:lblDBOwner.Visible = $True
+                $Script:txtDBOwner.Visible = $False
+                $Script:txtRelDBOwner.Visible = $True
+            }
+            If ($Script:chkExistHold.checked -eq $True)
+            {
+                ViewOpt-ExistingHold
+            }
+            Show-WhoSilent
+            $Script:txtActHolds.Items.Clear()
+            Foreach ($Hold in $Script:InvHolds)
+            {
+                [void] $Script:txtActHolds.Items.Add($Hold.HoldName)
+            }
+        })
+
+
+    $Top = $Top + 20
+    ## Rename an existing hold
+    $Script:chkRenameHold = New-Object System.Windows.Forms.RadioButton
+        $Script:chkRenameHold.Text = "Rename Existing Hold" 
+        $Script:chkRenameHold.Top = $Top ; $Script:chkRenameHold.Left = $Left; $Script:chkRenameHold.Width=150 ;$Script:chkRenameHold.AutoSize = $true 
+        $form.Controls.Add($Script:chkRenameHold)    # Add to Form
+        $Script:chkRenameHold.Add_Click({
+            Hide-All
+            Uncheck-Options
+            $Script:chkInvHold.Visible = $True
+            $Script:chkStdHold.Visible = $True
+            $Script:chkfor40180.Visible = $True
+            $Script:lblENos.Text = "Staff on Hold:"
+            $Global:okButton.Text = "Rename"
+        })
+
+    ## Standard Hold
+    $Script:chkStd = New-Object System.Windows.Forms.Checkbox
+        $Script:chkStd.Text = "Standard Hold"  
+        $Script:chkStd.Top = $Top ; $Script:chkStd.Left = $Col2Left; $Script:chkStd.Width=150 ;$Script:chkStd.AutoSize = $true 
+        $Script:chkStd.Visible = $False
+        $form.Controls.Add($Script:chkStd)    # Add to Form
+        $Script:chkStd.Add_Click({
+            Hide-Details
+            $Script:chk40Day.Checked = $False
+            $Script:chk180Day.Checked = $False
+            $Script:chkInv.Checked = $False
+            $Script:chkEmergency.Visible = $False
+            $Script:chkEmergency.Checked = $False
+            $Script:ButGetENo.visible = $False
+            If ($Script:chkNewHold.Checked -eq $True)
+            {
+                $Script:txtHoldName.Text = "(PutNameHere) Legal Hold - "
+                If ($Script:chkSilent.checked -eq $True)
+                {
+                    $Script:txtHoldName.Text = "NonDisclosed - (PutNameHere) Legal Hold - "
+                }                
+                $Script:txtAttorney.Text = "B.Bogaerts"
+                $Script:lblHoldName.Visible = $True
+                $Script:txtHoldName.Visible = $True
+                $Script:lblENos.Visible = $True
+                $Script:txtENos.Visible = $False
+                $Script:txtRelENos.Visible = $True
+                $Script:lblDBOwner.Visible = $True
+                $Script:txtDBOwner.Visible = $False
+                $Script:txtRelDBOwner.Visible = $True
+            }
+            If ($Script:chkExistHold.checked -eq $True)
+            {
+                ViewOpt-ExistingHold
+            }
+            Show-WhoSilent
+            $Script:txtActHolds.Items.Clear()
+            Foreach ($Hold in $Script:StdHolds)
+            {
+                [void] $Script:txtActHolds.Items.Add($Hold.HoldName)
+            }
+        })
+
+    $Top = $Top + 20
+    ## View Holds for a User
+    $Script:chkViewUsr = New-Object System.Windows.Forms.RadioButton
+        $Script:chkViewUsr.Text = "View Details for a Specific User(s)" 
+        $Script:chkViewUsr.Top = $Top ; $Script:chkViewUsr.Left = $Left; $Script:chkViewUsr.Width=150 ;$Script:chkViewUsr.AutoSize = $true 
+        $form.Controls.Add($Script:chkViewUsr)    # Add to Form
+        $Script:chkViewUsr.Add_Click({
+            Hide-All
+            Uncheck-Options
+            $Script:txtENo.Visible = $True
+            $Script:ButViewENo.Visible = $True
+        })
+
+    ## Employee Number
+    $Script:txtENo = New-Object Windows.Forms.TextBox
+        $Script:txtENo.Top = $Top; $Script:txtENo.Left = ($Col2Left-40); $Script:txtENo.Width = 225;
+        $Script:txtENo.Text = "Enter comma separated ENo's"
+        $Script:txtENo.Visible = $False
+        $form.Controls.Add($Script:txtENo)    # Add to Form
+        $Script:txtENo.Add_Click({
+            $Script:txtENo.Text = ""
+        })
+
+    $Script:GettingData = New-Object Windows.Forms.Label
+        $Script:GettingData.Top = ($Top+40); $Script:GettingData.Left = ($Col2Left-100); $Script:GettingData.Width = 425;
+        $Script:GettingData.Text = ""
+        $Script:GettingData.ForeColor = "Red"
+        $Script:GettingData.Visible = $False
+        $form.Controls.Add($Script:GettingData)    # Add to Form
+
+    $Script:ButViewENo = New-Object Windows.Forms.Button
+        $Script:ButViewENo.Location = New-object System.Drawing.Size(530,($Top-5))
+        $Script:ButViewENo.Size = new-Object System.Drawing.Size(100,30)
+        $Script:ButViewENo.Text = "Get Details"
+        $Script:ButViewENo.TabIndex = 10
+        $Script:ButViewENo.Visible = $False
+        $form.Controls.Add($Script:ButViewENo)
+        $Script:ButViewENo.Add_Click({
+            $mbxs = $Script:txtENo.Text -split(",")
+            Hide-All
+            $Global:cancelButton.Visible = $False
+            Foreach ($m in $mbxs)
+            {
+                $Script:GettingData.Visible = $True
+                If ($m -notlike "Enter*")
+                {
+                    $Script:GettingData.Text = "Getting User Details for: " + $m
+                    $Script:GettingData.Refresh()
+                    $Exists = [bool]($vmbx = get-mailbox $m -ErrorAction SilentlyContinue)
+                    $VADUsr = get-aduser $m -Properties ExtensionAttribute14
+                    If ($Exists -eq $True)
+                    {
+                        $ENo = $m
+                        $ReportFile = "e:\Automation\LegalHold\Report\LegalHoldDetails-EmpNo" + $ENo + ".csv"
+                        $Script:u = Get-ADUser $ENo -Properties *
+                        Check-ReportFile
+                        $LineToWrite = "View Only Existing Mailbox Settings and Hold Details for this user"
+                        WriteReportEvent
+                        PrtMBxAccess($Script:MbxAccess)
+                        $Script:txtVENo.Text = $vmbx.Alias
+                        $Script:txtName.Text = $vmbx.DisplayName
+                        $Script:txtType.Text = $vmbx.CustomAttribute1
+                        $ADU = get-ADUser $m -Properties ProtectedFromAccidentalDeletion
+                        $Container = $ADU.DistinguishedName -Replace("CN=","")
+                        $Container = $Container -Replace(",OU=","/")
+                        $Container = $Container -Replace(",DC=","/")
+                        $Script:txtContainer.Text = $Container
+                        $Script:txtDate.Text = $vmbx.LitigationHoldDate
+                        If ($vmbx.LitigationHoldOwner.Length -gt 0)
+                        {
+#                            $Script:txtBy.Text = (get-mailbox $vmbx.LitigationHoldOwner).DisplayName
+                            $LHOwner = $vmbx.LitigationHoldOwner
+                            $Script:txtBy.Text = ((get-MgUser -UserID $LHOwner).GivenName + " " + (get-MgUser -UserId $LHOwner).SurName)
+#                            $Script:txtBy.Text = ((get-MsolUser -UserPrincipalName $LHOwner).FirstName + " " + (get-MsolUser -UserPrincipalName $LHOwner).LastName)
+                        }
+                        $Script:txtProtect.Text = $ADU.ProtectedFromAccidentalDeletion
+                        $Script:txtHide.Text = $vmbx.HiddenFromAddressListsEnabled
+                        $Script:txtAccess.Text = $Script:MbxAccessForm 
+                        $Script:txtInPlace.Text = $vmbx.InPlaceHolds
+                        #Build Retention
+                        $Script:locListBox.Items.Clear()
+                        If ($VADUsr.ExtensionAttribute14.Length -gt 0)
+                        {
+                            $LocArray = $VADUsr.ExtensionAttribute14.split(",")
+                            foreach ($element in $LocArray)
+                            {
+                                [void] $Script:locListBox.Items.Add($element.TrimStart())  # Add element to listbox
+                                $LineToWrite =  $WhoAmI + "`t" + "Enabled Hold: `t" + $element 
+                                WriteReportEvent                                 
+                            }
+                            $Script:locListBox.Refresh()
+                        }
+                        $Script:StoredHolds = import-csv "E:\O365AdminShared\Data\LegalDBOwners.csv" |Sort-Object EmpNo
+                        $Script:DBOwnerHolds = ""
+                        Foreach ($SH in $Script:StoredHolds)
+                        {
+                            If ($SH.EmpNo -eq $ENo)
+                            {
+                                $Val = "Listed as DBOwner for: " + $SH.CaseName + "/" + $SH.AppType
+                                $Script:DBOwnerHolds = $Script:DBOwnerHolds + $SH.CaseName + " , "
+                                [void] $Script:locListBox.Items.Add($val)
+                                $LineToWrite =  $WhoAmI + "`t" + "DbOwner for: `t" + $SH.CaseName 
+                                WriteReportEvent 
+                            }
+                        } 
+                        Publish-ViewForm
+                    }
+                    else
+                    {
+                        write-host "Mailbox not found for: " $m
+                    }
+                }
+            }
+            $Script:chkViewUsr.Checked = $False
+            $Script:txtENo.Visible = $False
+            $Script:ButViewENo.Visible = $False
+            $Script:GettingData.Visible = $False
+            $Global:cancelButton.Visible = $True
+        })
+            
+    ## For Investigative Hold
+        $Script:chkInvHold = New-Object System.Windows.Forms.Checkbox
+        $Script:chkInvHold.Text = "for Investigative Hold"  
+        $Script:chkInvHold.Top = $Col2Top ; $Script:chkInvHold.Left = $Col2Left; $Script:chkInvHold.Width=150 ;$Script:chkInvHold.AutoSize = $true 
+        $Script:chkInvHold.Visible = $False
+        $form.Controls.Add($Script:chkInvHold)    # Add to Form 
+        $Script:chkInvHold.Add_Click({
+            Hide-All
+            $Script:chkInvHold.Checked = $True
+            $Script:chkInvHold.Visible = $True
+            $Script:chkStdHold.Checked = $False
+            $Script:chkStdHold.Visible = $True
+            $Script:chkfor40180.Checked = $False
+            $Script:chkfor40180.Visible = $True
+            $Script:lblActHolds.Visible = $True
+            $Script:txtActHolds.Visible = $True
+            $Script:txtActHolds.Visible = $True
+            $Script:txtActHolds.Items.Clear()
+            Foreach ($Hold in $Script:InvHolds)
+            {
+                [void] $Script:txtActHolds.Items.Add($Hold.HoldName)
+            }
+        })
+
+    $Col2Top = $Col2Top + 20
+    ## For Entire Standard Hold
+    $Script:chkStdHold = New-Object System.Windows.Forms.Checkbox
+        $Script:chkStdHold.Text = "for Standard Hold"  
+        $Script:chkStdHold.Top = $Col2Top ; $Script:chkStdHold.Left = $Col2Left; $Script:chkStdHold.Width=150 ;$Script:chkStdHold.AutoSize = $true 
+        $Script:chkStdHold.Visible = $False
+        $form.Controls.Add($Script:chkStdHold)    # Add to Form 
+        $Script:chkStdHold.Add_Click({
+            Hide-All
+            $Script:chkStdHold.Checked = $True
+            $Script:chkStdHold.Visible = $True
+            $Script:chkfor40180.Checked = $False
+            $Script:chkfor40180.Visible = $True
+            $Script:chkInvHold.Checked = $False
+            $Script:chkInvHold.Visible = $True
+            $Script:lblActHolds.Visible = $True
+            $Script:txtActHolds.Visible = $True
+            $Script:txtActHolds.Visible = $True
+            $Script:txtActHolds.Items.Clear()
+            Foreach ($Hold in $Script:StdHolds)
+            {
+                [void] $Script:txtActHolds.Items.Add($Hold.HoldName)
+            }
+        })
+
+    $Col2Top = $Col2Top + 20
+    ## For 40/180 Hold
+    $Script:chkfor40180 = New-Object System.Windows.Forms.Checkbox
+        $Script:chkfor40180.Text = "for 40 or 180 Day Hold"  
+        $Script:chkfor40180.Top = $Col2Top ; $Script:chkfor40180.Left = $Col2Left; $Script:chkfor40180.Width=150 ;$Script:chkfor40180.AutoSize = $true 
+        $Script:chkfor40180.Visible = $False
+        $form.Controls.Add($Script:chkfor40180)    # Add to Form 
+        $Script:chkfor40180.Add_Click({
+            Hide-All
+            $Script:chkStdHold.Checked = $False
+            $Script:chkStdHold.Visible = $True
+            $Script:chkfor40180.Checked = $True
+            $Script:chkfor40180.Visible = $True
+            $Script:chkInvHold.Checked = $False
+            $Script:chkInvHold.Visible = $True
+            $Script:lblActHolds.Visible = $True
+            $Script:txtActHolds.Visible = $True
+            $Script:txtActHolds.Visible = $True
+            $Script:txtActHolds.Items.Clear()
+            Foreach ($Hold in $Script:40DayHolds)
+            {
+                [void] $Script:txtActHolds.Items.Add($Hold.HoldName)
+            }
+            Foreach ($Hold in $Script:180DayHolds)
+            {
+                [void] $Script:txtActHolds.Items.Add($Hold.HoldName)
+            }
+        })
+        
+    $Top = $Top + 30
+    ## List of Holds
+    $Script:lblActHolds = New-Object System.Windows.Forms.Label   
+        $Script:lblActHolds.Text = "Active Legal Holds:"
+        $Script:lblActHolds.Top = $Top; $Script:lblActHolds.Left = 10; $Script:lblActHolds.Width=150 ;$Script:lblActHolds.AutoSize = $true
+        $Script:lblActHolds.Visible = $False 
+        $form.Controls.Add($Script:lblActHolds)    # Add to Form 
+        # 
+        $Script:txtActHolds = New-Object Windows.Forms.ComboBox
+        Import-HoldDetails
+        $Script:txtActHolds.Top = $Top; $Script:txtActHolds.Left = $Col1Left; $Script:txtActHolds.Width = 360;
+        $Script:txtActHolds.Visible = $False
+        $Script:txtActHolds.Text = ""
+        $form.Controls.Add($Script:txtActHolds)
+        $Script:txtActHolds.Add_Click({
+            If (($Script:chkExistHold.Checked -eq $True) -or ($Script:chkStdRel.Checked -eq $True) -or ($Script:chkRenameHold.Checked -eq $True))
+            {
+                $Script:txtActHolds.Text = ""
+                $Script:txtENos.Text = ""
+                $Script:txtDBOwner.Text = ""
+                If ($Script:chkRenameHold.Checked -eq $False)
+                {
+                    $Script:txtRelENos.Text = "Enter comma separated ENo's"
+                    $Script:txtRelDBOwner.Text = "Enter comma separated ENo's"
+                    $Script:txtNoENos.Text = ""
+                    $Script:txtNoDBOwner.Text = ""
+                    $Script:txtRenameHolds.Text = ""
+                }
+                $Script:ButGetENo.visible = $true
+            }
+        })
+
+    $Script:ButGetENo = New-Object Windows.Forms.Button
+        $Script:ButGetENo.Location = New-object System.Drawing.Size(505,($Top-10))
+        $Script:ButGetENo.Size = new-Object System.Drawing.Size(($Top-10),35)
+        $Script:ButGetENo.Text = "Get Enabled Users"
+        $Script:ButGetENo.visible = $false
+        $form.Controls.Add($Script:ButGetENo)
+        $Script:ButGetENo.Add_Click({                
+            $Script:ButGetENo.visible = $false
+            $Script:FindHold = $Script:txtActHolds.SelectedItem + "*"
+            If ($Script:FindHold -ne "*")
+            {
+                $OwnFound = ""
+                $Script:ThisHold = $AllHold |where-object {$_.HoldName -like $Script:FindHold} |Sort-Object EmpNo
+                $Script:txtDBOwner.Text = ""
+                $Script:txtENos.Items.Clear()
+                $Script:txtDBOwner.Items.Clear()
+                foreach ($t in $Script:ThisHold)
+                {
+                    If ($t.Enabled -ne "DBOwner")
+                    {
+                        [void] $Script:txtENos.Items.Add($T.EmpNo + " (" + $T.Name +")")
+                    }
+                    else
+                    {
+                        [void] $Script:txtDBOwner.Items.Add($T.EmpNo + " (" + $T.Name +")")
+                        $OwnFound = "Yes"
+                    }
+                }
+                If ($Script:ThisHold.Count -ne "")
+                {
+                    $Script:txtENos.SelectedIndex = 0
+                }
+                else
+                {
+                    write-host "No custodians found for this hold" -ForegroundColor Red
+                }
+                If ($OwnFound -eq "Yes")
+                {
+                    $Script:txtDBOwner.SelectedIndex = 0
+                }
+                $Script:lblENos.Visible = $True
+                $Script:txtENos.Visible = $True
+                $Script:lblDBOwner.Visible = $True
+                $Script:txtDBOwner.Visible = $True
+                $Script:HoldDetails |where-object {$_.HoldName -like $Script:FindHold}
+                If ($Script:chkStdRel.Checked -eq $True)
+                {
+                    $Script:lblEMailDate.Visible = $True
+                    $Script:txtEMailDate.Visible = $True
+                    $Script:lblHRRep.Visible = $False
+                    $Script:txtHRRep.Visible = $False
+                    $Script:txtAttorney.Text = "A.Uteg"
+                }
+                else
+                {
+                    $Script:txtAttorney.Text = ($Script:HoldDetails |where-object {$_.HoldName -like $Script:FindHold}).Attorney
+                    $Script:chkSilent.Visible = $True
+                    $Script:chkHHold.Visible = $True
+                }
+                If (($Script:chkStd.checked -eq $True) -or ($Script:chkRenameHold.Checked -eq $True))
+                {
+                    $Script:lblHRRep.Visible = $False
+                    $Script:txtHRRep.Visible = $False
+                }
+                else
+                {
+                    $Script:txtHRRep.Text = ($Script:HoldDetails |where-object {$_.HoldName -like $Script:FindHold}).HRRep
+                    $Script:lblHRRep.Visible = $True
+                    $Script:txtHRRep.Visible = $True
+                }
+
+                If ((($Script:HoldDetails |where-object {$_.HoldName -like $Script:FindHold}).Silent) -eq "True")
+                {
+                    $Script:chkSilent.Checked = $True
+                }
+###
+
+####
+                If ($Script:chkExistHold.Checked -eq $True)
+                {
+                    If ($Script:chkStd.Checked -eq $True)
+                    {
+                        $Script:lblAttorney.Visible = $False
+                        $Script:txtAttorney.Visible = $False
+                        $Script:chkHHold.Visible = $False
+                        $Script:chkSilent.Visible = $False
+                    }
+                }
+                If ($Script:chkRenameHold.Checked -eq $False)
+                {
+                    $Script:lblRelENos.Visible = $True
+                    $Script:txtRelENos.Visible = $True
+                    $Script:txtRelDBOwner.Visible = $True
+                    $Script:lblRelDBOwner.Visible = $True
+                    $Script:lblAttorney.Visible = $True
+                    $Script:txtAttorney.Visible = $True
+                }
+                else
+                {
+                    $Script:txtRenameHolds.Text = $Script:txtActHolds.SelectedItem
+                    $Script:lblRenameHolds.Visible = $True
+                    $Script:txtRenameHolds.Visible = $True
+                    $Script:chkHHold.Visible = $False
+                    $Script:chkSilent.Visible = $False
+                    $Script:chkChgHHold.Checked = $True
+                    $Script:chkChgSilent.Checked = $False
+                    $Script:chkChgHHold.Visible = $True
+                    $Script:chkChgSilent.Visible = $True
+#                If ((($Script:HoldDetails |where-object {$_.HoldName -like $Script:FindHold}).Hardware) -eq "True")
+#                {
+#                    $Script:chkSilent.Checked = $True
+#                }
+                    If ($Script:ThisHold.HoldName -like "*NoHHold")
+                    {
+                        $Script:chkChgHHold.Checked = $False
+                    }
+                    If ($Script:ThisHold.HoldName -like "NonDisclosed*")
+                    {
+                        $Script:chkChgSilent.Checked = $True
+                    }
+                }
+                $Script:txtNoENos.Text = $Script:txtENos.Items.count
+                $Script:txtNoDBOwner.Text = $Script:txtDBOwner.Items.count
+                $Script:lblCountTitle.Visible = $True
+                $Script:txtNoENos.Visible = $True
+                $Script:txtNoDBOwner.Visible = $True
+            }
+            else
+            {
+                write-host "Invalid name of Legal Hold" -ForegroundColor Red
+            }
+        })
+
+    ## New Hold Name
+    $Script:lblHoldName = New-Object System.Windows.Forms.Label   
+        $Script:lblHoldName.Text = "New Hold Name: "
+        $Script:lblHoldName.Top = $Top; $Script:lblHoldName.Left = 10; $Script:lblHoldName.Width=150 ;$Script:lblHoldName.AutoSize = $true
+        $Script:lblHoldName.Visible = $False 
+        $form.Controls.Add($Script:lblHoldName)    # Add to Form 
+        #
+        $Script:txtHoldName = New-Object Windows.Forms.TextBox
+        $Script:txtHoldName.Top = $Top; $Script:txtHoldName.Left = $Col1Left; $Script:txtHoldName.Width = 340;
+        $Script:txtHoldName.Text = ""
+        $Script:txtHoldName.Visible = $False
+        $form.Controls.Add($Script:txtHoldName)    # Add to Form
+
+    ##Checkbox for Emergency Disablemement
+    ## Investigative Hold
+    $Script:chkEmergency = New-Object System.Windows.Forms.Checkbox
+        $Script:chkEmergency.Text = "Emergency Disablement"
+        $Script:chkEmergency.Top = $Top ; $Script:chkEmergency.Left = 490; $Script:chkEmergency.Width=150 ;$Script:chkEmergency.AutoSize = $true 
+        $Script:chkEmergency.Visible = $False
+        $form.Controls.Add($Script:chkEmergency)    # Add to Form
+        $Script:chkEmergency.Add_Click({
+            If ($Script:chkEmergency.Checked -eq $True)
+            {
+                $Script:txtHoldName.Text = $Script:txtHoldName.Text -replace "Day Hold","Day ED Hold"
+            }
+            else
+            {
+                $Script:txtHoldName.Text = $Script:txtHoldName.Text -replace "Day ED Hold","Day Hold"
+            }
+        })
+
+    $Top = $Top + 30
+    #Number of Staff Column Title
+    $Script:lblCountTitle = New-Object Windows.Forms.Label
+        $Script:lblCountTitle.Top = $Top; $Script:lblCountTitle.Left = 285; $Script:lblCountTitle.Width = 80
+        $Script:lblCountTitle.Text = "#Enabled"
+        $Script:lblCountTitle.Visible = $False
+        $form.Controls.Add($Script:lblCountTitle)    # Add to Form
+
+    ## Hardware Hold
+    $Script:chkHHold = New-Object System.Windows.Forms.Checkbox
+        $Script:chkHHold.Text = "Hardware Hold" 
+        $Script:chkHHold.Top = $Top ; $Script:chkHHold.Left = $Col1Left+30; $Script:chkHHold.Width=150 ;$Script:chkHHold.AutoSize = $true 
+        $Script:chkHHold.Checked = $True
+        $Script:chkHHold.Visible = $False
+        $form.Controls.Add($Script:chkHHold)    # Add to Form
+
+    ## Silent Hold
+    $Script:chkSilent = New-Object System.Windows.Forms.Checkbox
+        $Script:chkSilent.Text = "Silent Hold" 
+        $Script:chkSilent.Top = $Top ; $Script:chkSilent.Left = $Col2Left+30; $Script:chkSilent.Width=150 ;$Script:chkSilent.AutoSize = $true 
+        $Script:chkSilent.Checked = $False
+        $Script:chkSilent.Visible = $False
+        $form.Controls.Add($Script:chkSilent)    # Add to Form
+        $Script:chkSilent.Add_Click({
+            If ($chkSilent.Checked -eq $True)
+            {
+                 $Script:txtHoldName.Text = "NonDisclosed - " + $Script:txtHoldName.Text
+            }
+            else
+            {
+                $Script:txtHoldName.Text = $Script:txtHoldName.Text -replace ("NonDisclosed - ","")
+            }
+         })
+
+    $Top = $Top + 23
+    ## Employee Numbers
+    $Script:lblENos  = New-Object System.Windows.Forms.Label   
+        $Script:lblENos.Text = "Staff to Hold:"  
+        $Script:lblENos.Top = $Top ; $Script:lblENos.Left = 10; $Script:lblENos.Width=150 ;$Script:lblENos.AutoSize = $true
+        $Script:lblENos.Visible = $False
+        $form.Controls.Add($Script:lblENos)    # Add to Form 
+        # 
+        $Script:txtENos = New-Object Windows.Forms.ComboBox
+        $Script:txtENos.Top = $Top; $Script:txtENos.Left = $Col1Left; $Script:txtENos.Width = 165;
+        $Script:txtENos.Visible = $False
+        $form.Controls.Add($Script:txtENos)    # Add to Form
+
+    #No of Enabled Staff
+    $Script:txtNoENos = New-Object Windows.Forms.TextBox
+        $Script:txtNoENos.Top = $Top; $Script:txtNoENos.Left = 300; $Script:txtNoENos.Width = 25;
+        $Script:txtNoENos.Visible = $False
+        $form.Controls.Add($Script:txtNoENos)    # Add to Form
+
+    ## Release Employee #'s
+    $Script:lblRelENos  = New-Object System.Windows.Forms.Label   
+        $Script:lblRelENos.Text = ":Staff to Add/Release"  
+        $Script:lblRelENos.Top = $Top ; $Script:lblRelENos.Left = 505; $Script:lblRelENos.Width=150 ;$Script:lblRelENos.AutoSize = $true
+        $Script:lblRelENos.Visible = $False
+        $form.Controls.Add($Script:lblRelENos)    # Add to Form 
+        # 
+        $Script:txtRelENos = New-Object Windows.Forms.TextBox
+        $Script:txtRelENos.Top = $Top; $Script:txtRelENos.Left = 330; $Script:txtRelENos.Width = 165;
+        $Script:txtRelENos.Text = "Enter comma separated ENo's"
+        $Script:txtRelENos.Visible = $False
+        $form.Controls.Add($Script:txtRelENos)    # Add to Form
+        $Script:txtRelENos.Add_Click({
+            If ($Script:txtRelENos.Text -eq "Enter comma separated ENo's")
+            {
+                $Script:txtRelENos.Text = ""
+                If ($Script:chkStdRel.Checked -eq $True)
+                {
+                    If ($Script:txtNoENos.Text -eq "1")
+                    {
+                        $Script:txtRelENos.Text = "ALL"
+                    }
+                    else
+                    {
+                        $Output = $wshell.Popup("Enter 'ALL' to release all enabled or enter the employee numbers separated by commas to release select staff.",10,"Help Info",0+32)
+                    }
+                }
+                else
+                {
+                    $Output = $wshell.Popup("Enter employee numbers separated by commas of individual to add to hold.",10,"Help Info",0+32)
+                }
+            }
+            $Global:okButton.Visible = $True
+        })
+
+    $Top = $Top + 30
+    ## DBOwners
+    $Script:lblDBOwner  = New-Object System.Windows.Forms.Label   
+        $Script:lblDBOwner.Text = "DBOwner(s):"  
+        $Script:lblDBOwner.Top = $Top ; $Script:lblDBOwner.Left = 10; $Script:lblDBOwner.Width=150 ;$Script:lblDBOwner.AutoSize = $true
+        $Script:lblDBOwner.Visible = $False
+        $form.Controls.Add($Script:lblDBOwner)    # Add to Form 
+        # 
+        $Script:txtDBOwner = New-Object Windows.Forms.ComboBox
+        $Script:txtDBOwner.Top = $Top; $Script:txtDBOwner.Left = $Col1Left; $Script:txtDBOwner.Width = 165;
+        $Script:txtDBOwner.Visible = $False
+        $form.Controls.Add($Script:txtDBOwner)    # Add to Form
+
+    #No of DBOwners
+        $Script:txtNoDBOwner = New-Object Windows.Forms.TextBox
+        $Script:txtNoDBOwner.Top = $Top; $Script:txtNoDBOwner.Left = 300; $Script:txtNoDBOwner.Width = 25;
+        $Script:txtNoDBOwner.Visible = $False
+        $form.Controls.Add($Script:txtNoDBOwner)    # Add to Form
+
+    ## Release DBOwners
+    $Script:lblRelDBOwner  = New-Object System.Windows.Forms.Label   
+        $Script:lblRelDBOwner.Text = ":DBOwners to Add/Release"  
+        $Script:lblRelDBOwner.Top = $Top ; $Script:lblRelDBOwner.Left = 505; $Script:lblRelDBOwner.Width=150
+        $Script:lblRelDBOwner.Visible = $False
+        $form.Controls.Add($Script:lblRelDBOwner)    # Add to Form 
+        # 
+        $Script:txtRelDBOwner = New-Object Windows.Forms.TextBox
+        $Script:txtRelDBOwner.Top = $Top; $Script:txtRelDBOwner.Left = 330; $Script:txtRelDBOwner.Width = 165;
+        $Script:txtRelDBOwner.Text = "Enter comma separated ENo's"
+        $Script:txtRelDBOwner.Visible = $False
+        $form.Controls.Add($Script:txtRelDBOwner)    # Add to Form
+        $Script:txtRelDBOwner.Add_Click({
+            If ($Script:txtRelDBOwner.Text -eq "Enter comma separated ENo's")
+            {
+                $Script:txtRelDBOwner.Text = ""
+                If ($Script:chkStdRel.Checked -eq $True)
+                {
+                    If ($Script:txtNoDBOwner.Text -eq "1")
+                    {
+                        $Script:txtNoDBOwners.Text = "ALL"
+                    }
+                    else
+                    {
+                        $Output = $wshell.Popup("Enter 'ALL' to release all enabled or enter the employee numbers separated by commas to release select staff.",10,"Help Info",0+32)
+                    }
+                }
+                else
+                {
+                    $Output = $wshell.Popup("Enter employee numbers separated by commas of individual to add to as a DBOwner.",10,"Help Info",0+32)
+                }
+            }
+            $Global:okButton.Visible = $True
+        })
+
+    $Top = $Top + 30
+    #Rename Hold Name
+    $Script:lblRenameHolds = New-Object System.Windows.Forms.Label   
+        $Script:lblRenameHolds.Text = "New Hold Name: "
+        $Script:lblRenameHolds.Top = $Top; $Script:lblRenameHolds.Left = 10; $Script:lblRenameHolds.Width=150 ;$Script:lblRenameHolds.AutoSize = $true
+        $Script:lblRenameHolds.Visible = $False 
+        $form.Controls.Add($Script:lblRenameHolds)    # Add to Form 
+        # 
+        $Script:txtRenameHolds = New-Object Windows.Forms.TextBox
+        $Script:txtRenameHolds.Top = $Top; $Script:txtRenameHolds.Left = $Col1Left; $Script:txtRenameHolds.Width = 360;
+        $Script:txtRenameHolds.Visible = $False
+        $Script:txtRenameHolds.Text = ""
+        $form.Controls.Add($Script:txtRenameHolds)
+        $Script:txtRenameHolds.Add_Click({
+            $Global:OKButton.Visible = $True
+        })
+
+    ## Checkboxes to add/remove hardware or Silent hold on a Rename
+    $Script:chkChgHHold = New-Object System.Windows.Forms.CheckBox
+        $Script:chkChgHHold.Text = "Enable Hardware Hold" 
+        $Script:chkChgHHold.Top = $Top+30 ; $Script:chkChgHHold.Left = $Col1Left; $Script:chkChgHHold.Width=150 ;$Script:chkChgHHold.AutoSize = $true 
+        $Script:chkChgHHold.Visible = $False
+        $form.Controls.Add($Script:chkChgHHold)    # Add to Form
+        $Script:chkChgHHold.Add_Click({
+        })
+
+    $Script:chkChgSilent = New-Object System.Windows.Forms.CheckBox
+        $Script:chkChgSilent.Text = "Enable Silent Hold" 
+        $Script:chkChgSilent.Top = $Top+30 ; $Script:chkChgSilent.Left = $Col2Left; $Script:chkChgSilent.Width=150 ;$Script:chkChgSilent.AutoSize = $true
+        $Script:chkChgSilent.Visible = $False
+        $form.Controls.Add($Script:chkChgSilent)    # Add to Form
+        $Script:chkChgSilent.Add_Click({
+            If ($Script:chkChgSilent.Checked -eq $False)
+            {
+                $Script:txtRenameHolds.Text = $Script:txtRenameHolds.Text -Replace("NonDisclosed - ","")
+            }
+            else
+            {
+                $Script:txtRenameHolds.Text = "NonDisclosed - " + $Script:txtRenameHolds.Text
+            }
+        })
+
+    #Add HR Rep
+    $Script:lblHRRep = New-Object System.Windows.Forms.Label
+        $Script:lblHRRep.Text = ":HR Rep"
+        $Script:lblHRRep.Top = $Top ; $Script:lblHRRep.Left = 505; $Script:lblHRRep.Width=10 ;$Script:lblHRRep.AutoSize = $true
+        $Script:lblHRRep.Visible = $False
+        $form.Controls.Add($Script:lblHRRep)    # Add to Form 
+        # 
+        $Script:txtHRRep = New-Object Windows.Forms.ComboBox  
+        $Script:txtHRRep.Top = $Top; $Script:txtHRRep.Left = 330; $Script:txtHRRep.Width = 165;
+        $Script:HRReps = $Script:HoldDetails.HRRep | Sort-Object |Get-Unique
+        Foreach ($HRReps in $Script:HRReps)
+        {
+            If ($HRReps.Length -gt 0)
+            {
+                [void] $Script:txtHRRep.Items.Add($HRReps)
+            }
+        }
+        $Script:txtHRRep.Visible = $False
+        $form.Controls.Add($Script:txtHRRep)    # Add to Form 
+    
+    #Add Released By
+    $Script:lblAttorney = New-Object System.Windows.Forms.Label
+        $Script:lblAttorney.Text = "Released by:"  
+        $Script:lblAttorney.Top = $Top ; $Script:lblAttorney.Left = 10; $Script:lblAttorney.Width=150 ;$Script:lblAttorney.AutoSize = $true
+        $Script:lblAttorney.Visible = $False
+        $form.Controls.Add($Script:lblAttorney)    # Add to Form 
+        # 
+        $Script:txtAttorney = New-Object Windows.Forms.ComboBox
+        $Script:txtAttorney.Top = $Top; $Script:txtAttorney.Left = $Col1Left; $Script:txtAttorney.Width = 165;
+        $Script:Attorneys = $Script:HoldDetails.Attorney | Sort-Object |Get-Unique
+        Foreach ($Attorneys in $Script:Attorneys)
+        {
+            If ($Attorneys.length -gt 0)
+            {
+                [void] $Script:txtAttorney.Items.Add($Attorneys)
+            }
+        }
+        $Script:txtAttorney.Visible = $False
+        $form.Controls.Add($Script:txtAttorney)    # Add to Form
+
+    $Top = $Top + 30
+    #Add Release Date
+    $Script:lblEMailDate = New-Object System.Windows.Forms.Label
+        $Script:lblEMailDate.Text = "EMail Date Releasing:"
+        $Script:lblEMailDate.Top = $Top; $Script:lblEMailDate.Left = 10; $Script:lblEMailDate.Width=150 ;$Script:lblEMailDate.AutoSize = $true
+        $Script:lblEMailDate.Visible = $False
+        $form.Controls.Add($Script:lblEMailDate)    # Add to Form
+        #
+        $Script:txtEMailDate = New-Object Windows.Forms.DateTimePicker
+        $Script:txtEMailDate.Top = $Top; $Script:txtEMailDate.Left = $Col1Left; $Script:txtEMailDate.Width = 120;
+        $Script:txtEMailDate.Format = [windows.forms.datetimepickerFormat]::custom
+        $Script:txtEMailDate.Visible = $False
+        $Script:txtEMailDate.CustomFormat = "MM/dd/yyyy"
+        $Script:txtEMailDate.Text = (get-date)
+        $form.Controls.Add($Script:txtEMailDate)    # Add to Form
+
+        Add-FormStandardButtons
+        $Global:okButton.Text = "Proceed"
+
+    Add-ViewUsrDetailsForm
+}
+
+Function Build-RetentComment
+{
+    #Enable Hold or Add Additional Comment
+    If ($Script:chkExistHold.Checked -eq $False)
+    {
+        Import-HoldDetails
+        If ($Script:HoldDetails -like ("*"+ $HName +"*"))
+        {
+            #DoNothing this retention comment is arlready listed in the file
+        }
+        else
+        {
+            #Add this new hold to the list of all holds
+            $Text = "{0},{1},{2},{3},{4},{5}" -f $HName, $Script:txtHRRep.Text, $Script:txtAttorney.Text, $Script:chkHHold.Checked, $Script:chkSilent.Checked, (get-Date).ToString("yyyy-MM-dd")
+#            Out-File -FilePath "e:\O365AdminShared\Data\Legal-AllHoldDetails.csv" -InputObject $Text -Append
+            Add-Content -Path "e:\O365AdminShared\Data\Legal-AllHoldDetails.csv" -Value $Text
+        }
+    }
+
+    $Script:FullRetCmt = ""
+        
+    If ($Script:chkStd.Checked -eq $True)
+    {
+        $Script:RetCmt = $HName + "\" + $Script:txtAttorney.Text + "\"
+    }
+    else
+    {
+        $Script:RetCmt = $HName + " - " + $Script:txtHRRep.Text + "\" + $Script:txtAttorney.Text + "\"
+    }
+        
+    If ($Script:chkHHold.Checked -eq $True)
+    {
+        $Script:RetCmt = $Script:RetCmt + "HHold"
+    }
+    else
+    {
+        $Script:RetCmt = $Script:RetCmt + "NoHHold"
+    }
+    #set the retention comment if there are other holds
+
+    $Script:NewHoldCmt = $Script:RetCmt
+    $Script:Enabled = $True
+    If (($Script:u.ExtensionAttribute14.Length -gt 0) -and (($Script:u.ExtensionAttribute14 -notlike "Emergency*") -and ($Script:u.ExtensionAttribute14 -notlike "Standard*") -and ($Script:u.ExtensionAttribute14 -notlike "*Rehire*")))
+    {
+        If ($Script:u.ExtensionAttribute14 -notlike ("*" + $Script:RetCmt + "*"))
+        {
+#            write-host "Adding ExtensionAttribute14 to comment"
+            $Script:RetCmt = $Script:u.ExtensionAttribute14 + ", " + $Script:RetCmt
+        }
+        else
+        {
+#            write-host "This user is already enabled for this hold" -ForegroundColor Red
+            $Script:Enabled = $False
+            $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - No change made - already enabled for this hold`n"
+        }
+    }
+}
+
+Function Check-ReportFile
+{
+    If (Test-Path $ReportFile)
+    {
+    #  Do Nothing
+    }
+    else
+    {
+        write-host "`tCreating new report file for this individual" -ForegroundColor Yellow
+        $LineToWrite = "Legal Hold Activities for Emp No. " + $ENo + " [" +$Script:u.cn + "]`n"
+        WriteReportEvent       
+    }
+}
+
+Function Commit-CommentChange
+{
+    If ($Script:NewCmt -ne $Script:StoredCmt)
+    {
+#   Updating Comment
+        If ($Script:ADExists -ne $True)
+        {
+           $LineToWrite = $WhoAmI + "`t" + "Updating ExtensionAttribute14 on the O365 mailbox"
+           set-mailbox $ENo -RetentionComment (($Script:StoredCmt).Replace($Script:locListBox.SelectedItem,$Script:NewCmt))
+        }
+        else
+        {
+            $LineToWrite = $WhoAmI + "`t" + "Updating ExtensionAttribute14 on the AD account"
+            write-host "`tComment to Add: " $Script:NewCmt
+            Set-ADUser $ENo -Replace @{'ExtensionAttribute14' = $Script:NewCmt}
+        }
+    }
+    else 
+    {
+        $Output = $wshell.Popup("No changes needed.",0,"No Changes Needed",0+32)    
+        $LineToWrite = $WhoAmI + "`t" + "No changes Needed              :"
+        WriteReportEvent
+    }
+}
+
+Function Execute-Hold
+{
+    If ($Script:Mbx.LitigationHoldEnabled -eq $False)
+    {
+    #This person is not on legal hold
+        Set-Mailbox $ENo -LitigationHoldEnabled $true
+        write-host "`tEnabling legal hold for: " $ENo
+        $LineToWrite = $WhoAmI + "`t" + "Enabling Legal Hold for " + $ENo + " with Retention Comment of: " + $Script:RetCmt + "`n"
+        WriteReportEvent
+        $Mem = [bool](Get-DistributionGroupMember LegalSearchGroup@ul.onmicrosoft.com -ResultSize Unlimited| Where-Object {$_.PrimarySMTPAddress -eq $Mbx.PrimarySMTPAddress})
+        If ($Mem -eq $False)
+        {
+            Add-DistributionGroupMember LegalSearchGroup@ul.onmicrosoft.com -Member $ENo -BypassSecurityGroupManagerCheck
+            write-host "`tAdded User to LegalSearchGroup group" -ForegroundColor Green
+            $LineToWrite = $WhoAmI + "`t" + "Added user to the LegalSearchGroup for " + $ENo
+            write-host "`tCurrent AD Account Retention Comment: " $Script:u.ExtensionAttribute14
+        }
+        else
+        {
+            write-host "`tUser is already a member of the LegalSearchGroup" -ForegroundColor Yellow
+            $LineToWrite = $WhoAmI + "`t" + "User is Already a member of the LegalSearchGroup"
+        }
+        WriteReportEvent
+    }
+    else
+    {
+        write-host "`tLegal Hold is already enabled on this account" -ForegroundColor Yellow
+        $LineToWrite = $WhoAmI + "`tLegal Hold is already enabled on this account"
+        WriteReportEvent
+    }
+
+    If ($Script:usrDetails.ProtectedFromAccidentalDeletion -eq $False)
+    {
+        $Script:Protection = "True"
+        Set-ADObjProtect
+    }
+
+    If (($Script:Mbx.CustomAttribute1 -like "*Ex-*") -and ($Script:strUserPath -notlike "*_Extend*"))
+    {
+		   $OULoc = "ExtendedHold OU"
+           write-host "`tMoving ADOject to the ExtendedHoldOU for: " $ENo -ForegroundColor Green
+           Move-ADObjectOU
+	}
+
+    If ($ADExists -eq $True)
+    {
+        #Build new retention comment based on the AD Account Ext14 attribute
+        If (($Script:u.ExtensionAttribute14.length -eq 0) -or ($Script:u.ExtensionAttribute14 -like "Emergency*") -or ($Script:u.ExtensionAttribute14 -like "Standard*") -or ($Script:u.ExtensionAttribute14 -like "Rehire*"))
+        {
+            $Script:NewCmt = $Script:RetCmt
+            $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - Enabled legal hold for this individual`n"
+        }
+        else
+        {
+            $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - Added additional legal hold for this individual`n"
+            $Script:StoredCmt = $Script:u.ExtensionAttribute14
+            $Script:NewCmt = $Script:RetCmt
+        }
+        $LineToWrite = $WhoAmI + "`t" + "New ADRetention Activity       :`t" + $Script:NewCmt + "`n"
+    }
+    else
+    {
+        #Build new retention comment based on the O365Mailbox Ext14 attribute
+        $Script:StoredCmt = $Script:Mbx.CustomAttribute14 + $Script:RetCmt
+        $LineToWrite = $WhoAmI + "`t" + "New O365MbxRetention Activity         :`t" + $Script:NewCmt + "`n"
+        $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - No AD Acount Updated O365 Mailbox CustomAttribute14 for this individual`n"
+    }
+    WriteReportEvent
+    Commit-CommentChange
+}
+
+# Gets AD Account Properties
+Function GetAcctInfo
+{
+    $Script:ADCmt = ""
+    $Script:u = ""
+    
+    If ($ADExists -eq "True")
+    {
+        $strDN = (Get-ADUser $ENo).DistinguishedName
+        $Script:strUserPath = [string]::format("LDAP://{0}", $strDN)
+        $Script:u = Get-ADUser $ENo -Properties *
+#        write-host "`tCurrent AD Account Retention Comment: " $Script:u.ExtensionAttribute14
+        $Script:ADCmt = $Script:u.ExtensionAttribute14
+        $ObjExists = [bool]($Script:UsrDetails = Get-ADObject -Identity $strDN -Properties ProtectedFromAccidentalDeletion -ErrorAction silentlyContinue)
+        If ($ObjExists -eq $False)
+        {
+            $cnt = 0
+            Do
+            {
+                start-sleep -Seconds 5
+                $ObjExists = [bool]($Script:UsrDetails = Get-ADObject -Identity $strDN -Properties ProtectedFromAccidentalDeletion -ErrorAction silentlyContinue)
+                If ($ObjExists -eq $False)
+                {
+                    #Attempting to find the AD object
+                    $Cnt++
+                }
+            } while (($Cnt -le 5) -and ($ObjExists -eq $False))
+
+            If ($Cnt -ge 5)
+            {
+                write-host "`tAD Record not found"
+                $LineToWrite = $WhoAmI + "`t" + "AD Record Not Found!"
+                WriteReportEvent
+            }
+        }
+     }
+    else
+    {
+       write-host "`tNo ADAccount Found" -ForegroundColor Red
+    }
+
+    $MbxExists = [bool]($Script:inf = get-mailbox -identity $ENo -ErrorAction SilentlyContinue)
+    If ($Script:chkStdRel.Checked -eq $False)
+    {
+        If ($MbxExists -eq "True")
+        {
+            $LineToWrite = $WhoAmI + "`t" + "Account Details Before Adding New Hold: "
+            WriteReportEvent
+            Log-AcctDetails
+            PrtMBxAccess($Script:MbxAccess)
+        }
+        else
+        {
+            write-host "`n`tMailbox does not exist for Emp#" $ENo -ForegroundColor Red
+        }
+    }
+}
+
+function Hide-All
+{
+    $Script:ButGetENo.visible = $False
+    $Script:chkInvHold.Visible = $False
+    $Script:chkStdHold.Visible = $False
+    $Script:chkfor40180.Visible = $False
+    $Script:chk40Day.Visible = $False
+    $Script:chk180Day.Visible = $False
+    $Script:chkEmergency.Visible = $False
+    $Script:chkStd.Visible = $False
+    $Script:chkInv.Visible = $False
+    $Script:chkSilent.Visible = $False
+    $Script:chkChgSilent.Visible = $False
+    $Script:chkHHold.Visible = $False
+    $Script:chkChgHHold.Visible = $False
+    $Script:ButViewENo.Visible = $False
+    $Script:txtENo.Visible = $False
+    Hide-Details
+}
+
+Function Hide-Details
+{
+    $Script:lblENos.Visible = $False
+    $Script:txtENos.Visible = $False
+    $Script:lblRelENos.Visible = $False
+    $Script:txtRelENos.Visible = $False
+    $Script:lblDBOwner.Visible = $False
+    $Script:txtDBOwner.Visible = $False
+    $Script:lblRelDBOwner.Visible = $False
+    $Script:txtRelDBOwner.Visible = $False
+    $Script:lblActHolds.Visible = $False
+    $Script:txtActHolds.Visible = $False
+    $Script:lblRenameHolds.Visible = $False
+    $Script:txtRenameHolds.Visible = $False
+    $Script:lblHoldName.Visible = $False
+    $Script:txtHoldName.Visible = $False
+    $Script:lblEMailDate.Visible = $False
+    $Script:txtEMailDate.Visible = $False
+    $Script:txtAttorney.Text = ""
+    $Script:lblAttorney.Visible = $False
+    $Script:txtAttorney.Visible = $False
+    $Script:lblHRRep.Visible = $False
+    $Script:txtHRRep.Visible = $False
+    $Script:lblCountTitle.Visible = $False
+    $Script:txtNoENos.Visible = $False
+    $Script:txtNoDBOwner.Visible = $False
+    $Script:ButGetENo.visible = $false
+    If ($Script:chkStdRel.checked -eq $True)
+    {
+        $Script:txtAttorney.Text = "A.Uteg"
+    }
+    $Script:txtActHolds.Items.Clear()
+    $Script:txtDBOwner.Items.Clear()
+    $Script:txtENos.Items.Clear()
+    $Script:txtNoENos.Text = ""
+    $Script:txtNoDBOwner.Text = ""
+    $Script:txtENos.Text = ""
+    $Script:txtDBOwner.Text = ""
+    
+    $Script:txtENo.Text = "Enter comma separated ENo's"
+    $Script:txtRelENos.Text = "Enter comma separated ENo's"
+    $Script:txtRelDBOwner.Text = "Enter comma separated ENo's"
+    $Script:txtActHolds.Text = "Select Hold from List"
+    $Global:okButton.Visible = $False
+}
+
+Function Hide-ViewUsrDetails
+{
+    $Script:chkNewHold.Visible = $True
+    $Script:chk40Day.Visible = $True
+    $Script:chk180Day.Visible = $True
+    $Script:chkExistHold.Visible = $True
+    $Script:chkStdRel.Visible = $True
+    $Script:chkViewUsr.Visible = $True
+    $Script:lblName.Visible = $False
+    $Script:txtName.Visible = $False
+    $Script:lblType.Visible = $False
+    $Script:txtType.Visible = $False
+}
+
+Function Log-AcctDetails
+{
+    $LineToWrite = $WhoAmI + "`t" + "DisplayName                    :" + "`t" + $Script:Mbx.DisplayName
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "Employee Number                :" + "`t" + $Script:Mbx.Alias
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "Employee Type                  :" + "`t" + $Script:Mbx.CustomAttribute1
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "AD Container                   :" + "`t" + $Script:strUserPath
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "LitigationHoldEnabled          :" + "`t" + $Script:Mbx.LitigationHoldEnabled
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "LitigationHoldDate             :" + "`t" + $Script:Mbx.LitigationHoldDate
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "LitigationHoldOwner            :" + "`t" + $Script:Mbx.LitigationHoldOwner
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "Active InPlace Holds           :" + "`t" + ($Script:Mbx.InPlaceHolds -join ",")
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "Hidden from Address Book O365  :" + "`t" + $Script:Mbx.HiddenFromAddressListsEnabled
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "Hidden from Address Book AD    :" + "`t" + $Script:u.msExchHideFromAddressLists
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "O365 Retention Comment         :" + "`t" + $Script:Mbx.CustomAttribute14
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "AD Retention Comment           :" + "`t" + $Script:ADCmt
+    WriteReportEvent
+    $LineToWrite = $WhoAmI + "`t" + "AD Object Protected            :" + "`t" + $Script:usrDetails.ProtectedFromAccidentalDeletion
+    WriteReportEvent
+}
+
+Function Move-ADObjectOU
+{
+    $Script:MoveObj = "False"
+    $ErrorActionPreference = "SilentlyContinue"
+    If (($Script:u.ExtensionAttribute1 -like "*Ex-*") -and ($Script:chkNewHold.Checked -eq "Checked"))
+    {
+        $OULoc = "ExtendedHold OU"
+#        write-host "`tMoving AD Object to the ExtendedHold OU"
+        $LineToWrite = $WhoAmI + "`t" + "Moved to ExtendedHold from     :" + "`t" + $Script:strUserPath
+        $Script:MoveObj = [bool](Move-ADObject ($Script:strUserPath -replace("LDAP://","")) 'OU=_ExtendedHold,DC=global,DC=ul,DC=com')
+        WriteReportEvent
+    }
+    elseif (($Script:u.ExtensionAttribute1 -like "*Ex-*") -and ($Script:chkStdRel.Checked -eq "Checked"))
+    {
+        $OULoc = "Disabled OU"
+        write-host "`tMoving AD Object to the Disabled OU"
+        $LineToWrite = $WhoAmI + "`t" + "Moved to ExtendedHold from     :" + "`t" + $Script:strUserPath
+        $Script:MoveObj = [bool](Move-ADObject ($Script:strUserPath -replace("LDAP://","")) 'OU=Disabled,DC=global,DC=ul,DC=com')
+        WriteReportEvent
+    }
+    elseif ($Script:u.ExtensionAttribute1 -notlike "*Ex-*")
+    {
+        $OULoc = "Active"
+    }
+    $ErrorActionPreference = "Continue"
+#    write-host "MovedObj: " $script:MoveObj
+
+    If ($Script:MoveObj -eq $True)
+    {
+        If ($OULoc -like "*Disabled*")
+        {
+            write-host "`tMoving AD Object to the Disabled OU"
+            $Script:u.DistinguishedName = $Script:u.DistinguishedName.Remove($Script:u.DistinguishedName.IndexOf("OU=")) + "OU=Disabled,DC=global,DC=ul,DC=com"
+            $LineToWrite = $WhoAmI + "`t" + "Moved to Disabled OU from     :" + "`t" + $Script:strUserPath
+            WriteReportEvent
+        }
+        elseif ($OULoc -like "*Extend*")
+        {
+            write-host "`tMoving AD Object to the ExtendedHold OU"
+            $Script:u.DistinguishedName = $Script:u.DistinguishedName.Remove($Script:u.DistinguishedName.IndexOf("OU=")) + "OU=_ExtendedHold,DC=global,DC=ul,DC=com"
+            $LineToWrite = $WhoAmI + "`t" + "Moved to ExtendedHold from     :" + "`t" + $Script:strUserPath
+            WriteReportEvent
+        }
+        elseif ($OULoc -like "*Active*")
+        {
+            $output = $wshell.Popup("This individual needs to be moved back to an Active OU.",0,"Move to Active OU",0+32)
+        }
+        else
+        {
+            $Output = $wshell.Popup("Insufficient privilege to move account to the " + $OULoc + ": " + ($Script:strUserPath -replace("LDAP://","")),0,"Insufficient Privilege",0+32)
+        }
+	}
+}
+
+Function Move-HoldDetailsFile
+{
+    write-host "`tMoving Report File to the Legal Hold Released Directory"
+    Move-Item -Path $ReportFile -Destination $RelDir
+}
+
+Function Publish-ViewForm
+{
+    If ($Global:InputFocus -eq $null)
+    {
+        $Global:InputFocus = $Global:okButton
+    }
+    ## Finalize Form and Show Dialog
+    $Script:ViewForm.Add_Shown( { $form.Activate(); $Global:InputFocus.Focus() } )  #Activate and Set Focus 
+    $Global:Result = $Script:ViewForm.ShowDialog()          ## Show the form, and wait for the response
+}
+
+Function Remove-LegalHold
+{
+    #write-all records except for those related to this hold
+    $NewHoldsFile = get-content "E:\O365AdminShared\Data\Legal-AllHoldDetails.csv"
+    $Date = get-date -Format "yyyy-MMdd"
+    $uTime = get-date -uformat %T
+    $Time = $uTime.Replace(":", "")
+    $BkOutFile = "E:\O365AdminShared\Data\Data-Backups\Legal-AllHoldDetails-" + $Date + "-Time" + $Time + ".csv"
+    $OutFile = "E:\O365AdminShared\Data\Legal-AllHoldDetails.csv"
+    Move-Item $OutFile $BkOutFile
+
+    ForEach ($h in $NewHoldsFile)
+    {
+        If ($h -notlike ($Script:txtActHolds.SelectedItem + "*"))
+        {
+            #Add hold record into the new file
+#            Out-File -FilePath $OutFile -InputObject $h -Append
+            Add-Content -Path $OutFile -Value $h
+
+        }
+        else
+        {
+            write-host "`nHold has been removed from the AllHolds file: $hold" -ForegroundColor Magenta
+            Import-HoldDetails
+        }    
+    }
+}
+
+Function Release-FromHold #replaced Disable-Hold
+{
+    #This is to release individuals from Legal Holds - checks to so see if this individual is on other holds
+    $ADExists = $False
+    $StrDN = ""
+    $Script:StoredCmt = ""
+    $ErrorActionPreference = "SilentlyContinue"
+    $ADExists = [bool]($Script:u = Get-ADUser $ENo -Properties *)
+    $strdn = (Get-ADUser $ENo).DistinguishedName
+    GetAcctInfo
+    $ErrorActionPreference = "Continue"
+    $MbxExists = [bool]($Script:Mbx = Get-Mailbox $ENo -ErrorAction SilentlyContinue)
+
+    If ($Script:u.ExtensionAttribute14 -like "*,*")
+    {
+        write-host "`tThis individual is on multiple holds removing only details for this hold" -ForegroundColor Yellow
+        $holds = $Script:u.ExtensionAttribute14 -replace (", ","`n`t ")
+        write-host "`tHolds this inidividual is enabled for: `n`t"$Holds
+        $Holds = $Script:u.ExtensionAttribute14 -split ","
+        $NewHoldCmt = $Script:u.ExtensionAttribute14 -split ", "
+        $RelHold = "*" + $Script:txtActHolds.SelectedItem + "*"
+        $BuildCmt = ""
+        Foreach ($H in $Holds)
+        {
+            If ($H -notlike $RelHold)
+            {
+                $BuildCmt = $BuildCmt + $H + ", "
+            }
+        }
+        $BuildCmt = $BuildCmt.TrimStart(" ")
+        $BuildCmt = $BuildCmt.TrimEnd(", ")
+        Set-ADUser $ENo -Replace @{'ExtensionAttribute14' = $BuildCmt}
+        $LineToWrite = $WhoAmI + "`t" + "Release (HoldName       )      :" + "`t" + $BuildCmt
+        WriteReportEvent 
+        $LineToWrite = $WhoAmI + "`t" + "Released (By/Date)             :" + "`t" + $Script:lblAttorney.Text + " - " + $Script:txtEMailDate.Text
+        WriteReportEvent
+        $LineToWrite = $WhoAmI + "`t" + "Account remainson other active holds  `n"
+        WriteReportEvent
+        $Script:PurgeStatOthr = $Script:PurgeStatOthr + "`t" + $ENo + " (" + $Script:u.cn + " - " + $Script:u.ExtensionAttribute1 + ") - Account removed from this hold but remains on other active holds`n"
+    }
+    else
+    {
+        $Protected = Get-ADObject -Identity $strDN -Properties ProtectedFromAccidentalDeletion
+        Write-host "`tThis user is not on multiple Holds" -ForegroundColor Yellow
+        $RelDetails = $Script:txtReleaseby.SelectedItem + "-" + $Script:txtEMailDate.Text + " email"
+        $LineToWrite = $WhoAmI + "`t" + "Release Details (Who/Date)     :" + "`t" + $RelDetails
+        WriteReportEvent
+
+        set-mailbox $ENo -LitigationHoldEnabled $false
+        write-host "`tDisabling Litigation Hold on Mailbox"
+        $LineToWrite = $WhoAmI + "`t" + "Disabled Litigation Hold on Mailbox"
+        WriteReportEvent
+
+        Remove-DistributionGroupMember LegalSearchGroup -Member $ENo -BypassSecurityGroupManagerCheck -confirm:$False
+        write-host "`tRemoving Account from LegalSearchGroup"
+        $LineToWrite = $WhoAmI + "`t" + "Removed from LegalSearchGroup"
+        WriteReportEvent
+
+        If ($Script:UsrDetails.ProtectedFromAccidentalDeletion -eq $True)
+        {
+            Set-ADObject -Identity $strDN -ProtectedFromAccidentalDeletion $False -Credential $Global:AdmLiveCred
+            write-host "`tDisabling ADObject Protection"
+            $LineToWrite = $WhoAmI + "`t" + "Disabled ADObject Protection"
+            WriteReportEvent
+        }
+
+        If ($Script:u.ExtensionAttribute2 -eq "A")
+        {
+            write-host "`tActive User Released from legal hold" -ForegroundColor Yellow
+            $Script:PurgeStat = $Script:PurgeStat + "`t" + $ENo + " (" + $Script:u.cn + " - " + $Script:u.ExtensionAttribute1 + ") - Account released from Legal Hold`n"
+	    }
+
+        If ($Script:u.ExtensionAttribute1 -like "*Ex-*")
+        {
+            write-host "`tMoving ADObject from ExtendedHold to Disabled OU"
+            Move-ADObjectOU
+            $LineToWrite = $WhoAmI + "`t" + "Moved account from the ExtendedHold OU to the Disabled OU"
+            WriteReportEvent
+            write-host "`tCreate Change Request to Purge this Account" -ForegroundColor Yellow
+            $Script:PurgeStatRel = $Script:PurgeStatRel + "`t" + $ENo + " (" + $Script:u.cn + " - " + $Script:u.ExtensionAttribute1 + ") - Account Released - Create Account purge request`n"
+	    }
+
+        If ($Container -like "*Active Directory Account*")
+        {
+            set-mailbox $ENo -RetentionComment $null -CustomAttribute14 $null
+            write-host "`tNo ADAccount - Clearing Retention Comment on O365 Mailbox (ExtensionAttribute14)"
+            write-host "`tManually purge this maibox" -ForegroundColor Red
+            $LineToWrite = $WhoAmI + "`t" + "No AD Account found clearing the hold details in CustomAttribute14"
+            WriteReportEvent
+        }
+        else
+        {
+            set-aduser $ENo -clear ExtensionAttribute14
+            $Script:u.ExtensionAttribute14 = $null
+            $LineToWrite = $WhoAmI + "`t" + "Clearing ADAccount ExtensionAttribute14`n"
+            WriteReportEvent
+        }
+
+        If ($Script:inf.InPlaceHolds.length -ne 0)
+        {
+            $Hold = $Script:inf.InPlaceHolds
+            foreach ($Hold in $Hold)
+            {
+#                $Output = $wshell.Popup("Forcing removal of An active InPlace Hold was found on this account contact Legal to close Case Name: " + $Case.Name,0,"Active InplaceHold Found",0+32)
+#                Invoke-HoldRemovalAction -Action GetHolds -ExchangeLocation $ENo -HoldId $Hold -Force
+                $CaseHold = Get-CaseHoldPolicy ($Hold -replace ("UniH",""))
+                $Case = Get-ComplianceCase $CaseHold.CaseID
+                $Output = $wshell.Popup("An active InPlace Hold was found on this account contact Legal to close Case Name: " + $Case.Name + "If the case is not found you can use this command to remove the hold Invoke-HoldRemovalAction -Action GetHolds -ExchangeLocation $ENo -HoldId $Hold -Force" ,0,"Active InplaceHold Found",0+32)
+                $LineToWrite = $WhoAmI + "`t" + "Active InPlace Holds found Contact Legal to close the name " + $Case.Name
+                WriteReportEvent
+                $LineToWrite = $WhoAmI + "`t" + "If the case is not found you can use this command to remove the hold Invoke-HoldRemovalAction -Action GetHolds -ExchangeLocation $ENo -HoldId $Hold -Force"
+                WriteReportEvent
+
+            }
+        }
+    }
+#    $Script:Recap = $Script:Recap + $PurgeStat + $PurgeStatRel + $PurgeStatOthr
+}
+
+Function Update-HoldFiles
+{
+    #Reanme the Hold in the file that lists all holds
+    write-host "Renaming this hold in the file that contains the list of all legal holds" -ForegroundColor Yellow
+    $HFile = "e:\O365AdminShared\Data\Legal-AllHoldDetails.csv"
+    Import-HoldDetails
+    $Script:OtherHolds = $Script:HoldDetails |where-object {$_.HoldName -notlike $Script:FindHold} |Sort-Object EmpNo
+    $Script:LikeHold = $Script:HoldDetails |where-object {$_.HoldName -like $Script:FindHold} |Sort-Object EmpNo
+
+    Rename-Item -Path $HFile -NewName ("Legal-AllHoldDetails-Date" + $today + "-Time" + ((get-date -uformat %T).Replace(":", "")) + ".old")
+    $Text = "HoldName,HRRep,Attorney,Hardware,Silent,WhenCreated"
+#    Out-File -FilePath $HFile -InputObject $Text
+    Add-Content -Path $HFile -Value $Text
+
+    If ($Script:chkRenameHold.Checked -eq $True)
+    {  
+        foreach ($r in $Script:LikeHold)
+        {
+            $r.Hardware = "True"
+            $r.Silent = "True"
+            If ($Script:chkChgHHold.Checked -eq $False)
+            {
+                $r.Hardware = "False"
+            }
+            If ($Script:chkChgSilent.Checked -eq $False)
+            {
+                $r.Silent = "False"
+            }
+            $Text = "{0},{1},{2},{3},{4},{5}" -f $Script:txtRenameHolds.Text,$r.HRRep,$r.Attorney,$r.Hardware,$r.Silent,$r.WhenCreated
+#            Out-File -FilePath $HFile -InputObject $Text -Append
+            Add-Content -Path $HFile -Value $Text
+        }
+    }
+
+    foreach ($r in $Script:OtherHolds)
+    {
+        $Text = "{0},{1},{2},{3},{4},{5}" -f $r.HoldName,$r.HRRep,$r.Attorney,$r.Hardware,$r.Silent,$r.WhenCreated
+#       Out-File -FilePath $HFile -InputObject $Text -Append
+        Add-Content -Path $HFile -Value $Text
+    }
+
+    write-host "Renaming this hold details in AD and in the file that lists all hold details for all users" -ForegroundColor Yellow
+    #Rename Details in AD Account and details for each user on that hold
+    $Script:OtherHolds = $AllHold |where-object {$_.HoldName -notlike $Script:FindHold} |Sort-Object EmpNo
+    $Script:LikeHold = $AllHold |where-object {$_.HoldName -like $Script:FindHold} |Sort-Object EmpNo
+
+    Rename-Item -Path $ActFile -NewName ("LegalHoldReport-Date" + $today + "-Time" + ((get-date -uformat %T).Replace(":", "")) + ".old")
+    $Text = "Enabled,EmpNo,Name,EmpType,#ofHolds,HoldName,HoldEnabled,TermDate"
+#    Out-File -FilePath $ActFile -InputObject $Text
+    Add-Content -Path $ActFile -Value $Text
+    Foreach ($r in $Script:OtherHolds)
+    {
+        $Text = "{0},{1},{2},{3},{4},{5},{6},{7}" -f $r.Enabled,$r.EmpNo,$r.Name,$r.EmpType,$r."#ofHolds",$r.HoldName,$r.HoldEnabled,$r.TermDate
+#        Out-File -FilePath $ActFile -InputObject $Text -Append
+        Add-Content -Path $ActFile -Value $Text
+    }
+
+    If ($Script:chkRenameHold.Checked -eq $True)
+    {
+        foreach ($t in $Script:LikeHold)
+        {
+            If ($t.Enabled -ne "DBOwner")
+            {
+                write-host "`nRenaming retention comment for: " $t.EmpNo -ForegroundColor Cyan
+                $ADU = get-ADUser $t.EmpNo -Properties ExtensionAttribute14
+                $ADUs = $ADU.ExtensionAttribute14 -split ", "
+                $NewCmt = ""
+                $match = "No"
+                Foreach ($A in $ADUs)
+                {
+                    If ($A -like $Script:FindHold)
+                    {
+                        $A = $A.Replace(($Script:FindHold.Replace("*","")),$Script:txtRenameHolds.Text)
+                        If (($Script:chkChgHHold.Checked -eq $True) -and ($A -like "*NoHHold"))
+                        {
+                            $A = $A.Replace("NoHHold","HHold")
+                        }
+                        If (($Script:chkChgHHold.Checked -eq $False) -and ($A -like "*HHold"))
+                        {
+                            $A = $A.Replace("HHold","NoHHold")
+                        }
+                        $Match = "Yes"
+                        $RptCmt = $A
+                    }
+                    $NewCmt = $NewCmt + $A + ", "
+                }
+                $NewCmt = $NewCmt.TrimEnd(", ")
+                If ($Match -eq "Yes")
+                {
+                    write-host "`tFrom: " $ADU.ExtensionAttribute14
+                    write-host "`tTo: " $NewCmt
+                    Set-ADUser $t.EmpNo -Replace @{ExtensionAttribute14 = $NewCmt}
+                    $Script:Recap = $Script:Recap + $t.EmpNo + " (" + $ADU.Name + ") " + " - Renamed retention hold name`n"
+                }
+                else
+                {
+                    $Script:Recap = $Script:Recap + $t.EmpNo + " (" + $ADU.Name + ") " + " - The hold did not have a hold matchin the old hold name`n"
+                }
+            }
+            else
+            {
+                write-host "Renaming retention comment for DBOwner for: " $t.EmpNo
+                $RptCmt = $Script:txtRenameHolds.Text
+                $Script:Recap = $Script:Recap + $t.EmpNo + " (" + $t.Name + ") " + " - Renamed Hold Details for dbOwner`n"
+            }
+
+            $Text= "{0},{1},{2},{3},{4},{5},{6},{7}" -f $t.Enabled,$t.EmpNo,$t.Name,$t.EmpType,$t."#ofHolds",$RptCmt,$t.HoldEnabled,$t.TermDate
+#            Out-File -FilePath $ActFile -InputObject $Text -Append
+            Add-Content -Path $ActFile -Value $Text
+        }
+    }
+}
+
+Function Import-HoldDetails
+{
+    $Script:HoldDetails = import-csv "e:\O365AdminShared\Data\Legal-AllHoldDetails.csv"
+    $Script:40DayHolds = $Script:HoldDetails |Where-Object {$_.HoldName -like "*40 Day*"} | Sort-Object Holdname
+    $Script:180DayHolds = $Script:HoldDetails |Where-Object {$_.HoldName -like "*180 Day*"} | Sort-Object Holdname
+    $Script:StdHolds = $Script:HoldDetails |Where-Object {($_.HoldName -notlike "*40 Day*") -and ($_.HoldName -notlike "*180 Day*") -and ($_.HoldName -notlike "*Invest*")} | Sort-Object Holdname
+    $Script:InvHolds = $Script:HoldDetails |Where-Object {$_.HoldName -like "*Invest*"} | Sort-Object Holdname
+}
+
+Function Set-ADObjProtect
+{
+    $ErrorActionPreference = "SilentlyContinue"
+    switch ($Script:Protection)
+    {
+        "True"
+        {
+            Set-ADObject -Identity $strDN -ProtectedFromAccidentalDeletion $True -Credential $Global:AdmLiveCred
+        }
+        "False"
+        {
+            Set-ADObject -Identity $strDN -ProtectedFromAccidentalDeletion $False -Credential $Global:AdmLiveCred
+        }
+    }
+    $ErrorActionPreference = "Continue"
+    Start-Sleep -Seconds 10
+    $Script:UsrDetails = Get-ADObject -Identity $strDN -Properties ProtectedfromAccidentalDeletion
+
+    If (($Script:UsrDetails.ProtectedfromAccidentalDeletion -eq "True") -and ($Script:Protection -eq "True"))
+    {
+        $LineToWrite = $WhoAmI + "`t" + "AD Object Protection Enabled"
+    }
+    else
+    {
+        If (($Script:UsrDetails.ProtectedfromAccidentalDeletion -ne "True") -and ($Script:Protection -eq "False"))
+        {
+            $LineToWrite = $WhoAmI + "`t" + "AD Object Protection is Disabled"
+        }
+        else
+        {
+            $LineToWrite = $WhoAmI + "`t" + "Insufficient privilege to modify AD Object Protection for: " + $strDN
+            $output = $wshell.Popup("Insufficient privilege to modify AD Object Protection on account for: $strDN",10,"Insufficient Privilege",0+32)
+        }
+    }
+    WriteReportEvent
+}
+
+Function Show-WhoSilent
+{
+    If ($Script:chkExistHold.Checked -eq $False)
+    {
+        $Script:lblAttorney.Visible = $True
+        $Script:txtAttorney.Visible = $True
+        If ($Script:chkStd.checked -eq $True)
+        {
+            $Script:lblHRRep.Visible = $False
+            $Script:txtHRRep.Visible = $False
+        }
+        else
+        {
+            $Script:lblHRRep.Visible = $True
+            $Script:txtHRRep.Visible = $True        
+        }
+        $Script:chkSilent.Visible = $True
+        $Script:chkHHold.Visible = $True
+    }
+}
+
+Function Uncheck-Options
+{
+    $Script:chkStdHold.Checked = $False
+    $Script:chkfor40180.Checked = $False
+    $Script:chk40Day.Checked = $False
+    $Script:chk180Day.Checked = $False
+    $Script:chkStd.Checked = $False
+    $Script:chkInv.Checked = $False
+    $Script:chkSilent.Checked = $False
+    $Script:chkInvHold.checked = $False
+}
+
+Function Unhide-ViewUsrDetails
+{
+    $Script:chkNewHold.Visible = $False
+    $Script:chk40Day.Visible = $False
+    $Script:chk180Day.Visible = $False
+    $Script:chkExistHold.Visible = $False
+    $Script:chkStdRel.Visible = $False
+    $Script:chkViewUsr.Visible = $False
+    $Script:lblName.Visible = $True
+    $Script:txtName.Visible = $True
+    $Script:lblType.Visible = $True
+    $Script:txtType.Visible = $True
+}
+
+Function ViewOpt-ExistingHold
+{
+    $Script:lblActHolds.Visible = $True
+    $Script:txtActHolds.Visible = $True
+    $Script:chkHHold.Visible = $False
+    $Script:chkSilent.Visible = $False
+}
+
+$whoami = whoami
+$wshell = New-Object -ComObject Wscript.Shell
+$today = (get-date).toString("yyyy-MMdd")
+$Year = (get-date).ToString("yyyy")
+$RelDir = "e:\Automation\LegalHold\Released\" + $Year + "\"
+If (Test-Path $RelDir){} else {mkdir $RelDir}
+#Connect to Compliance Center
+#write-host "Connecting to Compliance Center"
+#Connect-IPPSSession -UserPrincipalName (($whoami.replace("global\","")) + ("@global.ul.com"))
+Import-HoldDetails
+#Copy all hold details to the O365AdminShared\Data directory to add new activites for the day
+$Dailyfile = ("\\usnbkutil100p\d$\ReportHistory\LegalHoldHistory\" + $Year + "\LegalHoldReport-" + (get-date).Tostring("yyyy-MMdd") + ".csv")
+If (Test-Path $DailyFile) {} else {$Dailyfile = ("\\usnbkutil100p\d$\ReportHistory\LegalHoldHistory\" + $Year + "\LegalHoldReport-" + ((get-date).AddDays(-1)).Tostring("yyyy-MMdd") + ".csv")}
+$ActFile = "e:\O365AdminShared\Data\Data-Backups\LegalHoldReport-" + $today + ".csv"
+
+#$Actstream = [System.IO.File]::Open($ActFile, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
+#$Actwriter = New-Object System.IO.StreamWriter($Actstream)
+
+If (Test-Path $ActFile) {} else {Copy-Item $DailyFile -Destination $ActFile -force}
+
+Do
+{
+$AllHold = import-csv $ActFile
+Build-HoldMenu
+$Global:okButton.Visible = $False
+Publish-Form
+$ReportFile = ""
+
+If ($Global:Result -eq "OK")
+{
+    $Script:Recap = ""
+    $Script:PurgeStat = "`nActive User Released from Legal Hold:`n"
+    $Script:PurgeStatRel = "`nTerminated User Released Create Purge Request:`n"
+    $Script:PurgeStatOthr = "`nReleased from This Hold Remains on Other Holds:`n "
+
+    #check to see if employee numbers have been entered into the NewHoldIndividuals or DB Owners fields
+    If  ($Script:chkNewHold.Checked -eq $True)
+    {
+        $HName = ($Script:txtHoldName.Text).TrimEnd(" - ")
+        If (($HName -ne "40 Day Hold") -and ($HName -ne "180 Day Hold"))
+        {
+            $Inuse = [bool]($Script:HoldDetails -like ("*"+(($Script:txtHoldName.Text).TrimEnd(" - "))+"*"))
+            If ($Inuse -eq $True)
+#            If (($Inuse -eq $True) -and ($Script:chkExistHold.Checked -eq $False))
+            {
+                Do
+                {
+                    $Output = $wshell.Popup("This retention comment already exists, please enter a different name or change that you are adding to an existing hold.",10,"Help Info",0+32)
+                    Publish-Form
+                    $Inuse = [bool]($Script:HoldDetails -like ("*"+(($Script:txtHoldName.Text).TrimEnd(" - "))+"*"))
+                }While (($InUse -eq $True) -and ($Global:Result -eq "OK"))
+            }
+        }
+
+        If ($Global:Result -eq "OK")
+        {
+            $Script:Recap = ""
+            If ($Script:chkNewHold.Checked -eq $True)
+            {
+                Build-RetentComment
+                write-host "`tEnable staff for new hold"
+                write-host "`t          New Hold Name: " $Script:txtHoldName.Text
+#2024-0904                write-host "`t This Retention Comment: " $Script:RetCmt
+                write-host "`t          Staff to Hold: " $Script:txtRelENos.Text
+                write-host "`t        DBOwners to Add: " $Script:txtRelDBOwner.Text
+                write-host "`t      Attorney Assigned: " $Script:txtAttorney.Text
+                If ($Script:chkStdHold.Checked -eq $False)
+                {
+                    write-host "`t         HRRep Assigned: " $Script:txtHRRep.Text
+                }
+                write-host "`t            Silent Hold: " $Script:chkSilent.Checked
+
+                If (($Script:txtRelENos.Text -notlike "Enter*") -and ($Script:txtRelENos.Text.Length -gt 0))
+                {
+                    $EnabSel = ($Script:txtRelENos.Text -replace(" ","")) -split ","
+                    write-host "`Number of staff to be Enabled: " $EnabSel.Count
+                    $NewHold = "*" + $Script:txtHoldName.Text.TrimEnd(" - ") + "*"
+                    Foreach ($ENo in $EnabSel)
+                    {
+                        If (($ENo.length -ge 5) -and ($ENo -notlike "Enter*"))
+                        {
+                            $ADExists = $False
+                            $StrDN = ""
+                            $Script:StoredCmt = ""
+                            $ErrorActionPreference = "SilentlyContinue"
+                            $ADExists = [bool]($Script:u = Get-ADUser $ENo -Properties *)
+                            Build-RetentComment
+                            $strdn = (Get-ADUser $ENo).DistinguishedName
+                            $ErrorActionPreference = "Continue"
+                            $ReportFile = "e:\Automation\LegalHold\Report\LegalHoldDetails-EmpNo" + $ENo + ".csv"
+#$RptStream = [System.IO.File]::Open($ReportFile, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
+#$RptWriter = New-Object System.IO.StreamWriter($RptStream)
+                            $MbxExists = [bool]($Script:Mbx = get-mailbox $ENo -ErrorAction SilentlyContinue)
+                            If (($ADExists -eq $False) -and ($MbxExists -eq $False))
+                            {
+                                write-host "`nProcessing Hold for: " $ENo -ForegroundColor Cyan
+                                write-host "`tNo AD Account or O365 Mailbox found for this user.  Try to restore the account before proceeding." -ForegroundColor Red
+                                $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - No AD Account or Mailbox found for this user`n"
+                            }
+                            else
+                            {
+                                GetAcctInfo
+                                write-host "`nProcessing Hold for: " $ENo - $Script:u.cn -ForegroundColor Cyan
+                                If ($Script:u.ExtensionAttribute14 -like $NewHold)
+                                {
+                                    write-host "`tThis individual is already enabled for this hold (LINE 1921)" -ForegroundColor Red
+                                    $LineToWrite = $WhoAmI + "`t" + "This individual is already enabled for this hold"
+                                    WriteReportEvent
+                                    $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - No change made - already enabled for this hold`n"
+                                }
+                                else
+                                {
+                                    Check-ReportFile
+                                    Build-RetentComment
+                                    Execute-Hold
+                                    If ($ADExists -eq $True)
+                                    {
+                                        $cnt = 0
+                                        write-host "`tVerifying that the hold details have been added...." -NoNewline
+                                        Do
+                                        {
+                                            write-host "...." -NoNewline
+                                            start-sleep -Seconds 7
+                                            $Script:u = Get-ADUser $ENo -Properties *
+                                            $Cnt++
+                                        } while (($Script:u.ExtensionAttribute14 -ne $NewCmt) -and ($cnt -le 10))
+                                        $Script:ADCmt = $Script:u.ExtensionAttribute14
+                                    }
+                                    If ($cnt -ge 10)
+                                    {
+                                        write-host "Check the retention comment on this account" -ForegroundColor Red
+                                    }
+                                    $LineToWrite = $WhoAmI + "`t" + "Account Details After Added New Hold: "
+                                    WriteReportEvent
+                                    $Mbx = Get-Mailbox $ENo -ErrorAction SilentlyContinue
+                                    Log-AcctDetails
+                                    write-host "`n`tEnabled staff for new hold" $ENo -ForegroundColor Green
+
+                                    # Add details to the LegalHoldReport
+                                    #Enabled,EmpNo,Name,EmpType,#ofHolds,HoldName,HoldEnabled,TermDate
+                                    $Text = "{0},{1},{2},{3},{4},{5},{6},{7}" -f "New",$ENo,$Script:u.cn,$Script:Mbx.CustomAttribute1,"",$Script:NewHoldCmt,"",""
+#                                    Out-File -FilePath $ActFile -InputObject $Text -Append
+                                    Add-Content -Path $ActFile -Value $Text
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    write-host "`tNo users to add as an active legal hold" -ForegroundColor Red
+                }
+                
+                If (($Script:txtRelDBOwner.Text -notlike "Enter*") -and ($Script:txtRelDBOwner.Text.Length -gt 0))
+                {
+                    $EnabSel = ($Script:txtRelDBOwner.Text -replace(" ","")) -split ","
+                    write-host "`nNumber of DBOwners to be Enabled: " $EnabSel.Count -ForegroundColor Cyan
+                    $DBOwner = "Yes"
+                    Foreach ($ENo in $EnabSel)
+                    {
+                        $DBOFile = import-csv "E:\O365AdminShared\Data\LegalDBOwners.csv" | Where-Object {$_.EmpNo -eq $ENo}
+                        If (($DBOfile.EmpNo -eq $ENo) -and ($DBOFile.CaseName -eq (($Script:txtHoldName.Text).TrimEnd(" - "))))
+                        {
+                            write-host "`tDetails already stored for this user and this case" -ForegroundColor Red
+                            $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - Individual already listed as a dBOwner for this legal hold`n"
+                        }
+                        else
+                        {
+                            $ReportFile = "e:\Automation\LegalHold\Report\LegalHoldDetails-EmpNo" + $ENo + ".csv"
+                            Check-ReportFile
+                            $ErrorActionPreference = "SilentlyContinue"
+                            $ADExists = [bool]($Script:u = Get-ADUser $ENo -Properties *)
+                            $strDN = (Get-ADUser $ENo).DistinguishedName
+                            $MbxExists = [bool]($Script:Mbx = get-mailbox $ENo -ErrorAction SilentlyContinue)
+                            $ErrorActionPreference = "Continue"
+                            If ($ADExists -eq $True)
+                            {
+                                $LineToWrite = $WhoAmI + "`t" + "Adding User as a dbOwner to the LegalDBOwners.csv file"
+                                WriteReportEvent
+                                $LineToWrite = $WhoAmI + "`t" + "Preservation Details           :`t" + $Script:txtHoldName.Text
+                                WriteReportEvent
+                                #Add to dbOwner File
+                                If ($Name -like "*_*")
+                                {
+                                    $Loc = $Name.Indexof("_")
+                                    $Name = $Name.Substring(0,$Loc)
+                                }
+                                $LineToWrite = '{0},{1},{2},{3}' -f $ENo,$Script:u.cn,(($Script:txtHoldName.Text).TrimEnd(" - ")),""
+#                                Out-File -FilePath "E:\O365AdminShared\Data\LegalDBOwners.csv" -InputObject $LineToWrite -Append -Encoding ascii
+                                Add-Content -Path "E:\O365AdminShared\Data\LegalDBOwners.csv" -Value $Text -Encoding ascii
+                            }
+                            write-host "`tAdd DBOwner for new hold" $ENo
+                            $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - Added individual as a dBOwner for this legal hold`n"
+                            $Text = "{0},{1},{2},{3},{4},{5},{6},{7}" -f "DBOwner",$ENo,$Script:u.cn,"","",(($Script:txtHoldName.Text).TrimEnd(" - ")),"",""
+#                            Out-File -FilePath $ActFile -InputObject $Text -Append
+                            Add-Content -Path $ActFile -Value $Text
+                        }
+                    }
+                }
+                else
+                {
+                    write-host "`tNo DBOwners identified" -ForegroundColor Red
+                }
+            }
+        }
+        else
+        {
+            write-host "Process cancelled" -ForegroundColor Red
+        }
+    }
+
+    If ($Script:chkExistHold.Checked -eq $True)
+    {
+    #    Enable additional staff for an existing legal hold
+        write-host "Enable additional staff for existing hold"
+        write-host "        Hold Name: " $Script:txtActHolds.SelectedItem
+        write-host "    Staff to Hold: " $Script:txtRelENos.Text
+        write-host "  DBOwners to Add: " $Script:txtRelDBOwner.Text
+        write-host "Attorney Assigned: " $Script:txtAttorney.Text
+        If ($Script:chkStdHold.Checked -eq $False)
+        {
+            write-host "   HRRep Assigned: " $Script:txtHRRep.Text
+        }
+        write-host "      Silent Hold: " $Script:chkSilent.Checked
+
+#        $Script:Recap = ""
+        $HName = (($Script:txtActHolds.SelectedItem).TrimEnd(" - "))
+        $EnabSel = ($Script:txtRelENos.Text -replace(" ","")) -split ","
+        write-host "Number of staff to be Enabled: " $EnabSel.Count
+        $NewHold = "*" + $Script:txtActHolds.SelectedItem.TrimEnd(" - ") + "*"
+        Foreach ($ENo in $EnabSel)
+        {
+            If (($ENo.length -ge 5) -and ($ENo -notlike "Enter*"))
+            {
+                $ADExists = $False
+                $StrDN = ""
+                $Script:StoredCmt = ""
+                $Script:u = ""
+                $ErrorActionPreference = "SilentlyContinue"
+                $ADExists = [bool]($Script:u = Get-ADUser $ENo -Properties *)
+                $strDN = (Get-ADUser $ENo).DistinguishedName
+                $ErrorActionPreference = "Continue"
+                $MbxExists = [bool]($Script:Mbx = get-mailbox $ENo -ErrorAction SilentlyContinue)
+#                $Script:Mbx = get-mailbox $ENo
+                write-host "`nProcessing Hold for: " $ENo - $Script:u.cn -ForegroundColor Cyan
+                
+                If (($ADExists -eq $true) -or ($MbxExists -eq $true))
+                {
+                    $ReportFile = "e:\Automation\LegalHold\Report\LegalHoldDetails-EmpNo" + $ENo + ".csv"
+                    Check-ReportFile
+                    GetAcctInfo
+                    If ($Script:ADCmt -like $NewHold)
+                    {
+                        write-host "`tThis individual is already enabled for this hold (LINE 1856)" -ForegroundColor Red
+                        $LineToWrite = $WhoAmI + "`t" + "This individual is already enabled for this hold"
+                        WriteReportEvent
+                        $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - No change made - already enabled for this hold`n"
+                    }
+                    else
+                    {
+                        Build-RetentComment
+                        Execute-Hold
+                        If ($ADExists -eq $True)
+                        {
+                            $cnt = 0
+                            write-host "`tVerifying that the hold details have been added...." -NoNewline
+                            Do
+                            {
+                                write-host "...." -NoNewline
+                                start-sleep -Seconds 7
+                                $Script:u = Get-ADUser $ENo -Properties *
+                                $Cnt++
+                            } while (($Script:u.ExtensionAttribute14 -ne $NewCmt) -and ($cnt -le 10))
+                            $Script:ADCmt = $Script:u.ExtensionAttribute14
+                        }
+                        If ($cnt -ge 10)
+                        {
+                            write-host "`n`tRetention Comment not updated - manual check needed" -ForegroundColor Red
+                        }
+                        else
+                        {
+                            write-host "`n`tNew Retention Comment: " $Script:u.ExtensionAttribute14 -ForegroundColor Green
+                        }
+                        $LineToWrite = $WhoAmI + "`tAccount Details After Added New Hold: "
+                        WriteReportEvent
+                        $Mbx = get-mailbox $ENo -ErrorAction SilentlyContinue
+                        Log-AcctDetails
+                        write-host "`tEnabled staff for existing hold" $ENo -ForegroundColor Green
+                    
+                        # Add details to the LegalHoldReport
+                        #Enabled,EmpNo,Name,EmpType,#ofHolds,HoldName,HoldEnabled,TermDate
+                        $Text = "{0},{1},{2},{3},{4},{5},{6},{7}" -f "New",$ENo,$Script:u.cn,$Script:Mbx.CustomAttribute1,"",$Script:txtActHolds.SelectedItem,"",""
+#                        Out-File -FilePath $ActFile -InputObject $Text -Append
+                        Add-Content -Path $ActFile -Value $Text
+
+                        write-host "`tAdded additional staff for existing hold" $ENo
+                    }
+                }
+                else
+                {
+                    write-host "`tNo AD Account or O365 Mailbox found for this user.  Try to restore the account before proceeding." -ForegroundColor Red
+                    $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - No AD Account or Mailbox found for this user`n"
+                }
+            }
+        }
+
+        If (($Script:txtRelDBOwner.Text -notlike "Enter*") -and ($Script:txtRelDBOwner.Text.Length -gt 0))
+        {
+            $EnabSel = ($Script:txtRelDBOwner.Text -replace(" ","")) -split ","
+            write-host "Number of DBOwners to be Enabled: " $EnabSel.Count
+
+            If (($Script:txtRelDBOwner.Text -notlike "Enter*") -and ($Script:txtRelDBOwner.Text.Length -gt 0))
+            {
+                $EnabSel = ($Script:txtRelDBOwner.Text -replace(" ","")) -split ","
+                $DBOwner = "Yes"
+                Foreach ($ENo in $EnabSel)
+                {
+                    $DBOFile = import-csv "E:\O365AdminShared\Data\LegalDBOwners.csv" | Where-Object {$_.EmpNo -eq $ENo}
+                    If (($DBOfile.EmpNo -eq $ENo) -and ($DBOFile.CaseName -eq (($Script:txtHoldName.Text).TrimEnd(" - "))))
+                    {
+                        write-host "`tDetails already stored for this user and this case" -ForegroundColor Red
+                        $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - Individual already listed as a dBOwner for this legal hold`n"
+                    }
+                    else
+                    {
+                        $ReportFile = "e:\Automation\LegalHold\Report\LegalHoldDetails-EmpNo" + $ENo + ".csv"
+                        Check-ReportFile
+                        $ErrorActionPreference = "SilentlyContinue"
+                        $ADExists = [bool]($Script:u = Get-ADUser $ENo -Properties *)
+                        $strDN = (Get-ADUser $ENo).DistinguishedName
+                        $MbxExists = [bool]($Script:Mbx = get-mailbox $ENo -ErrorAction SilentlyContinue)
+                        $ErrorActionPreference = "Continue"
+                        If ($ADExists -eq $True)
+                        {
+                            $LineToWrite = $WhoAmI + "`t" + "Adding User as a dbOwner to the LegalDBOwners.csv file"
+                            WriteReportEvent
+                            $LineToWrite = $WhoAmI + "`t" + "Preservation Details           :`t" + $Script:RetCmt
+                            WriteReportEvent
+                            #Add to dbOwner File
+                            If ($Name -like "*_*")
+                            {
+                                $Loc = $Name.Indexof("_")
+                                $Name = $Name.Substring(0,$Loc)
+                            }
+                            $LineToWrite = '{0},{1},{2},{3}' -f $ENo,$Script:u.cn,$HName,""
+#                            Out-File -FilePath "E:\O365AdminShared\Data\LegalDBOwners.csv" -InputObject $LineToWrite -Append
+                            Add-Content -Path "E:\O365AdminShared\Data\LegalDBOwners.csv" -Value $Text -Encoding ascii
+                        }
+                        write-host "`tAdd additional DBOwner for existing hold" $ENo
+                        $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + $Script:u.cn + ") - Added individual as a dBOwner for existing legal hold`n"
+                        $Text = "{0},{1},{2},{3},{4},{5},{6},{7}" -f "DBOwner",$ENo,$Script:u.cn,"","",$HName,"",""
+#                        $Text = "{0},{1},{2},{3},{4},{5},{6},{7}" -f "DBOwner",$ENo,$Script:u.cn,"","",$Script:RetCmt,"",""
+#                        Out-File -FilePath $ActFile -InputObject $Text -Append
+                        Add-Content -Path $ActFile -Value $Text
+                    }
+                }
+            }
+        }
+        else
+        {
+            write-host "`tNo changes to existing DBOwner's made" -ForegroundColor Red
+        }
+    }
+
+    If ($Script:chkStdRel.Checked -eq $True)
+    {
+    #    Release from a legal hold
+        $Script:txtRelENos.Text = $Script:txtRelENos.Text -replace(" ","")
+        $Script:txtRelENos.Text = $Script:txtRelENos.Text.TrimEnd(",")
+        If (($Script:txtRelENos.Text -notlike "Enter*") -and ($Script:txtRelENos.Text.Length -gt 0))
+        {
+            write-host "`nReleasing from Legal Hold - " $Script:txtActHolds.SelectedItem -ForegroundColor Cyan
+      
+            If ($Script:txtRelENos.Text -eq "All")
+            {
+                #This section does the clean-up for individuals on this hold
+                $RelSel = $Script:txtENos.Items
+                write-host "                 Staff to Release: " ($RelSel -join ", ")
+                write-host "       Number of staff to Release: " $RelSel.Count
+                Foreach ($u in $RelSel)
+                {
+                    $ENo = $u.Substring(0,$u.Indexof(" ")) #Extact emp# and removes the name
+                    $ReportFile = "e:\Automation\LegalHold\Report\LegalHoldDetails-EmpNo" + $ENo + ".csv"
+                    Check-ReportFile
+                    write-host "`n`tReleasing employee number: " $ENo -ForegroundColor Cyan
+                    Release-FromHold
+                    If ((get-mailbox $ENo).LitigationHoldEnabled -eq $False)
+                    {
+                        Move-HoldDetailsFile
+                    }
+                }
+            }
+            else
+            {
+                #This section does the clean-up for each individual entered
+                $RelSel = $Script:txtRelENos.Text -split (",")
+#                $RelSel = ($Script:txtRelENos.Text -replace(" ","")) -split (",")
+                write-host "                 Staff to Release: " ($RelSel -join ", ")
+                write-host "       Number of staff to Release: " $RelSel.Count
+                Foreach ($u in $RelSel)
+                {
+                    $ENo = $u.Trim() #trim of leading or trailing spaces
+                    $ReportFile = "e:\Automation\LegalHold\Report\LegalHoldDetails-EmpNo" + $ENo + ".csv"
+                    Check-ReportFile
+                    write-host "`n`tReleasing employee number: " $ENo -ForegroundColor Cyan
+                    Release-FromHold
+                    If ((get-mailbox $ENo).LitigationHoldEnabled -eq $False)
+                    {
+                        Move-HoldDetailsFile
+                    }
+                }
+            }
+        }
+
+        If (($Script:txtRelDBOwner.Text -notlike "Enter*") -and ($Script:txtRelDBOwner.Text.Length -gt 0))
+        {
+            $DBOFile = "E:\O365AdminShared\Data\LegalDBOwners.csv"
+            $DBODetails = get-content "E:\O365AdminShared\Data\LegalDBOwners.csv"
+            $NewRecs = get-content "e:\O365adminshared\data\LegalDBowners.csv" | Where-Object {$_ -notmatch $Script:txtActHolds.SelectedItem}
+            $RemoveRecs = get-content "e:\O365adminshared\data\LegalDBowners.csv" | Where-Object {$_ -match $Script:txtActHolds.SelectedItem}
+            Rename-Item -Path $DBOFile -NewName ("LegalDBOwners-Date" + (((get-date -uformat %D).Replace("/", "-")) + "-Time" + ((get-date -uformat %T).Replace(":", ""))) + ".old")
+            If ($Script:txtRelDBOwner.Text -eq "All")
+            {
+                write-host "`tRelease all enabled DBOwners from this hold"
+                $RelSel = $Script:txtDBOwner.Items
+                write-host "            Release all dBOwner's: " $RelSel
+                write-host "   Number of dBOwner's to Release: " $RelSel.Count
+                Foreach ($r in $RemoveRecs)
+                {
+                    $ENo = $r.Substring(0,$r.Indexof(","))
+                    $ReportFile = "e:\Automation\LegalHold\Report\LegalHoldDetails-EmpNo" + $ENo + ".csv"
+                    write-host "`tReleasing dBOwner employee number: " $ENo
+                    $LineToWrite = $WhoAmI + "`t" + "Removing record in DBOwners.csv file"
+                    WriteReportEvent
+                    $Script:Recap = $Script:Recap + "`t" + $r + ") - Removed entry from the dBOwners.csv file`n"
+                }
+                #Add owners not a part of this hold into the file
+                Foreach ($n in $NewRecs)
+                {
+                    add-content $DBOFile $n
+                }
+            }
+            else
+            {
+                write-host "`tRelease selected DBOwners from this hold"
+                $RelSel = ($Script:txtRelDBOwner.Text -replace(" ","")) -split(",")
+                write-host "       Release Select dBOwner's: " $RelSel
+                write-host " Number of dBOwner's to Release: " $RelSel.Count
+                $ThisHoldOwners = get-content "e:\O365adminshared\data\legaldbowners.csv" | Where-Object {$_ -match $Script:txtActHolds.SelectedItem}
+                Foreach ($ENo in $RelSel)
+                {
+                    write-host "`tReleasing dbOwner employee number: " $ENo
+                    $ReportFile = "e:\Automation\LegalHold\Report\LegalHoldDetails-EmpNo" + $ENo + ".csv"
+                    $LineToWrite = $WhoAmI + "`t" + "Removing record in DBOwners.csv file"
+                    WriteReportEvent
+                    #Remove Entry from DBOwners file
+                    $RemoveRecs = $RemoveRecs |Where-Object {$_ -notmatch $ENo}
+                    $Script:Recap = $Script:Recap + "`t" + $ENo + " (" + ((get-ADUser $ENo).Name) + ") - Removed entry from the dBOwners.csv file`n"
+                }
+                #Add all recs that were not a part of this hold
+                Foreach ($n in $NewRecs)
+                {
+                    add-content $DBOFile $n
+                }
+                #If dbowners remain add these back into the file
+                If ($RemoveRecs.count -gt 0)
+                {
+                    Foreach ($r in $RemoveRecs)
+                    {
+                        add-content $DBOFile $r
+                    }
+                }
+            }
+        }
+
+        #This section removes this legal hold from the list of all holds
+        If ((($Script:txtRelENos.Text -like "ALL*" ) -or ($Script:txtNoENos.Text -eq 0)) -and (($Script:txtRelDBOwner.Text -like "ALL*") -or ($Script:txtNoDBOwner.Text -eq 0)))
+        {
+            If (($Script:txtActHolds.SelectedItem -notlike "40 Day Hold - ") -and ($Script:txtActHolds.SelectedItem -notlike "180 Day Hold - "))
+            {
+                Remove-LegalHold
+                $Script:Recap = $Script:Recap + "`tRemoved " + $Script:txtActHolds.SelectedItem + " from the file with all active Legal Holds`n"
+            }
+            else
+            {
+                write-host "This hold was not removed from the file as it is the generic entry for 40 Day or 180 Day Holds" -ForegroundColor Yellow
+            }
+        }
+
+        $Script:Recap = $Script:Recap + $Script:PurgeStat + $Script:PurgeStatRel + $Script:PurgeStatOthr
+    }
+
+    If ($Script:chkRenameHold.Checked -eq $True)
+    {
+        Update-HoldFiles
+        Import-HoldDetails
+        $AllHold = import-csv $ActFile
+    }
+
+    If ($Script:Recap.Length -gt 0)
+    {
+        write-host "`n`nChanges made for this hold activity:" -ForegroundColor Green
+        $Script:Recap
+        write-host "`n`n -----------------------------------------------------------------`n`n"
+    }
+}
+else
+{
+    write-host "Process cancelled" -ForegroundColor Red
+}
+#$stream.Close()
+} while ($Global:Result -eq "OK")

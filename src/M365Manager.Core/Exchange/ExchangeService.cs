@@ -22,20 +22,22 @@ public sealed class ExchangeService : IExchangeService
 
     public bool IsConnected { get; private set; }
 
-    public async Task ConnectAsync(CancellationToken ct = default)
+    public async Task ConnectAsync(Action<string>? onPrompt = null, CancellationToken ct = default)
     {
         await _host.EnsureExchangeModuleAsync(ct);
 
         var upn = _auth.CurrentUser?.Upn;
 
+        // Device-code auth avoids the WAM window-handle requirement in a hosted (GUI) process.
         await _host.InvokeAsync(ps =>
         {
             ps.AddCommand("Connect-ExchangeOnline")
+              .AddParameter("Device", true)
               .AddParameter("ShowBanner", false)
               .AddParameter("ErrorAction", "Stop");
             if (!string.IsNullOrWhiteSpace(upn))
                 ps.AddParameter("UserPrincipalName", upn);
-        }, ct);
+        }, onPrompt, ct);
 
         IsConnected = true;
     }
@@ -48,7 +50,7 @@ public sealed class ExchangeService : IExchangeService
         var results = await _host.InvokeAsync(ps => ps
             .AddCommand("Get-DistributionGroup")
             .AddParameter("Filter", filter)
-            .AddParameter("ResultSize", 50), ct);
+            .AddParameter("ResultSize", 50), ct: ct);
 
         return results.Select(MapGroup).ToList();
     }
@@ -58,7 +60,7 @@ public sealed class ExchangeService : IExchangeService
         var results = await _host.InvokeAsync(ps => ps
             .AddCommand("Get-DistributionGroup")
             .AddParameter("Identity", identity)
-            .AddParameter("ErrorAction", "SilentlyContinue"), ct);
+            .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
 
         var first = results.FirstOrDefault();
         return first is null ? null : MapGroup(first);
@@ -70,7 +72,7 @@ public sealed class ExchangeService : IExchangeService
             .AddCommand("Get-DistributionGroupMember")
             .AddParameter("Identity", identity)
             .AddParameter("ResultSize", "Unlimited")
-            .AddParameter("ErrorAction", "Stop"), ct);
+            .AddParameter("ErrorAction", "Stop"), ct: ct);
 
         return results.Select(o => new GroupMemberInfo
         {

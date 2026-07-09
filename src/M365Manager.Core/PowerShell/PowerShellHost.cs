@@ -55,7 +55,7 @@ public sealed class PowerShellHost : IDisposable
         await InvokeAsync(ps => ps
             .AddCommand("Import-Module")
             .AddParameter("Name", psd1)
-            .AddParameter("ErrorAction", "Stop"), ct);
+            .AddParameter("ErrorAction", "Stop"), ct: ct);
 
         _exchangeModuleImported = true;
     }
@@ -64,7 +64,10 @@ public sealed class PowerShellHost : IDisposable
     /// Builds and runs a command against the shared runspace, returning the output objects.
     /// Throws <see cref="PowerShellException"/> if the command reports errors.
     /// </summary>
-    public async Task<IReadOnlyList<PSObject>> InvokeAsync(Action<PowerShellSdk> build, CancellationToken ct = default)
+    public async Task<IReadOnlyList<PSObject>> InvokeAsync(
+        Action<PowerShellSdk> build,
+        Action<string>? onInformation = null,
+        CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct);
         try
@@ -74,6 +77,15 @@ public sealed class PowerShellHost : IDisposable
                 using var ps = PowerShellSdk.Create();
                 ps.Runspace = _runspace;
                 build(ps);
+
+                // Surface host messages (e.g. the device-code sign-in prompt) live.
+                if (onInformation is not null)
+                {
+                    ps.Streams.Information.DataAdded += (_, e) =>
+                        onInformation(ps.Streams.Information[e.Index].ToString());
+                    ps.Streams.Warning.DataAdded += (_, e) =>
+                        onInformation(ps.Streams.Warning[e.Index].Message);
+                }
 
                 var results = ps.Invoke();
 

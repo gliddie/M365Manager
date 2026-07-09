@@ -21,6 +21,8 @@ public sealed partial class GroupsViewModel : ObservableObject
     [ObservableProperty] private DistributionGroupInfo? _selectedGroup;
     [ObservableProperty] private string _ownersText = "";
 
+    private bool _deviceLoginOpened;
+
     public ObservableCollection<DistributionGroupInfo> SearchResults { get; } = new();
     public ObservableCollection<GroupMemberInfo> Members { get; } = new();
 
@@ -35,10 +37,24 @@ public sealed partial class GroupsViewModel : ObservableObject
     private async Task ConnectAsync()
     {
         IsBusy = true;
-        StatusMessage = "Connecting to Exchange Online (a sign-in window may appear)...";
+        _deviceLoginOpened = false;
+        StatusMessage = "Connecting to Exchange Online...";
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
         try
         {
-            await _exchange.ConnectAsync();
+            await _exchange.ConnectAsync(prompt =>
+            {
+                void Show()
+                {
+                    StatusMessage = prompt;
+                    TryOpenDeviceLogin(prompt);
+                }
+
+                if (dispatcher is not null)
+                    dispatcher.Invoke(Show);
+                else
+                    Show();
+            });
             IsConnected = _exchange.IsConnected;
             StatusMessage = "Connected to Exchange Online. Enter a name and search.";
             await SafeLogAsync("Connect", null, Severity.Success, "Connected to Exchange Online.");
@@ -122,6 +138,26 @@ public sealed partial class GroupsViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    private void TryOpenDeviceLogin(string prompt)
+    {
+        if (_deviceLoginOpened || !prompt.Contains("devicelogin", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _deviceLoginOpened = true;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "https://microsoft.com/devicelogin",
+                UseShellExecute = true,
+            });
+        }
+        catch
+        {
+            // If the browser cannot be opened, the URL is still shown in the status message.
         }
     }
 

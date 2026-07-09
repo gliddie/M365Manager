@@ -21,6 +21,11 @@ public sealed partial class GroupsViewModel : ObservableObject
     [ObservableProperty] private DistributionGroupInfo? _selectedGroup;
     [ObservableProperty] private string _ownersText = "";
 
+    /// <summary>Device-code sign-in instructions, shown prominently while connecting.</summary>
+    [ObservableProperty] private string _deviceCodeMessage = "";
+
+    private bool _browserOpened;
+
     public ObservableCollection<DistributionGroupInfo> SearchResults { get; } = new();
     public ObservableCollection<GroupMemberInfo> Members { get; } = new();
 
@@ -35,22 +40,66 @@ public sealed partial class GroupsViewModel : ObservableObject
     private async Task ConnectAsync()
     {
         IsBusy = true;
-        StatusMessage = "Connecting to Exchange Online (a browser sign-in may appear)...";
+        _browserOpened = false;
+        DeviceCodeMessage = "";
+        StatusMessage = "Connecting to Exchange Online...";
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
         try
         {
-            await _exchange.ConnectAsync();
+            await _exchange.ConnectAsync(prompt =>
+            {
+                void Show()
+                {
+                    // Accumulate all sign-in output so the full instructions stay visible.
+                    DeviceCodeMessage = string.IsNullOrEmpty(DeviceCodeMessage) ? prompt : $"{DeviceCodeMessage}\n{prompt}";
+                    StatusMessage = prompt;
+                    TryOpenBrowser(prompt);
+                }
+
+                if (dispatcher is not null)
+                    dispatcher.Invoke(Show);
+                else
+                    Show();
+            });
+
             IsConnected = _exchange.IsConnected;
+            DeviceCodeMessage = "";
             StatusMessage = "Connected to Exchange Online. Enter a name and search.";
             await SafeLogAsync("Connect", null, Severity.Success, "Connected to Exchange Online.");
         }
         catch (Exception ex)
         {
+            DeviceCodeMessage = "";
             StatusMessage = $"Connection failed: {ex.Message}";
             await SafeLogAsync("Connect", null, Severity.Error, $"Exchange connect failed: {ex.Message}");
         }
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    private void TryOpenBrowser(string prompt)
+    {
+        if (_browserOpened)
+            return;
+
+        var match = System.Text.RegularExpressions.Regex.Match(prompt, @"https?://\S+");
+        if (!match.Success)
+            return;
+
+        _browserOpened = true;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = match.Value,
+                UseShellExecute = true,
+            });
+        }
+        catch
+        {
+            // If the browser cannot be opened, the URL is still shown in the banner.
         }
     }
 

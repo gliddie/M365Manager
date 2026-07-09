@@ -11,8 +11,6 @@ namespace M365Manager.Core.Exchange;
 /// </summary>
 public sealed class ExchangeService : IExchangeService
 {
-    private const string ExchangeScope = "https://outlook.office365.com/.default";
-
     private readonly PowerShellHost _host;
     private readonly IM365AuthService _auth;
 
@@ -24,26 +22,23 @@ public sealed class ExchangeService : IExchangeService
 
     public bool IsConnected { get; private set; }
 
-    public async Task ConnectAsync(CancellationToken ct = default)
+    public async Task ConnectAsync(Action<string>? onPrompt = null, CancellationToken ct = default)
     {
-        var user = _auth.CurrentUser
-            ?? throw new InvalidOperationException("Sign in to M365 first (Settings → Sign in and test).");
-
-        var organization = user.Upn.Contains('@')
-            ? user.Upn[(user.Upn.IndexOf('@') + 1)..]
-            : user.Upn;
-
         await _host.EnsureExchangeModuleAsync(ct);
 
-        // Reuse the signed-in browser credential to get an Exchange token (no device code).
-        var token = await _auth.GetAccessTokenAsync(ExchangeScope, ct);
+        var upn = _auth.CurrentUser?.Upn;
 
-        await _host.InvokeAsync(ps => ps
-            .AddCommand("Connect-ExchangeOnline")
-            .AddParameter("AccessToken", token)
-            .AddParameter("Organization", organization)
-            .AddParameter("ShowBanner", false)
-            .AddParameter("ErrorAction", "Stop"), ct: ct);
+        // Device-code auth: delegated (keeps the colleague's identity) and works in a
+        // hosted GUI process without a WAM window handle.
+        await _host.InvokeAsync(ps =>
+        {
+            ps.AddCommand("Connect-ExchangeOnline")
+              .AddParameter("Device", true)
+              .AddParameter("ShowBanner", false)
+              .AddParameter("ErrorAction", "Stop");
+            if (!string.IsNullOrWhiteSpace(upn))
+                ps.AddParameter("UserPrincipalName", upn);
+        }, onPrompt, ct);
 
         IsConnected = true;
     }

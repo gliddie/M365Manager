@@ -7,10 +7,12 @@ namespace M365Manager.Core.Exchange;
 
 /// <summary>
 /// Exchange Online operations via the hosted PowerShell runspace (bundled EXO module).
-/// Connects interactively as the signed-in admin, so actions run under their identity.
+/// Connects with an access token from the signed-in admin, so actions run under their identity.
 /// </summary>
 public sealed class ExchangeService : IExchangeService
 {
+    private const string ExchangeScope = "https://outlook.office365.com/.default";
+
     private readonly PowerShellHost _host;
     private readonly IM365AuthService _auth;
 
@@ -22,57 +24,74 @@ public sealed class ExchangeService : IExchangeService
 
     public bool IsConnected { get; private set; }
 
-    public async Task ConnectAsync(Action<string>? onPrompt = null, CancellationToken ct = default)
+    public async Task ConnectAsync(CancellationToken ct = default)
     {
+        var user = _auth.CurrentUser
+            ?? throw new InvalidOperationException("Sign in to M365 first (Settings → Sign in and test).");
+
+        var organization = user.Upn.Contains('@')
+            ? user.Upn[(user.Upn.IndexOf('@') + 1)..]
+            : user.Upn;
+
         await _host.EnsureExchangeModuleAsync(ct);
 
-        var upn = _auth.CurrentUser?.Upn;
+        // Reuse the signed-in browser credential to get an Exchange token (no device code).
+        var token = await _auth.GetAccessTokenAsync(ExchangeScope, ct);
 
-        // Device-code auth avoids the WAM window-handle requirement in a hosted (GUI) process.
-        await _host.InvokeAsync(ps =>
-        {
-            ps.AddCommand("Connect-ExchangeOnline")
-              .AddParameter("Device", true)
-              .AddParameter("ShowBanner", false)
-              .AddParameter("ErrorAction", "Stop");
-            if (!string.IsNullOrWhiteSpace(upn))
-                ps.AddParameter("UserPrincipalName", upn);
-        }, onPrompt, ct);
+        await _host.InvokeAsync(ps => ps
+            .AddCommand("Connect-ExchangeOnline")
+            .AddParameter("AccessToken", token)
+            .AddParameter("Organization", organization)
+            .AddParameter("ShowBanner", false)
+            .AddParameter("ErrorAction", "Stop"), ct: ct);
 
         IsConnected = true;
     }
 
     public async Task<IReadOnlyList<DistributionGroupInfo>> SearchGroupsAsync(string search, CancellationToken ct = default)
     {
-        var term = (search ?? "").Replace("'", "").Trim();
-        var filter = $"DisplayName -like '*{term}*' -or Alias -like '*{term}*' -or PrimarySmtpAddress -like '*{term}*' -or Name -like '*{term}*'";
+        var term = (search ?? "").Replace("'", "").Replace("\"", "").Trim();
+        var pattern = $"*{term}*";
 
-        var results = await _host.InvokeAsync(ps => ps
+        // Distribution + mail-enabled security groups
+        var dg = await _host.InvokeAsync(ps => ps
             .AddCommand("Get-DistributionGroup")
-            .AddParameter("Filter", filter)
-            .AddParameter("ResultSize", 50), ct: ct);
-
-        return results.Select(MapGroup).ToList();
-    }
-
-    public async Task<DistributionGroupInfo?> GetGroupAsync(string identity, CancellationToken ct = default)
-    {
-        var results = await _host.InvokeAsync(ps => ps
-            .AddCommand("Get-DistributionGroup")
-            .AddParameter("Identity", identity)
+            .AddParameter("Identity", pattern)
+            .AddParameter("ResultSize", 50)
             .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
 
-        var first = results.FirstOrDefault();
-        return first is null ? null : MapGroup(first);
+        // Microsoft 365 (unified) groups
+        var ug = await _host.InvokeAsync(ps => ps
+            .AddCommand("Get-UnifiedGroup")
+            .AddParameter("Identity", pattern)
+            .AddParameter("ResultSize", 50)
+            .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
+
+        return dg.Concat(ug)
+            .Select(MapGroup)
+            .GroupBy(g => g.PrimarySmtpAddress)
+            .Select(grp => grp.First())
+            .OrderBy(g => g.DisplayName)
+            .ToList();
     }
 
-    public async Task<IReadOnlyList<GroupMemberInfo>> GetMembersAsync(string identity, CancellationToken ct = default)
+    public async Task<IReadOnlyList<GroupMemberInfo>> GetMembersAsync(DistributionGroupInfo group, CancellationToken ct = default)
     {
-        var results = await _host.InvokeAsync(ps => ps
-            .AddCommand("Get-DistributionGroupMember")
-            .AddParameter("Identity", identity)
-            .AddParameter("ResultSize", "Unlimited")
-            .AddParameter("ErrorAction", "Stop"), ct: ct);
+        var identity = string.IsNullOrWhiteSpace(group.PrimarySmtpAddress) ? group.Name : group.PrimarySmtpAddress;
+        var isUnified = group.RecipientTypeDetails.Contains("GroupMailbox", StringComparison.OrdinalIgnoreCase);
+
+        var results = isUnified
+            ? await _host.InvokeAsync(ps => ps
+                .AddCommand("Get-UnifiedGroupLinks")
+                .AddParameter("Identity", identity)
+                .AddParameter("LinkType", "Members")
+                .AddParameter("ResultSize", "Unlimited")
+                .AddParameter("ErrorAction", "Stop"), ct: ct)
+            : await _host.InvokeAsync(ps => ps
+                .AddCommand("Get-DistributionGroupMember")
+                .AddParameter("Identity", identity)
+                .AddParameter("ResultSize", "Unlimited")
+                .AddParameter("ErrorAction", "Stop"), ct: ct);
 
         return results.Select(o => new GroupMemberInfo
         {

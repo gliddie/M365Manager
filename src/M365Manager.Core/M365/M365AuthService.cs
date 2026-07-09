@@ -1,3 +1,4 @@
+using Azure.Core;
 using Azure.Identity;
 using M365Manager.Core.Settings;
 using Microsoft.Graph;
@@ -8,6 +9,7 @@ namespace M365Manager.Core.M365;
 /// Delegated (interactive) M365 sign-in. Each colleague authenticates with their OWN
 /// admin account, so all Graph calls run under their identity and M365 audit logs
 /// attribute changes to them. Works with MFA / Conditional Access.
+/// The same credential is reused to get tokens for other services (e.g. Exchange Online).
 /// </summary>
 public sealed class M365AuthService : IM365AuthService
 {
@@ -15,6 +17,7 @@ public sealed class M365AuthService : IM365AuthService
 
     private readonly ISettingsService _settings;
     private GraphServiceClient? _graph;
+    private InteractiveBrowserCredential? _credential;
 
     public M365AuthService(ISettingsService settings)
     {
@@ -43,8 +46,8 @@ public sealed class M365AuthService : IM365AuthService
             RedirectUri = new Uri("http://localhost"),
         };
 
-        var credential = new InteractiveBrowserCredential(options);
-        _graph = new GraphServiceClient(credential, Scopes);
+        _credential = new InteractiveBrowserCredential(options);
+        _graph = new GraphServiceClient(_credential, Scopes);
 
         var me = await _graph.Me.GetAsync(cancellationToken: ct);
 
@@ -56,9 +59,20 @@ public sealed class M365AuthService : IM365AuthService
         return CurrentUser;
     }
 
+    public async Task<string> GetAccessTokenAsync(string scope, CancellationToken ct = default)
+    {
+        if (_credential is null)
+            throw new InvalidOperationException("Not signed in to M365. Sign in first.");
+
+        var context = new TokenRequestContext(new[] { scope });
+        var token = await _credential.GetTokenAsync(context, ct);
+        return token.Token;
+    }
+
     public void SignOut()
     {
         _graph = null;
+        _credential = null;
         CurrentUser = null;
     }
 }

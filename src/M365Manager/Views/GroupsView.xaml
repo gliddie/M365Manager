@@ -20,28 +20,13 @@
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Margin="0,0,0,16">
-            <!-- Device-code sign-in banner (shown only while a code is pending) -->
-            <Border Margin="0,0,0,12" CornerRadius="8" Padding="16,12"
-                    Background="{StaticResource UlRedSoftBrush}" BorderBrush="{StaticResource UlRedBrush}"
-                    BorderThickness="1"
-                    Visibility="{Binding DeviceCodeMessage, Converter={StaticResource EmptyToCollapsed}}">
-                <StackPanel>
-                    <TextBlock Text="Sign-in required" FontFamily="Segoe UI" FontSize="13"
-                               FontWeight="SemiBold" Foreground="{StaticResource UlRedDarkBrush}" Margin="0,0,0,4" />
-                    <TextBlock Text="{Binding DeviceCodeMessage}" FontFamily="Segoe UI" FontSize="14"
-                               Foreground="{StaticResource TextBrush}" TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-
-            <StackPanel Orientation="Horizontal">
-                <TextBox Style="{StaticResource ModernTextBox}" Width="320"
-                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                         ToolTip="Group name, alias or email address" />
-                <Button Style="{StaticResource PrimaryButton}" Content="Search" Margin="10,0,0,0"
-                        Command="{Binding SearchCommand}"
-                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-            </StackPanel>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,16">
+            <TextBox Style="{StaticResource ModernTextBox}" Width="320"
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="Group name, alias or email address" />
+            <Button Style="{StaticResource PrimaryButton}" Content="Search" Margin="10,0,0,0"
+                    Command="{Binding SearchCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
         </StackPanel>
 
         <!-- Results + details -->

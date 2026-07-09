@@ -5,17 +5,14 @@ public interface IExchangeService
     bool IsConnected { get; }
 
     /// <summary>
-    /// Connects to Exchange Online as the signed-in admin using device-code auth.
-    /// <paramref name="onPrompt"/> receives the sign-in instructions (URL + code) to show the user.
+    /// Connects to Exchange Online using an access token from the signed-in admin
+    /// (same browser login as Graph) - no device code, actions run under their identity.
     /// </summary>
-    Task ConnectAsync(Action<string>? onPrompt = null, CancellationToken ct = default);
+    Task ConnectAsync(CancellationToken ct = default);
 
-    /// <summary>Finds distribution/security groups matching the search text.</summary>
+    /// <summary>Finds distribution, mail-enabled security and Microsoft 365 groups matching the text.</summary>
     Task<IReadOnlyList<DistributionGroupInfo>> SearchGroupsAsync(string search, CancellationToken ct = default);
 
-    /// <summary>Gets the full details of one group by name/alias/address.</summary>
-    Task<DistributionGroupInfo?> GetGroupAsync(string identity, CancellationToken ct = default);
-
-    /// <summary>Lists the members of a group.</summary>
-    Task<IReadOnlyList<GroupMemberInfo>> GetMembersAsync(string identity, CancellationToken ct = default);
+    /// <summary>Lists the members of a group (handles distribution/security and M365 groups).</summary>
+    Task<IReadOnlyList<GroupMemberInfo>> GetMembersAsync(DistributionGroupInfo group, CancellationToken ct = default);
 }

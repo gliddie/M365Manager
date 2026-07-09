@@ -19,5 +19,11 @@ public interface IM365AuthService
     /// <summary>The authenticated Graph client. Throws if not signed in.</summary>
     GraphServiceClient Graph { get; }
 
+    /// <summary>
+    /// Gets an access token for another resource (e.g. Exchange Online) using the same
+    /// signed-in credential, so the token carries the colleague's identity.
+    /// </summary>
+    Task<string> GetAccessTokenAsync(string scope, CancellationToken ct = default);
+
     void SignOut();
 }

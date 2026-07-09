@@ -25,8 +25,14 @@ Das ist eine **einmalige** Einrichtung durch einen Global- oder Application-Admi
    - Für den Start: `User.Read` (ist meist schon vorhanden)
    - Später ergänzen wir die Rechte, die die einzelnen Admin-Funktionen brauchen
      (z. B. `User.ReadWrite.All`, `Group.ReadWrite.All`, `Directory.ReadWrite.All`).
-9. Optional, aber empfohlen: **Grant admin consent for <Tenant>** klicken, damit die
-   Kollegen beim ersten Login nicht jede Berechtigung einzeln bestätigen müssen.
+9. **Für Exchange Online (Groups-Funktion):** **Add a permission** →
+   Reiter **APIs my organization uses** → nach **`Office 365 Exchange Online`** suchen →
+   **Delegated permissions** → **`Exchange.Manage`** auswählen → hinzufügen.
+   (Damit kann die App mit deinem Browser-Login ein Exchange-Token holen — ohne Device-Code.)
+10. **Grant admin consent for <Tenant>** klicken (empfohlen), damit die Kollegen beim
+    ersten Login nicht jede Berechtigung einzeln bestätigen müssen.
+
+> Falls `Exchange.Manage` nicht auftaucht: sag mir Bescheid, dann passen wir den Scope an.
 
 ## Wichtig zur Identität
 

@@ -13,7 +13,7 @@ namespace M365Manager.Core.Exchange;
 /// Exchange Online operations via the hosted PowerShell runspace (bundled EXO module).
 /// Connects with an access token from the signed-in admin, so actions run under their identity.
 /// </summary>
-public sealed class ExchangeService : IExchangeService
+public sealed class ExchangeService : IExchangeService, IM365Connector
 {
     private readonly PowerShellHost _host;
     private readonly IM365AuthService _auth;
@@ -25,6 +25,9 @@ public sealed class ExchangeService : IExchangeService
         _auth = auth;
         _settings = settings;
     }
+
+    public string DisplayName => "Exchange Online";
+    public int Order => 1;
 
     public bool IsConnected { get; private set; }
 

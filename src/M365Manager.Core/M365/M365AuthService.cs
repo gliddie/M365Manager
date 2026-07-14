@@ -11,8 +11,12 @@ namespace M365Manager.Core.M365;
 /// attribute changes to them. Works with MFA / Conditional Access.
 /// The same credential is reused to get tokens for other services (e.g. Exchange Online).
 /// </summary>
-public sealed class M365AuthService : IM365AuthService
+public sealed class M365AuthService : IM365AuthService, IM365Connector
 {
+    public string DisplayName => "Microsoft Graph";
+    public int Order => 0;
+    bool IM365Connector.IsConnected => IsSignedIn;
+
     // User.Read.All: resolve another user's directory id when removing a group member.
     // GroupMember.ReadWrite.All: add/remove members of Microsoft 365 (Team-connected) groups via
     // Graph - required because Add-/Remove-UnifiedGroupLinks (Exchange PowerShell) intermittently
@@ -61,6 +65,13 @@ public sealed class M365AuthService : IM365AuthService
             me?.Id ?? "");
 
         return CurrentUser;
+    }
+
+    /// <summary>IM365Connector entry point used by the startup connector - just wraps <see cref="SignInAsync"/>.</summary>
+    public Task ConnectAsync(Action<string>? onPrompt = null, CancellationToken ct = default)
+    {
+        onPrompt?.Invoke("Opening a browser window to sign in to Microsoft 365...");
+        return SignInAsync(ct);
     }
 
     public async Task<string> GetAccessTokenAsync(string scope, CancellationToken ct = default)

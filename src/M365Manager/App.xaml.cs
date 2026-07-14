@@ -36,8 +36,13 @@ public partial class App : Application
         await _host.StartAsync();
 
         var window = _host.Services.GetRequiredService<MainWindow>();
-        window.DataContext = _host.Services.GetRequiredService<MainViewModel>();
+        var mainViewModel = _host.Services.GetRequiredService<MainViewModel>();
+        window.DataContext = mainViewModel;
         window.Show();
+
+        // Sign in to Graph, connect Exchange, and any future M365 connector - right away,
+        // so nobody has to open Settings then Groups just to connect (see MainViewModel.ConnectAllAsync).
+        _ = mainViewModel.ConnectAllAsync();
     }
 
     protected override async void OnExit(ExitEventArgs e)

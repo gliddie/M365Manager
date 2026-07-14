@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using M365Manager.Core.Exchange;
 using M365Manager.Core.M365;
 using M365Manager.Data.Logging;
+using M365Manager.Services;
 
 namespace M365Manager.ViewModels;
 
@@ -83,6 +84,18 @@ public sealed partial class GroupsViewModel : ObservableObject
     /// <summary>Called from GroupsView code-behind when the Members DataGrid's selection changes.</summary>
     public void UpdateMemberSelection(IEnumerable<GroupMemberInfo> items) => _selectedMembers = items.ToList();
 
+    /// <summary>
+    /// Reflects the shared ExchangeService's connection state onto this page. Called by
+    /// MainViewModel after the app-wide startup connect finishes, so this page shows
+    /// "Connected" without the user having to click this page's own Connect button.
+    /// </summary>
+    public void RefreshConnectionState()
+    {
+        IsConnected = _exchange.IsConnected;
+        if (IsConnected)
+            StatusMessage = "Connected to Exchange Online. Enter a name and search.";
+    }
+
     [RelayCommand]
     private async Task ConnectAsync()
     {
@@ -132,10 +145,9 @@ public sealed partial class GroupsViewModel : ObservableObject
 
     private void ExtractDeviceCode(string prompt)
     {
-        // e.g. "...enter the code ABCD1234 to authenticate."
-        var match = System.Text.RegularExpressions.Regex.Match(prompt, @"code\s+([A-Za-z0-9][A-Za-z0-9-]{4,})");
-        if (match.Success)
-            DeviceCode = match.Groups[1].Value;
+        var code = DeviceCodePrompt.ExtractCode(prompt);
+        if (code is not null)
+            DeviceCode = code;
     }
 
     [RelayCommand]
@@ -159,23 +171,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         if (_browserOpened)
             return;
 
-        var match = System.Text.RegularExpressions.Regex.Match(prompt, @"https?://\S+");
-        if (!match.Success)
-            return;
-
-        _browserOpened = true;
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = match.Value,
-                UseShellExecute = true,
-            });
-        }
-        catch
-        {
-            // If the browser cannot be opened, the URL is still shown in the banner.
-        }
+        _browserOpened = DeviceCodePrompt.TryOpenBrowser(prompt);
     }
 
     [RelayCommand]

@@ -65,5 +65,50 @@
             <!-- Page -->
             <ContentControl Grid.Row="1" Content="{Binding CurrentViewModel}" />
         </Grid>
+
+        <!-- ===================== Startup connecting overlay ===================== -->
+        <Border Grid.Column="0" Grid.ColumnSpan="2" Background="#CC1B1B1B"
+                Visibility="{Binding IsConnecting, Converter={StaticResource BoolToVisible}}">
+            <Border Style="{StaticResource Card}" MaxWidth="480" Padding="28"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource H2}" Text="Connecting to Microsoft 365" Margin="0,0,0,10" />
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,14" />
+                    <TextBlock Text="{Binding ConnectingStatusText}" Style="{StaticResource Muted}"
+                               TextWrapping="Wrap" Margin="0,0,0,10" />
+
+                    <!-- Device-code sign-in banner (shown only while a code is pending) -->
+                    <Border Margin="0,0,0,14" CornerRadius="8" Padding="18,14"
+                            Background="{StaticResource UlRedSoftBrush}" BorderBrush="{StaticResource UlRedBrush}"
+                            BorderThickness="1"
+                            Visibility="{Binding DeviceCodeMessage, Converter={StaticResource EmptyToCollapsed}}">
+                        <StackPanel>
+                            <TextBlock Text="Sign-in required" FontFamily="Segoe UI" FontSize="13"
+                                       FontWeight="SemiBold" Foreground="{StaticResource UlRedDarkBrush}" Margin="0,0,0,6" />
+
+                            <StackPanel Orientation="Horizontal" Margin="0,2,0,8"
+                                        Visibility="{Binding DeviceCode, Converter={StaticResource EmptyToCollapsed}}">
+                                <Border Background="White" BorderBrush="{StaticResource UlRedBrush}" BorderThickness="1"
+                                        CornerRadius="6" Padding="14,6" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding DeviceCode}" FontFamily="Consolas" FontSize="22"
+                                               FontWeight="Bold" Foreground="{StaticResource UlRedDarkBrush}" />
+                                </Border>
+                                <Button Content="Copy code" Style="{StaticResource SecondaryButtonSmall}"
+                                        Margin="12,0,0,0" VerticalAlignment="Center"
+                                        Command="{Binding CopyDeviceCodeCommand}" />
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding DeviceCodeMessage}" FontFamily="Segoe UI" FontSize="13"
+                                       Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
+                            <TextBlock Text="A browser opens automatically. Paste the code, then sign in with your admin account."
+                                       Style="{StaticResource Muted}" Margin="0,8,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <Button Content="Continue without waiting" Style="{StaticResource SecondaryButtonSmall}"
+                            HorizontalAlignment="Right" Command="{Binding DismissConnectingCommand}" />
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </Window>

@@ -69,6 +69,7 @@ public sealed class SettingsService : ISettingsService
             {
                 TenantId = settings.M365.TenantId,
                 ClientId = settings.M365.ClientId,
+                Domain = settings.M365.Domain,
             },
         };
 

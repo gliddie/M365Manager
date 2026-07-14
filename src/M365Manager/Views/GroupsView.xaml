@@ -9,6 +9,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -20,7 +21,10 @@
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Margin="0,0,0,16">
+        <ProgressBar Grid.Row="1" Style="{StaticResource BusyBar}" Margin="0,0,0,14"
+                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+
+        <StackPanel Grid.Row="2" Margin="0,0,0,16">
             <!-- Device-code sign-in banner (shown only while a code is pending) -->
             <Border Margin="0,0,0,12" CornerRadius="8" Padding="18,14"
                     Background="{StaticResource UlRedSoftBrush}" BorderBrush="{StaticResource UlRedBrush}"
@@ -38,7 +42,7 @@
                             <TextBlock Text="{Binding DeviceCode}" FontFamily="Consolas" FontSize="22"
                                        FontWeight="Bold" Foreground="{StaticResource UlRedDarkBrush}" />
                         </Border>
-                        <Button Content="Copy code" Style="{StaticResource SecondaryButton}"
+                        <Button Content="Copy code" Style="{StaticResource SecondaryButtonSmall}"
                                 Margin="12,0,0,0" VerticalAlignment="Center"
                                 Command="{Binding CopyCodeCommand}" />
                     </StackPanel>
@@ -53,15 +57,21 @@
             <StackPanel Orientation="Horizontal">
                 <TextBox Style="{StaticResource ModernTextBox}" Width="320"
                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                         ToolTip="Group name, alias or email address" />
+                         ToolTip="Group name, alias or email address">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
+                    </TextBox.InputBindings>
+                </TextBox>
                 <Button Style="{StaticResource PrimaryButton}" Content="Search" Margin="10,0,0,0"
                         Command="{Binding SearchCommand}"
                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                <Button Style="{StaticResource SecondaryButton}" Content="Clear" Margin="10,0,0,0"
+                        Command="{Binding ClearResultsCommand}" />
             </StackPanel>
         </StackPanel>
 
         <!-- Results + details -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="340" />
                 <ColumnDefinition Width="18" />
@@ -74,6 +84,16 @@
                          SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
                          BorderThickness="0" Background="Transparent"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDeletedInM365}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource UlRedSoftBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Margin="6,6">
@@ -83,6 +103,20 @@
                                 <TextBlock Text="{Binding PrimarySmtpAddress}" FontFamily="Segoe UI"
                                            FontSize="11" Foreground="{StaticResource TextMutedBrush}"
                                            TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding StatusText}" FontFamily="Segoe UI"
+                                           FontSize="10" FontWeight="SemiBold"
+                                           Foreground="{StaticResource UlRedBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <Border Margin="0,4,0,0" Padding="6,2" CornerRadius="8"
+                                        HorizontalAlignment="Left"
+                                        Background="{StaticResource UlRedSoftBrush}"
+                                        BorderBrush="{StaticResource UlRedBrush}"
+                                        BorderThickness="1"
+                                        Visibility="{Binding StatusText, Converter={StaticResource EmptyToCollapsed}}">
+                                    <TextBlock Text="Deleted in M365" FontFamily="Segoe UI"
+                                               FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{StaticResource UlRedDarkBrush}" />
+                                </Border>
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -100,8 +134,20 @@
                         Visibility="{Binding SelectedGroup, Converter={StaticResource NullToCollapsed}}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource H2}" Text="{Binding SelectedGroup.DisplayName}" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,12"
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,4"
                                    Text="{Binding SelectedGroup.PrimarySmtpAddress}" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,6"
+                                   Text="{Binding SelectedGroup.StatusText}" Foreground="{StaticResource UlRedBrush}" FontWeight="SemiBold" />
+                        <Border Margin="0,0,0,12" Padding="7,4" CornerRadius="8"
+                                HorizontalAlignment="Left"
+                                Background="{StaticResource UlRedSoftBrush}"
+                                BorderBrush="{StaticResource UlRedBrush}"
+                                BorderThickness="1"
+                                Visibility="{Binding SelectedGroup.StatusText, Converter={StaticResource EmptyToCollapsed}}">
+                            <TextBlock Text="Deleted in M365" FontFamily="Segoe UI"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{StaticResource UlRedDarkBrush}" />
+                        </Border>
 
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -116,7 +162,7 @@
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Muted}" Text="Type" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedGroup.RecipientTypeDetails}" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedGroup.GroupTypeLabel}" />
 
                             <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Muted}" Text="Alias" />
                             <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedGroup.Alias}" />
@@ -135,33 +181,84 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
+                        <!-- ServiceNow task number - required before any add/remove -->
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="14,12,14,0">
+                            <TextBlock Text="ServiceNow task#" Style="{StaticResource FieldLabel}"
+                                       Margin="0,0,10,0" VerticalAlignment="Center" />
+                            <TextBox Style="{StaticResource ModernTextBox}" Width="160"
+                                     Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Required for any add/remove change - e.g. TASK0012345" />
+                        </StackPanel>
+
                         <!-- Member actions -->
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="14,12">
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="14,10,14,0">
                             <TextBox Style="{StaticResource ModernTextBox}" Width="230"
                                      Text="{Binding NewMemberAddress, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="Member email or UPN" />
+                                     ToolTip="SamAccountName, email or UPN - separate multiple with commas" />
                             <Button Content="Add member" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"
                                     Command="{Binding AddMemberCommand}"
                                     IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
                             <Button Content="Remove selected" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
                                     Command="{Binding RemoveMemberCommand}"
                                     IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                            <Button Content="Sync" Style="{StaticResource SecondaryButtonSmall}" Margin="20,0,0,0"
+                                    ToolTip="Re-fetch direct members live from Exchange and refresh the cache"
+                                    Command="{Binding SyncMembersCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                            <Button Content="Export Excel" Style="{StaticResource SecondaryButtonSmall}" Margin="8,0,0,0"
+                                    Command="{Binding ExportToExcelCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                            <Button Content="Export CSV" Style="{StaticResource SecondaryButtonSmall}" Margin="6,0,0,0"
+                                    Command="{Binding ExportToCsvCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
                         </StackPanel>
 
-                        <DataGrid Grid.Row="1" ItemsSource="{Binding Members}"
+                        <!-- How-to hint -->
+                        <TextBlock Grid.Row="2" Style="{StaticResource Muted}" Margin="14,6,14,0" TextWrapping="Wrap"
+                                   Text="To add several members at once, separate SamAccountNames or email addresses with commas (e.g. jdoe, asmith). To remove several, Ctrl+click or Shift+click multiple rows below, then click 'Remove selected'." />
+
+                        <!-- Member filter -->
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="14,10,14,0">
+                            <TextBox Style="{StaticResource ModernTextBox}" Width="280"
+                                     Text="{Binding MemberFilterText, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Filter by name, address, UPN, type or path" />
+                            <TextBlock Text="Filter members" Style="{StaticResource Muted}"
+                                       Margin="10,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <DataGrid Grid.Row="4" x:Name="MembersDataGrid" Margin="0,10,0,0" ItemsSource="{Binding MembersView}"
                                   SelectedItem="{Binding SelectedMember, Mode=TwoWay}"
+                                  SelectionChanged="MembersDataGrid_SelectionChanged"
                                   AutoGenerateColumns="False" IsReadOnly="True"
                                   HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                                   RowHeight="28" FontFamily="Segoe UI" FontSize="12"
                                   Background="Transparent" BorderThickness="0"
-                                  VerticalScrollBarVisibility="Auto">
+                                  VerticalScrollBarVisibility="Auto"
+                                  SelectionMode="Extended" SelectionUnit="FullRow"
+                                  ClipboardCopyMode="IncludeHeader">
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsNested}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.RowStyle>
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Member" Width="*" Binding="{Binding DisplayName}" />
-                                <DataGridTextColumn Header="Address" Width="240" Binding="{Binding PrimarySmtpAddress}" />
-                                <DataGridTextColumn Header="Type" Width="140" Binding="{Binding RecipientType}" />
+                                <DataGridTextColumn Header="Address" Width="200" Binding="{Binding PrimarySmtpAddress}" />
+                                <DataGridTextColumn Header="UPN" Width="200" Binding="{Binding UserPrincipalName}" />
+                                <DataGridTextColumn Header="Type" Width="120" Binding="{Binding RecipientType}" />
+                                <DataGridCheckBoxColumn Header="Nested" Width="70" Binding="{Binding IsNested}" />
+                                <DataGridTextColumn Header="Path" Width="220" Binding="{Binding Path}" />
                             </DataGrid.Columns>
                         </DataGrid>
                     </Grid>
@@ -170,7 +267,7 @@
         </Grid>
 
         <!-- Status -->
-        <TextBlock Grid.Row="3" Style="{StaticResource Muted}" Margin="0,12,0,0"
+        <TextBlock Grid.Row="4" Style="{StaticResource Muted}" Margin="0,12,0,0"
                    Text="{Binding StatusMessage}" />
     </Grid>
 </UserControl>

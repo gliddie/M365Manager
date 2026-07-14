@@ -8,6 +8,7 @@
     <Grid Margin="28">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -21,8 +22,11 @@
                        Text="{Binding StatusMessage}" />
         </StackPanel>
 
+        <ProgressBar Grid.Row="1" Style="{StaticResource BusyBar}" Margin="0,0,0,14"
+                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+
         <!-- Grid -->
-        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0">
+        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0">
             <DataGrid ItemsSource="{Binding Entries}" AutoGenerateColumns="False"
                       IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                       RowHeight="30" FontFamily="Segoe UI" FontSize="12"
@@ -36,13 +40,14 @@
                     <DataGridTextColumn Header="Area" Width="110" Binding="{Binding Area}" />
                     <DataGridTextColumn Header="Action" Width="140" Binding="{Binding Action}" />
                     <DataGridTextColumn Header="Target" Width="160" Binding="{Binding TargetObject}" />
+                    <DataGridTextColumn Header="Task#" Width="90" Binding="{Binding TaskNumber}" />
                     <DataGridTextColumn Header="User" Width="180" Binding="{Binding UserUpn}" />
                     <DataGridTextColumn Header="Message" Width="*" Binding="{Binding Message}" />
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
 
-        <TextBlock Grid.Row="2" Style="{StaticResource Muted}" Margin="0,12,0,0"
+        <TextBlock Grid.Row="3" Style="{StaticResource Muted}" Margin="0,12,0,0"
                    Text="Showing the 200 most recent entries. Click Refresh to reload from SQL Server." />
     </Grid>
 </UserControl>

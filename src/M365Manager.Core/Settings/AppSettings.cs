@@ -27,4 +27,10 @@ public sealed class M365Settings
 {
     public string TenantId { get; set; } = "";
     public string ClientId { get; set; } = "";
+
+    /// <summary>
+    /// Default UPN domain (e.g. "ul.com"). When someone enters a bare SamAccountName (no "@")
+    /// to add a group member, it's completed as "samAccountName@Domain" before the Exchange call.
+    /// </summary>
+    public string Domain { get; set; } = "";
 }

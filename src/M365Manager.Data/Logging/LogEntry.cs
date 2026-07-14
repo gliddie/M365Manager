@@ -28,6 +28,9 @@ public sealed class LogEntry
     /// <summary>Object acted on (mailbox / UPN / group / domain).</summary>
     public string? TargetObject { get; set; }
 
+    /// <summary>ServiceNow task number authorizing the change. Required for changes/creations/deletions.</summary>
+    public string? TaskNumber { get; set; }
+
     /// <summary>Legacy 4-char event code (STAR, INFO, ADD, REMO, ERR, FAIL...).</summary>
     public string? EventCode { get; set; }
 

@@ -27,6 +27,7 @@ public sealed class M365ManagerDbContext : DbContext
         e.Property(x => x.Area).HasMaxLength(64);
         e.Property(x => x.Action).HasMaxLength(128);
         e.Property(x => x.TargetObject).HasMaxLength(256);
+        e.Property(x => x.TaskNumber).HasMaxLength(64);
         e.Property(x => x.EventCode).HasMaxLength(16);
         e.Property(x => x.Severity).HasColumnType("tinyint");
 

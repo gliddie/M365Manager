@@ -13,7 +13,11 @@ namespace M365Manager.Core.M365;
 /// </summary>
 public sealed class M365AuthService : IM365AuthService
 {
-    private static readonly string[] Scopes = { "User.Read" };
+    // User.Read.All: resolve another user's directory id when removing a group member.
+    // GroupMember.ReadWrite.All: add/remove members of Microsoft 365 (Team-connected) groups via
+    // Graph - required because Add-/Remove-UnifiedGroupLinks (Exchange PowerShell) intermittently
+    // fails with "We failed to update the group mailbox" on Team-linked groups.
+    private static readonly string[] Scopes = { "User.Read", "User.Read.All", "GroupMember.ReadWrite.All" };
 
     private readonly ISettingsService _settings;
     private GraphServiceClient? _graph;

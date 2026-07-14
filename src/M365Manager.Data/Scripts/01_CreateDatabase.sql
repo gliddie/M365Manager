@@ -51,6 +51,7 @@ BEGIN
         Area           NVARCHAR(64)     NULL,   -- functional area, e.g. 'UserMailbox', 'Licensing', 'Groups'
         [Action]       NVARCHAR(128)    NULL,   -- operation / former script name (e.g. 'AddFolderPermissions')
         TargetObject   NVARCHAR(256)    NULL,   -- object acted on (mailbox/UPN/group/domain)
+        TaskNumber     NVARCHAR(64)     NULL,   -- ServiceNow task number authorizing the change (required for changes/creations/deletions)
 
         -- Result classification
         EventCode      NVARCHAR(16)     NULL,   -- legacy 4-char codes: STAR, INFO, ADD, REMO, ERR, FAIL, PASS, WARN, UPDA, CREATE, DELE...
@@ -72,6 +73,15 @@ END
 GO
 
 /*------------------------------------------------------------------------------------------
+  2b. Add TaskNumber to an already-existing LogEntries table (idempotent - safe to re-run)
+------------------------------------------------------------------------------------------*/
+IF COL_LENGTH(N'dbo.LogEntries', N'TaskNumber') IS NULL
+BEGIN
+    ALTER TABLE dbo.LogEntries ADD TaskNumber NVARCHAR(64) NULL;
+END
+GO
+
+/*------------------------------------------------------------------------------------------
   3. Indexes to keep the log view / filters fast
 ------------------------------------------------------------------------------------------*/
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_LogEntries_TimestampUtc' AND object_id = OBJECT_ID(N'dbo.LogEntries'))
@@ -88,6 +98,10 @@ GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_LogEntries_Severity' AND object_id = OBJECT_ID(N'dbo.LogEntries'))
     CREATE INDEX IX_LogEntries_Severity ON dbo.LogEntries (Severity, TimestampUtc DESC);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_LogEntries_TaskNumber' AND object_id = OBJECT_ID(N'dbo.LogEntries'))
+    CREATE INDEX IX_LogEntries_TaskNumber ON dbo.LogEntries (TaskNumber) INCLUDE (TimestampUtc, [Action]);
 GO
 
 /*------------------------------------------------------------------------------------------

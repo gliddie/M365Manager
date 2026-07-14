@@ -8,6 +8,9 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="28" MaxWidth="720" HorizontalAlignment="Left">
 
+            <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
+                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+
             <!-- ============ SQL Server ============ -->
             <Border Style="{StaticResource Card}" Margin="0,0,0,20">
                 <StackPanel>
@@ -56,8 +59,15 @@
                              Text="{Binding TenantId, UpdateSourceTrigger=PropertyChanged}" />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Application (Client) ID" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,16"
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
                              Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Default domain" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding Domain, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="e.g. ul.com" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
+                               Text="Used to complete a bare SamAccountName (e.g. 'jdoe' becomes 'jdoe@ul.com') when adding group members." />
 
                     <Button Style="{StaticResource PrimaryButton}" Content="Sign in and test"
                             HorizontalAlignment="Left"

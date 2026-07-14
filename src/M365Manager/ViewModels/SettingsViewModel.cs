@@ -22,6 +22,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     // --- M365 ---
     [ObservableProperty] private string _tenantId = "";
     [ObservableProperty] private string _clientId = "";
+    [ObservableProperty] private string _domain = "";
 
     // --- UI state ---
     [ObservableProperty] private string _statusMessage = "";
@@ -43,6 +44,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         SqlPassword = s.Sql.Password;
         TenantId = s.M365.TenantId;
         ClientId = s.M365.ClientId;
+        Domain = s.M365.Domain;
     }
 
     private void ApplyToSettings()
@@ -55,6 +57,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.Sql.Password = SqlPassword;
         s.M365.TenantId = TenantId.Trim();
         s.M365.ClientId = ClientId.Trim();
+        s.M365.Domain = Domain.Trim();
         _settings.Save(s);
     }
 

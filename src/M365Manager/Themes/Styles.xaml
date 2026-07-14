@@ -98,6 +98,11 @@
         </Setter>
     </Style>
 
+    <Style x:Key="SecondaryButtonSmall" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Padding" Value="10,4" />
+    </Style>
+
     <!-- ===================== Inputs ===================== -->
     <Style x:Key="ModernTextBox" TargetType="TextBox">
         <Setter Property="FontFamily" Value="Segoe UI" />
@@ -145,6 +150,21 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <!-- ===================== Busy indicator =====================
+         Drop a ProgressBar with this style, bound to Visibility="{Binding IsBusy,
+         Converter={StaticResource BoolToVisible}}", at the top of any view that has
+         async/long-running work (connect, search, sync, save, ...). Indeterminate because
+         the underlying PowerShell/Graph calls are single blocking round-trips with no
+         incremental progress to report - this is an "activity is happening" indicator, not
+         a percentage. Pair it with the view's existing StatusMessage text for the "what". -->
+    <Style x:Key="BusyBar" TargetType="ProgressBar">
+        <Setter Property="IsIndeterminate" Value="True" />
+        <Setter Property="Height" Value="3" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="{StaticResource UlRedSoftBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource UlRedBrush}" />
     </Style>
 
     <!-- ===================== Navigation rail ===================== -->

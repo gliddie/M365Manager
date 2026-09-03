@@ -5,9 +5,9 @@ using M365Manager.Core.Settings;
 namespace M365Manager.Core.ActiveDirectory;
 
 /// <summary>
-/// See <see cref="IActiveDirectoryService"/>. Uses System.DirectoryServices with the process's own
-/// credentials, so the bind is Kerberos as the signed-in admin - the legacy tool instead carried a
-/// service account and a plaintext password in its source.
+/// See <see cref="IActiveDirectoryService"/>. Uses System.DirectoryServices, binding as the account
+/// from <see cref="NewHireSettings.AdUserName"/> when one is configured and as the process identity
+/// otherwise - see <see cref="CreateEntry"/> for why the process identity is rarely the right one.
 ///
 /// The search base is discovered from RootDSE rather than configured, so a machine that is joined to
 /// the domain needs no setup at all. <see cref="NewHireSettings.LdapServer"/> only overrides which

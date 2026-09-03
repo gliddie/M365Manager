@@ -33,10 +33,12 @@ public sealed record AdAttributeResult(string Attribute, string Value, string? E
 /// <summary>
 /// Reads and writes the on-premises AD account of a new hire.
 ///
-/// Bind runs as the signed-in Windows user over Kerberos - unlike the legacy tool, which carried a
-/// service account and its password in the source. That means the admin running the app needs write
-/// access to the msRTCSIP-* attributes; if they don't, the write fails loudly here rather than
-/// silently succeeding under someone else's rights.
+/// The bind runs under the account configured in <see cref="Settings.NewHireSettings.AdUserName"/>,
+/// or as the signed-in Windows user when none is set. An explicit account is normally required:
+/// where admin work is done from a separate admin account, the desktop session is the unprivileged
+/// one, and that is the identity an LDAP bind picks up - reads still succeed while every write comes
+/// back "Access is denied". The legacy tool sidestepped this by carrying a service account and its
+/// password in the source; here the account is configured and its password encrypted at rest.
 /// </summary>
 public interface IActiveDirectoryService
 {

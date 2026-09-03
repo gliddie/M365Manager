@@ -125,8 +125,9 @@ public sealed class ActiveDirectoryService : IActiveDirectoryService
                 {
                     // Drop the rejected value so the next CommitChanges doesn't retry it and fail again.
                     entry.RefreshCache();
-                    _transcript.Write(TranscriptLineKind.Error, $"[LDAP] {attribute} failed: {ex.Message}");
-                    results.Add(new AdAttributeResult(attribute, value, ex.Message));
+                    var described = DescribeWriteFailure(ex);
+                    _transcript.Write(TranscriptLineKind.Error, $"[LDAP] {attribute} failed: {described}");
+                    results.Add(new AdAttributeResult(attribute, value, described));
                 }
             }
 
@@ -151,9 +152,48 @@ public sealed class ActiveDirectoryService : IActiveDirectoryService
         return CreateEntry($"LDAP://{ServerPrefix()}{namingContext}");
     }
 
-    private DirectoryEntry CreateEntry(string path) =>
-        // No username/password: binds as the process identity, i.e. the signed-in admin.
-        new(path, null, null, BindAuth);
+    /// <summary>
+    /// Binds as the configured account, or as the process identity when none is set.
+    ///
+    /// The process identity is rarely the right one: admin work is normally done from a separate
+    /// admin account while the desktop session runs as an unprivileged user, and it is the desktop
+    /// session's token that an LDAP bind picks up. Graph, Exchange and Teams hide this because they
+    /// authenticate interactively - LDAP has no token to reuse and needs real credentials.
+    /// </summary>
+    private DirectoryEntry CreateEntry(string path)
+    {
+        var newHire = _settings.Current.NewHire;
+
+        return newHire.UsesExplicitAdCredentials
+            ? new DirectoryEntry(path, newHire.AdUserName.Trim(), newHire.AdPassword, BindAuth)
+            : new DirectoryEntry(path, null, null, BindAuth);
+    }
+
+    /// <summary>
+    /// "Access is denied" from a write says nothing about which account was refused, which is the
+    /// one thing worth knowing - so the identity in play is spelled out alongside it.
+    /// </summary>
+    private string DescribeWriteFailure(Exception ex)
+    {
+        var newHire = _settings.Current.NewHire;
+
+        var who = newHire.UsesExplicitAdCredentials
+            ? $"as '{newHire.AdUserName.Trim()}'"
+            : $"as the signed-in Windows user '{Environment.UserDomainName}\\{Environment.UserName}'";
+
+        var hint = newHire.UsesExplicitAdCredentials
+            ? " Check that this account may write the msRTCSIP-* attributes on the target OU."
+            : " If admin work is done from a separate admin account, enter it under"
+              + " Settings > New Hire > Active Directory account - the desktop session's own account"
+              + " usually has no write access to these attributes.";
+
+        // The denial surfaces as UnauthorizedAccessException from some code paths and as a plain
+        // COM exception from others, so the message is checked too rather than the type alone.
+        var denied = ex is UnauthorizedAccessException
+                     || ex.Message.Contains("Access is denied", StringComparison.OrdinalIgnoreCase);
+
+        return $"{ex.Message} (bound {who}).{(denied ? hint : "")}";
+    }
 
     /// <summary>"dc01.corp.contoso.com/" when a controller is configured, empty for serverless bind.</summary>
     private string ServerPrefix()

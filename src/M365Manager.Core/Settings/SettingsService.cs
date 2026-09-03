@@ -42,6 +42,7 @@ public sealed class SettingsService : ISettingsService
             // Decrypt secrets that were encrypted at rest.
             settings.Sql.Password = SecretProtector.Unprotect(settings.Sql.Password) ?? "";
             settings.Smtp.Password = SecretProtector.Unprotect(settings.Smtp.Password) ?? "";
+            settings.NewHire.AdPassword = SecretProtector.Unprotect(settings.NewHire.AdPassword) ?? "";
 
             Current = settings;
         }
@@ -117,6 +118,8 @@ public sealed class SettingsService : ISettingsService
                 Database = settings.NewHire.Database,
                 WriteAdAttributes = settings.NewHire.WriteAdAttributes,
                 LdapServer = settings.NewHire.LdapServer,
+                AdUserName = settings.NewHire.AdUserName,
+                AdPassword = SecretProtector.Protect(settings.NewHire.AdPassword) ?? "",
                 DeploymentLocator = settings.NewHire.DeploymentLocator,
                 PhoneNumberType = settings.NewHire.PhoneNumberType,
                 TeamsUpgradePolicyName = settings.NewHire.TeamsUpgradePolicyName,

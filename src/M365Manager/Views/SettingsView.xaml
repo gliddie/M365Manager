@@ -306,6 +306,15 @@
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
                                Text="Leave empty on a domain-joined machine - the domain and its search base are then discovered automatically." />
 
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Active Directory account (optional)" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,8"
+                             Text="{Binding NewHireAdUserName, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="e.g. GLOBAL\admin.jdoe or admin.jdoe@corp.contoso.com" />
+                    <PasswordBox x:Name="AdPasswordBox" Style="{StaticResource ModernPasswordBox}"
+                                 Margin="0,0,0,4" PasswordChanged="AdPasswordBox_PasswordChanged" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Leave empty to bind as the signed-in Windows user. Fill it in where admin work is done from a separate admin account - the desktop session runs as the unprivileged account, and that is the identity an LDAP bind picks up, so every write comes back 'Access is denied'. Unlike Microsoft 365 there is no interactive sign-in to reuse here; LDAP needs the account and its password. The password is encrypted on this PC with Windows DPAPI." />
+
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Deployment locator" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
                              Text="{Binding NewHireDeploymentLocator, UpdateSourceTrigger=PropertyChanged}"

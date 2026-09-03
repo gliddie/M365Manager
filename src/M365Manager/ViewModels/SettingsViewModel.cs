@@ -69,6 +69,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _newHireDatabase = NewHireSettings.DefaultDatabase;
     [ObservableProperty] private bool _newHireWriteAdAttributes = true;
     [ObservableProperty] private string _newHireLdapServer = "";
+    [ObservableProperty] private string _newHireAdUserName = "";
+    [ObservableProperty] private string _newHireAdPassword = "";
     [ObservableProperty] private string _newHireDeploymentLocator = "";
     [ObservableProperty] private string _newHirePhoneNumberType = "";
     [ObservableProperty] private string _newHireTeamsUpgradePolicyName = "";
@@ -150,6 +152,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         NewHireDatabase = s.NewHire.Database;
         NewHireWriteAdAttributes = s.NewHire.WriteAdAttributes;
         NewHireLdapServer = s.NewHire.LdapServer;
+        NewHireAdUserName = s.NewHire.AdUserName;
+        NewHireAdPassword = s.NewHire.AdPassword;
         NewHireDeploymentLocator = s.NewHire.DeploymentLocator;
         NewHirePhoneNumberType = s.NewHire.PhoneNumberType;
         NewHireTeamsUpgradePolicyName = s.NewHire.TeamsUpgradePolicyName;
@@ -388,6 +392,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.NewHire.Database = NewHireDatabase.Trim();
         s.NewHire.WriteAdAttributes = NewHireWriteAdAttributes;
         s.NewHire.LdapServer = NewHireLdapServer.Trim();
+        s.NewHire.AdUserName = NewHireAdUserName.Trim();
+        s.NewHire.AdPassword = NewHireAdPassword;
         s.NewHire.DeploymentLocator = NewHireDeploymentLocator.Trim();
         s.NewHire.PhoneNumberType = NewHirePhoneNumberType.Trim();
         s.NewHire.TeamsUpgradePolicyName = NewHireTeamsUpgradePolicyName.Trim();

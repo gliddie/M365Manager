@@ -20,6 +20,7 @@ public partial class SettingsView : UserControl
 
         SqlPasswordBox.Password = vm.SqlPassword;
         SmtpPasswordBox.Password = vm.SmtpPassword;
+        AdPasswordBox.Password = vm.NewHireAdPassword;
     }
 
     private void SqlPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
@@ -32,5 +33,11 @@ public partial class SettingsView : UserControl
     {
         if (DataContext is SettingsViewModel vm)
             vm.SmtpPassword = SmtpPasswordBox.Password;
+    }
+
+    private void AdPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is SettingsViewModel vm)
+            vm.NewHireAdPassword = AdPasswordBox.Password;
     }
 }

@@ -48,9 +48,26 @@ public sealed class NewHireSettings
     /// <summary>
     /// Domain controller or domain name to bind to, e.g. "dc01.corp.contoso.com". Empty uses the
     /// machine's own domain (serverless bind), which is what a domain-joined admin PC wants.
-    /// The bind always runs as the signed-in Windows user - no credentials are stored.
     /// </summary>
     public string LdapServer { get; set; } = "";
+
+    /// <summary>
+    /// Account used for the LDAP bind, e.g. "GLOBAL\\admin.jdoe" or "admin.jdoe@corp.contoso.com".
+    ///
+    /// Empty binds as the signed-in Windows user, which only works where the desktop session itself
+    /// holds write access to the msRTCSIP-* attributes. Where admin work is done from a separate
+    /// admin account - the usual split - the desktop session is the unprivileged account and every
+    /// write comes back "Access is denied", so the admin account has to be named here. Unlike Graph
+    /// and Exchange there is no token to reuse: LDAP needs real credentials.
+    /// </summary>
+    public string AdUserName { get; set; } = "";
+
+    /// <summary>Plaintext in memory; encrypted (DPAPI) when written to disk, like the other secrets.</summary>
+    public string AdPassword { get; set; } = "";
+
+    /// <summary>True when an explicit bind account is configured rather than the process identity.</summary>
+    [JsonIgnore]
+    public bool UsesExplicitAdCredentials => !string.IsNullOrWhiteSpace(AdUserName);
 
     /// <summary>
     /// Value written to msRTCSIP-DeploymentLocator, which marks the account as homed online.

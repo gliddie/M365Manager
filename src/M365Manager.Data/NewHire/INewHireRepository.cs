@@ -33,12 +33,25 @@ public sealed record FreeDid(string Did)
 /// </summary>
 public sealed class UcEmployeeState
 {
-    /// <summary>The endpoints row, when the user already holds a number. Null means not yet configured.</summary>
+    /// <summary>The endpoints row for this employee, when there is one. Null means never configured.</summary>
     public UcEndpoint? Endpoint { get; init; }
 
-    /// <summary>True when the endpoints row says EnterpriseVoiceEnabled - i.e. this is not a new hire.</summary>
-    public bool IsAlreadyEnabled =>
-        string.Equals(Endpoint?.EnterpriseVoiceEnabled, "true", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// The number already recorded for this employee, or null when they have none.
+    ///
+    /// This - and NOT the EnterpriseVoiceEnabled flag - is what says somebody has already been
+    /// through the wizard. Assigning a Teams Phone licence flips EnterpriseVoiceEnabled to true on
+    /// its own, so a correctly licensed new hire with no number reads as "enabled" while having
+    /// nothing to call with. The legacy tool checked the flag and would have refused exactly the
+    /// people it was built for.
+    /// </summary>
+    public string? AssignedNumber =>
+        Blank(Endpoint?.LineUri) ? (Blank(Endpoint?.Did) ? null : Endpoint!.Did) : Endpoint!.LineUri;
+
+    /// <summary>True when a number is already on record, i.e. this is a change and not a new hire.</summary>
+    public bool HasAssignedNumber => AssignedNumber is not null;
+
+    private static bool Blank(string? value) => string.IsNullOrWhiteSpace(value);
 }
 
 /// <summary>

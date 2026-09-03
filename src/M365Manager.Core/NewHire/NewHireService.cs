@@ -186,9 +186,11 @@ public sealed class NewHireService : INewHireService
     /// </summary>
     private static string? FindBlocker(AdUser user, UcEmployeeState state, TeamsLicenseState license, UcLocation? location, string officeName)
     {
-        if (state.IsAlreadyEnabled)
-            return $"{user.DisplayName} is already enabled for enterprise voice "
-                   + $"(number {state.Endpoint?.LineUri ?? "unknown"}). Use a change request instead of the wizard.";
+        // Deliberately keyed on an actual number, not on EnterpriseVoiceEnabled - see
+        // UcEmployeeState.AssignedNumber for why that flag says nothing useful here.
+        if (state.HasAssignedNumber)
+            return $"{user.DisplayName} already holds {state.AssignedNumber} in the telephony inventory. "
+                   + "Use a change request instead of the wizard.";
 
         // Only block when Entra actually answered and said no. A licence that is merely still
         // provisioning is a warning, and a failed lookup must not invent a blocker.

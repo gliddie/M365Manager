@@ -12,6 +12,10 @@
 
   <ItemGroup>
     <Resource Include="Assets\*.jpg" />
+    <Resource Include="Assets\*.png" />
+    <!-- Also a Resource, not just ApplicationIcon, so MainWindow can bind Icon= to it and the
+         running window/taskbar entry uses the same artwork as the exe. -->
+    <Resource Include="Assets\app-icon.ico" />
   </ItemGroup>
 
   <!-- Ship the bundled ExchangeOnlineManagement module next to the app -->
@@ -28,6 +32,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Embedded in the exe, so Explorer, the taskbar and a pinned start menu tile all show it.
+         The .ico carries 16/32/48/64/128/256 px so Windows never has to rescale. -->
+    <ApplicationIcon>Assets\app-icon.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>

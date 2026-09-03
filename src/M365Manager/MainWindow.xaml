@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="M365Manager"
+        Icon="Assets/app-icon.ico"
         Height="720" Width="1120"
         MinHeight="560" MinWidth="900"
         Background="{StaticResource PageBrush}"
@@ -26,13 +27,16 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Brand -->
-                <StackPanel Grid.Row="0" Margin="20,24,20,20">
-                    <Image Source="Assets/logo-banner.jpg" Height="34"
-                           HorizontalAlignment="Left" Stretch="Uniform" />
-                    <TextBlock Text="M365 Manager" FontFamily="Segoe UI" FontSize="13"
-                               FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"
-                               Margin="2,12,0,0" />
+                <!-- Brand. The mark is square, so it sits beside the app name rather than above it
+                     the way the old wide wordmark did. HighQuality scaling because the source is
+                     256px and this draws it at 38. -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="20,24,20,20">
+                    <Image Source="Assets/logo.png" Width="38" Height="38"
+                           Stretch="Uniform" VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock Text="M365 Manager" FontFamily="Segoe UI" FontSize="15"
+                               FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"
+                               VerticalAlignment="Center" Margin="12,0,0,0" />
                 </StackPanel>
 
                 <!-- Navigation -->

@@ -23,6 +23,9 @@ public sealed class NewHireLookup
 
     public UcEmployeeState State { get; init; } = new();
 
+    /// <summary>What Entra says the employee is licensed for.</summary>
+    public TeamsLicenseState License { get; init; } = new();
+
     /// <summary>Why this employee cannot be enabled right now, or null when the run may continue.</summary>
     public string? Blocker { get; init; }
 
@@ -30,6 +33,47 @@ public sealed class NewHireLookup
     public IReadOnlyList<string> Warnings { get; init; } = Array.Empty<string>();
 
     public static NewHireLookup Failed(string error) => new() { ErrorMessage = error };
+}
+
+/// <summary>
+/// The employee's licensing as Entra reports it, read live from
+/// <c>/users/{upn}/licenseDetails</c> rather than from the telephony database's nightly
+/// <c>e3licensed</c> import - that table only ever knew about E3, which this tenant has since
+/// replaced with E5.
+///
+/// The decisive fact is not which SKU someone holds but whether it grants the <b>MCOEV</b> service
+/// plan (Microsoft 365 Phone System / Teams Phone). E5, the Teams Phone Standard add-on and Teams
+/// Phone with Calling Plan all grant it; E3 never did. Checking the service plan instead of the SKU
+/// means this keeps working through the next licensing rename.
+/// </summary>
+public sealed class TeamsLicenseState
+{
+    /// <summary>False when the Graph call itself failed - then nothing below means anything.</summary>
+    public bool Checked { get; init; }
+
+    /// <summary>Why the lookup failed, when <see cref="Checked"/> is false.</summary>
+    public string? Error { get; init; }
+
+    /// <summary>MCOEV is assigned and fully provisioned - the user can be given a number.</summary>
+    public bool HasTeamsPhone { get; init; }
+
+    /// <summary>
+    /// MCOEV is assigned but Microsoft has not finished provisioning it. Worth flagging, but not
+    /// worth blocking on: it usually completes within minutes.
+    /// </summary>
+    public bool TeamsPhonePending { get; init; }
+
+    /// <summary>The SKUs found, e.g. "SPE_E5" - shown so the operator can see what they actually have.</summary>
+    public IReadOnlyList<string> Skus { get; init; } = Array.Empty<string>();
+
+    /// <summary>How the licensing reads on the lookup card.</summary>
+    public string Summary =>
+        !Checked ? $"Licence check failed: {Error}"
+        : HasTeamsPhone ? $"Teams Phone licensed{SkuSuffix}"
+        : TeamsPhonePending ? $"Teams Phone licence still provisioning{SkuSuffix}"
+        : $"No Teams Phone licence{SkuSuffix}";
+
+    private string SkuSuffix => Skus.Count == 0 ? " (no licences assigned)" : $" ({string.Join(", ", Skus)})";
 }
 
 /// <summary>Everything the operator has assembled by the end of step 3, ready to be applied.</summary>

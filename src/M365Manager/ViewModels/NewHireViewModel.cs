@@ -189,9 +189,7 @@ public sealed partial class NewHireViewModel : ObservableObject
 
             _user = lookup.User;
             EmployeeSummary = $"{lookup.User.DisplayName} ({lookup.User.UserPrincipalName})";
-            LicenceSummary = lookup.State.IsE3Licensed
-                ? $"E3 licensed{(lookup.State.HasPhoneLicense ? ", Teams Phone licensed" : "")}"
-                : "No E3 licence recorded";
+            LicenceSummary = lookup.License.Summary;
 
             // Only adopt the matched site when the operator has not picked one themselves.
             if (SelectedLocation is null && lookup.Location is not null)

@@ -24,7 +24,13 @@ public sealed record FreeDid(string Did)
     public override string ToString() => E164;
 }
 
-/// <summary>What the telephony database knows about an employee before the wizard touches anything.</summary>
+/// <summary>
+/// What the telephony database knows about an employee before the wizard touches anything.
+///
+/// Licensing deliberately does not appear here: it is read live from Entra instead, because the
+/// <c>e3licensed</c> table only models E3 and this tenant has moved to E5 - see
+/// <c>NewHireService.GetLicenseStateAsync</c>.
+/// </summary>
 public sealed class UcEmployeeState
 {
     /// <summary>The endpoints row, when the user already holds a number. Null means not yet configured.</summary>
@@ -33,12 +39,6 @@ public sealed class UcEmployeeState
     /// <summary>True when the endpoints row says EnterpriseVoiceEnabled - i.e. this is not a new hire.</summary>
     public bool IsAlreadyEnabled =>
         string.Equals(Endpoint?.EnterpriseVoiceEnabled, "true", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>False when the nightly licence import has no E3 row for this user yet.</summary>
-    public bool IsE3Licensed { get; init; }
-
-    /// <summary>True when the user additionally holds a Teams Phone licence.</summary>
-    public bool HasPhoneLicense { get; init; }
 }
 
 /// <summary>

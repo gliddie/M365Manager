@@ -96,8 +96,15 @@ public sealed class UcBlockedDid
 }
 
 /// <summary>
-/// Licence state per user (table "e3licensed"), refreshed by a nightly import. A new hire without an
-/// E3 licence cannot be enabled for voice yet - the licence has to land first.
+/// Licence state per user (table "e3licensed"), refreshed by a nightly import.
+///
+/// NOT currently read by the wizard. The table and its import only model E3, and the tenant has
+/// since moved to E5, so it reports licensed users as unlicensed. Licensing is read live from Entra
+/// instead (<c>NewHireService.GetLicenseStateAsync</c>), which is a little slower but correct.
+///
+/// Kept mapped because the table still exists and is still filled. If the extra Graph call per
+/// lookup ever becomes a problem, the fix is to rework the import to record the Teams Phone service
+/// plan (MCOEV) rather than the E3 SKU, and then read that here again.
 /// </summary>
 public sealed class UcE3License
 {

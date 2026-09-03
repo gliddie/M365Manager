@@ -1,3 +1,4 @@
+using System.Text.Json;
 using M365Manager.Core.ActiveDirectory;
 using M365Manager.Core.M365;
 using M365Manager.Core.Notifications;
@@ -13,6 +14,7 @@ public sealed class NewHireService : INewHireService
 {
     private readonly INewHireRepository _repository;
     private readonly IActiveDirectoryService _directory;
+    private readonly GraphRestClient _graph;
     private readonly ITeamsPowerShellService _teams;
     private readonly INotificationMailService _mail;
     private readonly ISettingsService _settings;
@@ -22,6 +24,7 @@ public sealed class NewHireService : INewHireService
     public NewHireService(
         INewHireRepository repository,
         IActiveDirectoryService directory,
+        GraphRestClient graph,
         ITeamsPowerShellService teams,
         INotificationMailService mail,
         ISettingsService settings,
@@ -30,6 +33,7 @@ public sealed class NewHireService : INewHireService
     {
         _repository = repository;
         _directory = directory;
+        _graph = graph;
         _teams = teams;
         _mail = mail;
         _settings = settings;
@@ -69,6 +73,7 @@ public sealed class NewHireService : INewHireService
             return NewHireLookup.Failed($"No Active Directory account found for '{sam}'.");
 
         var state = await _repository.GetEmployeeStateAsync(user.SamAccountName, ct);
+        var license = await GetLicenseStateAsync(user.UserPrincipalName, ct);
 
         // The office attribute is regularly empty or wrong on a brand-new account, so the operator
         // can pick a site instead - that override wins.
@@ -78,8 +83,13 @@ public sealed class NewHireService : INewHireService
             : await _repository.FindLocationByNameAsync(officeName, ct);
 
         var warnings = new List<string>();
-        if (!state.HasPhoneLicense)
-            warnings.Add("No Teams Phone licence is recorded for this user. Calls may not work until one is assigned.");
+
+        if (!license.Checked)
+            warnings.Add($"The licence could not be read from Entra ({license.Error}). "
+                         + "Continuing without it - if the Teams Phone licence is missing, assigning the number will fail.");
+        else if (license.TeamsPhonePending)
+            warnings.Add("The Teams Phone licence is assigned but Microsoft has not finished provisioning it. "
+                         + "Assigning the number may fail for another few minutes.");
 
         if (user.LineUri is not null)
             warnings.Add($"The AD account already carries a line URI ({user.LineUri}). Continuing will replace it.");
@@ -93,25 +103,99 @@ public sealed class NewHireService : INewHireService
             User = user,
             Location = location,
             State = state,
+            License = license,
             Warnings = warnings,
-            Blocker = FindBlocker(user, state, location, officeName),
+            Blocker = FindBlocker(user, state, license, location, officeName),
         };
     }
+
+    /// <summary>
+    /// The service plan that actually decides whether someone can hold a phone number. Granted by
+    /// E5, by Teams Phone Standard and by Teams Phone with Calling Plan - never by E3. Checking the
+    /// service plan rather than the SKU keeps this correct across licensing renames.
+    /// </summary>
+    private const string TeamsPhoneServicePlan = "MCOEV";
+
+    /// <summary>
+    /// Reads the employee's licences from Entra. The telephony database has an <c>e3licensed</c>
+    /// table filled by a nightly import, and reading it would be marginally faster - but it only
+    /// models E3, which this tenant no longer uses, so it reports every E5 user as unlicensed.
+    /// Entra is the source of truth; the import would have to be reworked before the table could be
+    /// trusted again.
+    ///
+    /// A failure here is deliberately not fatal: an unreachable Graph should not stop a run that
+    /// would otherwise succeed, and a genuinely missing licence still surfaces when Teams refuses
+    /// the number.
+    /// </summary>
+    private async Task<TeamsLicenseState> GetLicenseStateAsync(string upn, CancellationToken ct)
+    {
+        try
+        {
+            var licenses = await _graph.GetAllPagesAsync(
+                $"/users/{Uri.EscapeDataString(upn)}/licenseDetails", ct: ct);
+
+            var skus = new List<string>();
+            var provisioned = false;
+            var pending = false;
+
+            foreach (var license in licenses)
+            {
+                var sku = Text(license, "skuPartNumber");
+                if (sku.Length > 0)
+                    skus.Add(sku);
+
+                if (!license.TryGetProperty("servicePlans", out var plans) || plans.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                foreach (var plan in plans.EnumerateArray())
+                {
+                    if (!string.Equals(Text(plan, "servicePlanName"), TeamsPhoneServicePlan, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    // The same plan can appear under several SKUs; one provisioned copy is enough.
+                    if (string.Equals(Text(plan, "provisioningStatus"), "Success", StringComparison.OrdinalIgnoreCase))
+                        provisioned = true;
+                    else
+                        pending = true;
+                }
+            }
+
+            return new TeamsLicenseState
+            {
+                Checked = true,
+                HasTeamsPhone = provisioned,
+                TeamsPhonePending = pending && !provisioned,
+                Skus = skus,
+            };
+        }
+        catch (Exception ex)
+        {
+            return new TeamsLicenseState { Checked = false, Error = ex.Message };
+        }
+    }
+
+    private static string Text(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? ""
+            : "";
 
     /// <summary>
     /// The one reason this employee cannot be enabled, in the order that matters. The legacy tool
     /// raised each of these as a message box and then let the operator carry on anyway - which is how
     /// unlicensed accounts ended up half configured.
     /// </summary>
-    private static string? FindBlocker(AdUser user, UcEmployeeState state, UcLocation? location, string officeName)
+    private static string? FindBlocker(AdUser user, UcEmployeeState state, TeamsLicenseState license, UcLocation? location, string officeName)
     {
         if (state.IsAlreadyEnabled)
             return $"{user.DisplayName} is already enabled for enterprise voice "
                    + $"(number {state.Endpoint?.LineUri ?? "unknown"}). Use a change request instead of the wizard.";
 
-        if (!state.IsE3Licensed)
-            return $"{user.DisplayName} has no E3 licence recorded. Licensing runs nightly - wait for it to land, "
-                   + "then run the wizard again.";
+        // Only block when Entra actually answered and said no. A licence that is merely still
+        // provisioning is a warning, and a failed lookup must not invent a blocker.
+        if (license.Checked && !license.HasTeamsPhone && !license.TeamsPhonePending)
+            return $"{user.DisplayName} has no Teams Phone licence, so no number can be assigned. "
+                   + $"Entra reports: {license.Summary}. Assign a licence that includes Teams Phone "
+                   + "(E5, Teams Phone Standard or Teams Phone with Calling Plan), then run the wizard again.";
 
         if (officeName.Length == 0)
             return "The AD account has no office set. Pick the employee's site below to continue.";

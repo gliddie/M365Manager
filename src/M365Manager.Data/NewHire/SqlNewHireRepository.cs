@@ -75,20 +75,12 @@ public sealed class SqlNewHireRepository : INewHireRepository
 
         await using var ctx = CreateContext();
 
+        // The e3licensed table is deliberately not read here - see UcEmployeeState.
         var endpoint = await ctx.Endpoints
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.SamAccountName == sam, ct);
 
-        var license = await ctx.E3Licenses
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.SamAccountName == sam, ct);
-
-        return new UcEmployeeState
-        {
-            Endpoint = endpoint,
-            IsE3Licensed = license?.E3Licensed == "1",
-            HasPhoneLicense = license?.HasPhoneLicense == "1",
-        };
+        return new UcEmployeeState { Endpoint = endpoint };
     }
 
     public async Task<IReadOnlyList<UcDidRange>> GetDidRangesAsync(string locationCode, CancellationToken ct = default)

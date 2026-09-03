@@ -105,6 +105,18 @@ public sealed partial class MainViewModel : ObservableObject
                             ConnectorState.Failed => $"{progress.DisplayName} failed: {progress.Error}",
                             _ => ConnectingStatusText,
                         };
+
+                        // Each connector runs its own device-code flow and so needs its own browser
+                        // visit and its own code. Without this reset the banner accumulated every
+                        // connector's prompt - showing a stale code above the current one - and the
+                        // browser opened only for whichever connector happened to prompt first,
+                        // leaving the rest to be completed by hand.
+                        if (progress.State == ConnectorState.Connecting)
+                        {
+                            DeviceCodeMessage = "";
+                            DeviceCode = "";
+                            _browserOpened = false;
+                        }
                     }
                     if (dispatcher is not null) dispatcher.Invoke(Apply); else Apply();
                 },
@@ -112,6 +124,8 @@ public sealed partial class MainViewModel : ObservableObject
                 {
                     void Show()
                     {
+                        // A single connector can emit several lines (a headline, then the code), so
+                        // these still accumulate - they are just cleared between connectors above.
                         DeviceCodeMessage = string.IsNullOrEmpty(DeviceCodeMessage) ? prompt : $"{DeviceCodeMessage}\n{prompt}";
                         var code = DeviceCodePrompt.ExtractCode(prompt);
                         if (code is not null)

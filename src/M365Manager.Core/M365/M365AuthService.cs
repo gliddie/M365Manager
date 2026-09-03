@@ -21,7 +21,15 @@ public sealed class M365AuthService : IM365AuthService, IM365Connector
     // GroupMember.ReadWrite.All: add/remove members of Microsoft 365 (Team-connected) groups via
     // Graph - required because Add-/Remove-UnifiedGroupLinks (Exchange PowerShell) intermittently
     // fails with "We failed to update the group mailbox" on Team-linked groups.
-    private static readonly string[] Scopes = { "User.Read", "User.Read.All", "GroupMember.ReadWrite.All" };
+    // Group.ReadWrite.All: create teams/groups and set owners (TeamsService.CreateGroupAsync).
+    // Directory.ReadWrite.All: guest-access directory setting on new groups (TeamsService.SetGuestAccessAsync).
+    // Mail.Send: owner notification e-mail after team creation (TeamsService.SendOwnerMailAsync)
+    // and after shared mailbox creation/owner change (SharedMailboxService).
+    private static readonly string[] Scopes =
+    {
+        "User.Read", "User.Read.All", "GroupMember.ReadWrite.All",
+        "Group.ReadWrite.All", "Directory.ReadWrite.All", "Mail.Send",
+    };
 
     private readonly ISettingsService _settings;
     private GraphServiceClient? _graph;

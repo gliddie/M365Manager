@@ -21,6 +21,12 @@ public partial class App : Application
                 services.AddSingleton<MainViewModel>();
                 services.AddSingleton<DashboardViewModel>();
                 services.AddSingleton<GroupsViewModel>();
+                services.AddSingleton<TeamsViewModel>();
+                services.AddSingleton<SharedMailboxesViewModel>();
+                services.AddSingleton<RoomResourcesViewModel>();
+                services.AddSingleton<TeamsPoliciesViewModel>();
+                services.AddSingleton<NewHireViewModel>();
+                services.AddSingleton<TraceViewModel>();
                 services.AddSingleton<SettingsViewModel>();
                 services.AddSingleton<LogsViewModel>();
 

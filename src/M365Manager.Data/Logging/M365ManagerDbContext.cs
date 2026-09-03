@@ -1,3 +1,5 @@
+using M365Manager.Data.Naming;
+using M365Manager.Data.Rooms;
 using Microsoft.EntityFrameworkCore;
 
 namespace M365Manager.Data.Logging;
@@ -10,9 +12,26 @@ public sealed class M365ManagerDbContext : DbContext
     }
 
     public DbSet<LogEntry> LogEntries => Set<LogEntry>();
+    public DbSet<TeamNameAcronym> TeamNameAcronyms => Set<TeamNameAcronym>();
+    public DbSet<RoomSite> RoomSites => Set<RoomSite>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        var acronym = modelBuilder.Entity<TeamNameAcronym>();
+        acronym.ToTable("TeamNameAcronyms");
+        acronym.HasKey(x => x.Id);
+        acronym.Property(x => x.Acronym).HasMaxLength(64).IsRequired();
+        acronym.Property(x => x.Translation).HasMaxLength(64).IsRequired();
+
+        var site = modelBuilder.Entity<RoomSite>();
+        site.ToTable("RoomSites");
+        site.HasKey(x => x.Id);
+        site.Property(x => x.SiteCode).HasMaxLength(16).IsRequired();
+        site.Property(x => x.TimeZone).HasMaxLength(128).IsRequired();
+        site.Property(x => x.Region).HasMaxLength(16);
+        site.Property(x => x.RegionalAdminGroup).HasMaxLength(256);
+        site.HasIndex(x => x.SiteCode).IsUnique();
+
         var e = modelBuilder.Entity<LogEntry>();
         e.ToTable("LogEntries");
         e.HasKey(x => x.Id);

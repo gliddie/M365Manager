@@ -1,0 +1,14 @@
+Subject: OldNameofDL Renamed - TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+Per your request the distribution list named OldNameofDL has been renamed to NewNameofDL.  It may take up to 72 hrs for this new list to sync to the offline address list, in the meanwhile you can select this from the Global Address List:
+
+ 
+No changes to the ownership of the distribution list have been made.
+ 
+If this distribution group is no longer needed please contact the Service Desk and have a request created to have the list removed from the system.  With this information this ticket will be closed. 
+ 
+

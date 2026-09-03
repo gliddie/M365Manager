@@ -1,0 +1,11 @@
+Subject: Group Membership Replaced for DistGroupName - TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+GrpOwner-
+ 
+As requested the membership of the group DistGroupName has been updated with the new list of members provided within your request.   With the requested changes complete we are closing the subject ticket. 
+ 
+

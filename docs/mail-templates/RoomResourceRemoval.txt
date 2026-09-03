@@ -1,0 +1,13 @@
+Subject: Removal of NameOfRoom  - TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+As requested the Room NameofRoom has  been removed from the system.  It may take up to 72 hrs for the removal of these items to sync to the Offline Address List.  In the meanwhile if individuals try to email try to reserve this space they will receive a delivery failure message indicating that the email address cannot be resolved.
+ 
+With the removal of these items this ticket will be closed. 
+ 
+Thanks, 
+ 
+

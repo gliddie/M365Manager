@@ -16,7 +16,14 @@ public interface IM365AuthService
     /// </summary>
     Task<SignedInUser> SignInAsync(CancellationToken ct = default);
 
-    /// <summary>The authenticated Graph client. Throws if not signed in.</summary>
+    /// <summary>
+    /// The authenticated Kiota SDK client. Throws if not signed in.
+    ///
+    /// Only sign-in itself still uses this. Feature code must go through
+    /// <see cref="GraphRestClient"/> instead - calls made here bypass the console transcript, which
+    /// is exactly how whole features (Trace, Teams policies, notification mail) used to look as if
+    /// they did nothing at all.
+    /// </summary>
     GraphServiceClient Graph { get; }
 
     /// <summary>

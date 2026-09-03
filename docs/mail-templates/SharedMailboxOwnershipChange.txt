@@ -1,0 +1,37 @@
+Subject: MBXName Shared Mailbox Ownership Change - TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+Per the subject service desk ticket (and with approval from NameofIndividual) the ownership of MBX Name shared mailbox has been changed.  You have been made an/the owner of the mailbox.
+ 
+As owner of the mailbox you are responsible for updating the membership of the group that controls access to the mailbox.  Mailbox ownership does not give you rights to access the mailbox.  If you need access to the mailbox you will need to add yourself as a member of one of the group(s) shown below.  An individual should only be added to the group which grants the highest level of access.  To modify access you will update the membership of:
+*	MBX.???.ED is the group you will edit to give others “Editor” access (full access)
+*	MBX.???.AU is the group that you will edit to give others “Author” access (create new folders, read and respond to all messages but can delete and/or manage only those messages they are the author of)
+*	MBX.???.RE is the group that you will edit to give others “Reader” access (read only access)
+ 
+By default we only create groups where individuals have been identified for access.  If you need to have a group created that grants lesser or access such Author or Reader please create a Service Desk request so that we can create the groups necessary for those access levels.
+ 
+Here is a link for modifying the group membership:
+ 
+Editing Group Membership <https://ul.service-now.com/ulsp?id=kb_article&sysparm_article=KB0011504> 
+ 
+If you grant access to others please select the appropriate level of access (the text shown in red) and then forward this information to them so they can add the mailbox to their Outlook navigator.
+ 
+****Note – Shared mailboxes that have not been accessed for 6 months (180 days) by an individual that has been granted access will automatically be purged from the system. ****
+ 
+ 
+Please use this information to add this mailbox to your Outlook Navigator.  Additionally, if you grant others access to this mailbox please forward the below information to them so they can add the mailbox to their Outlook Navigator.
+ 
+Mailbox Name:  NameofMailbox
+Email Address:  InternetAddressofMailbox
+ 
+Adding a Shared Mailbox in Outlook <https://ul.service-now.com/ulsp?sys_kb_id=c53080445ce1b540901cb04e7045982f&id=kb_article_view> 
+Sending Mail from a Shared Mailbox <https://ul.service-now.com/ulsp?sys_kb_id=5d68567e1b58bd5078e098ac0a4bcbcf&id=kb_article_view> 
+Creating Signature and Rules in a Shared Mailbox <https://ul.service-now.com/ulsp?sys_kb_id=9bf5c90e476df59084f842f3636d4345&id=kb_article_view> 
+ 
+ 
+With this information this ticket is being closed. 
+ 
+

@@ -1,0 +1,40 @@
+Subject: NameOfMailbox Renamed to NewNameofMailbox - TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+Per the subject service desk ticket the shared mailbox NameofMailbox has been renamed to NewNameOfMailbox.  In addition the group(s) that managed access to the mailbox has been renamed to align with the new mailbox name.  The group(s) used to manage access are now named:
+ 
+*	MBX.NewNameOfMailbox.ED – grants full access to the mailbox
+*	MBX. NewNameOfMailbox.AU – grants access to create new folders, read and respond to all messages but can delete and/or manage only those messages they are the author of
+*	MBX. NewNameOfMailbox.RE – grants read only access to the mailbox
+ 
+If you need to grant lesser or access such Author or Reader access create a Service Desk request so that we can create the groups necessary for those access levels.
+ 
+Here is a link for modifying the group membership:
+ 
+Editing Group Membership <https://ul.service-now.com/kb_view.do?sysparm_article=KB0011504> 
+ 
+If you grant access to others please select the appropriate level of access (the text shown in red) and then forward this information to them so they can add the mailbox to their Outlook navigator.
+ 
+ 
+****Note – Shared mailboxes that have not been accessed for 6 months (180 days) by an individual that has been granted access will automatically be purged from the system. ****
+ 
+ 
+­­­­­­­­­­­­­­­­­­­­­­­­­
+Please use this information to add this mailbox to your Outlook Navigator:
+ 
+Mailbox Name:  NewNameOfMailbox
+Internet Address:  InternetAddress
+ 
+You have been given Editor/Author/Reader access to this mailbox
+ 
+Adding a Shared Mailbox in Outlook <https://ul.service-now.com/kb_view.do?sysparm_article=KB0013171> 
+Sending Mail from a Shared Mailbox <https://ul.service-now.com/ulsp?id=kb_article&sysparm_article=KB0011491> 
+Creating Signature and Rules in Shared <https://ul.service-now.com/ulsp?id=kb_article&sysparm_article=KB0011356> 
+ 
+ 
+With this information this Service Desk ticket is being closed. 
+ 
+

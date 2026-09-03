@@ -1,0 +1,587 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Windows.Data;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using M365Manager.Core.PowerShell;
+using M365Manager.Core.RoomResources;
+
+namespace M365Manager.ViewModels;
+
+public sealed partial class RoomResourcesViewModel : ObservableObject
+{
+    private readonly IRoomResourceService _rooms;
+
+    // --- Create form ---
+    [ObservableProperty] private string _taskNumber = "";
+    [ObservableProperty] private string _rawName = "";
+    [ObservableProperty] private ResourceKind _kind = ResourceKind.Room;
+    [ObservableProperty] private RoomAccessModel _accessModel = RoomAccessModel.GeneralUseSiteDelegates;
+    [ObservableProperty] private BookingPolicyPreset _preset = BookingPolicyPreset.Standard;
+    [ObservableProperty] private string _capacity = "";
+    [ObservableProperty] private string _building = "";
+    [ObservableProperty] private string _floor = "";
+    [ObservableProperty] private string _delegateMembers = "";
+    [ObservableProperty] private string _userMembers = "";
+
+    /// <summary>Who gets the confirmation e-mail. Empty means none is sent - see RoomResourceCreationRequest.</summary>
+    [ObservableProperty] private string _requesterIdentity = "";
+    [ObservableProperty] private string _mailboxDomainOverride = "";
+    [ObservableProperty] private string _groupDomainOverride = "";
+
+    // Custom booking policy values, only used when Preset == Custom.
+    [ObservableProperty] private string _customBookingWindowDays = "90";
+    [ObservableProperty] private string _customMaxDurationMinutes = "1440";
+    [ObservableProperty] private bool _customAllowRecurring = true;
+
+    [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private string _statusMessage = "Fill in the fields and click Create.";
+
+    // --- Live preview ---
+    [ObservableProperty] private string _previewDisplayName = "";
+    [ObservableProperty] private string _previewAddress = "";
+    [ObservableProperty] private string _previewRoomList = "";
+    [ObservableProperty] private string _previewDelegateGroup = "";
+    [ObservableProperty] private string _previewUsersGroup = "";
+    [ObservableProperty] private string _previewOffice = "";
+    [ObservableProperty] private string _previewSiteInfo = "";
+    [ObservableProperty] private string _previewProblems = "";
+
+    /// <summary>Guards against an older preview lookup overwriting a newer one.</summary>
+    private int _previewRequestVersion;
+
+    public bool IsRoom => Kind == ResourceKind.Room;
+    public bool IsRestricted => AccessModel == RoomAccessModel.Restricted;
+    public bool IsCustomPolicy => Preset == BookingPolicyPreset.Custom;
+
+    public IReadOnlyList<ResourceKind> ResourceKinds { get; } = Enum.GetValues<ResourceKind>();
+    public IReadOnlyList<RoomAccessModel> AccessModels { get; } = Enum.GetValues<RoomAccessModel>();
+    public IReadOnlyList<BookingPolicyPreset> Presets { get; } = Enum.GetValues<BookingPolicyPreset>();
+    public IReadOnlyList<MembershipChangeMode> MembershipModes { get; } = Enum.GetValues<MembershipChangeMode>();
+    public IReadOnlyList<RoomGroupKind> GroupKinds { get; } = Enum.GetValues<RoomGroupKind>();
+
+    // --- Overview grid ---
+    [ObservableProperty] private string _overviewFilterText = "";
+    [ObservableProperty] private bool _isOverviewBusy;
+    [ObservableProperty] private string _overviewStatusMessage = "";
+    [ObservableProperty] private RoomResourceOverviewRow? _selectedRoom;
+
+    public ObservableCollection<RoomResourceOverviewRow> Rooms { get; } = new();
+    public ICollectionView RoomsView { get; }
+
+    // --- Manage panel (edit details / membership / remove) ---
+    [ObservableProperty] private string _manageTaskNumber = "";
+
+    /// <summary>Requester for the manage panel's operations (edit / membership / remove).</summary>
+    [ObservableProperty] private string _manageRequesterIdentity = "";
+    [ObservableProperty] private string _editCapacity = "";
+    [ObservableProperty] private string _editBuilding = "";
+    [ObservableProperty] private string _editFloor = "";
+    [ObservableProperty] private string _editTimeZone = "";
+    [ObservableProperty] private bool _changeBookingPolicy;
+    [ObservableProperty] private BookingPolicyPreset _editPreset = BookingPolicyPreset.Standard;
+    [ObservableProperty] private bool _isManageBusy;
+    [ObservableProperty] private string _manageStatusMessage = "";
+
+    [ObservableProperty] private RoomGroupKind _membershipGroupKind = RoomGroupKind.Delegates;
+    [ObservableProperty] private MembershipChangeMode _membershipMode = MembershipChangeMode.Add;
+    [ObservableProperty] private string _membershipIdentities = "";
+    [ObservableProperty] private string _currentMembers = "";
+
+    [ObservableProperty] private bool _removeOrphanedGroups = true;
+    [ObservableProperty] private bool _removeConfirmed;
+
+    /// <summary>Backs the PowerShell console on this page - see PowerShellConsole.</summary>
+    public IPowerShellTranscript Transcript { get; }
+
+    public RoomResourcesViewModel(IRoomResourceService rooms, IPowerShellTranscript transcript)
+    {
+        _rooms = rooms;
+        Transcript = transcript;
+
+        RoomsView = CollectionViewSource.GetDefaultView(Rooms);
+        RoomsView.Filter = FilterRow;
+
+        _ = RefreshOverviewAsync();
+    }
+
+    // --- preview plumbing ---
+
+    partial void OnRawNameChanged(string value) => _ = RefreshPreviewAsync();
+    partial void OnBuildingChanged(string value) => _ = RefreshPreviewAsync();
+    partial void OnFloorChanged(string value) => _ = RefreshPreviewAsync();
+    partial void OnCapacityChanged(string value) => _ = RefreshPreviewAsync();
+    partial void OnMailboxDomainOverrideChanged(string value) => _ = RefreshPreviewAsync();
+    partial void OnGroupDomainOverrideChanged(string value) => _ = RefreshPreviewAsync();
+
+    partial void OnKindChanged(ResourceKind value)
+    {
+        OnPropertyChanged(nameof(IsRoom));
+        _ = RefreshPreviewAsync();
+    }
+
+    partial void OnAccessModelChanged(RoomAccessModel value)
+    {
+        OnPropertyChanged(nameof(IsRestricted));
+        _ = RefreshPreviewAsync();
+    }
+
+    partial void OnPresetChanged(BookingPolicyPreset value) => OnPropertyChanged(nameof(IsCustomPolicy));
+
+    private RoomResourceCreationRequest BuildRequest() => new()
+    {
+        TaskNumber = TaskNumber.Trim(),
+        RequesterIdentity = RequesterIdentity.Trim(),
+        RawName = RawName.Trim(),
+        Kind = Kind,
+        AccessModel = AccessModel,
+        Preset = Preset,
+        CustomPolicy = Preset == BookingPolicyPreset.Custom ? BuildCustomPolicy() : null,
+        Capacity = Capacity.Trim(),
+        Building = Building.Trim(),
+        Floor = Floor.Trim(),
+        DelegateMembers = DelegateMembers.Trim(),
+        UserMembers = UserMembers.Trim(),
+        MailboxDomain = MailboxDomainOverride.Trim(),
+        GroupDomain = GroupDomainOverride.Trim(),
+    };
+
+    private BookingPolicy BuildCustomPolicy() => new(
+        BookingWindowInDays: int.TryParse(CustomBookingWindowDays.Trim(), out var w) && w > 0 ? w : 90,
+        MaximumDurationInMinutes: int.TryParse(CustomMaxDurationMinutes.Trim(), out var d) && d > 0 ? d : 1440,
+        AllowRecurringMeetings: CustomAllowRecurring,
+        MaximumConflictInstances: CustomAllowRecurring ? 3 : 0,
+        ConflictPercentageAllowed: CustomAllowRecurring ? 20 : 0);
+
+    private async Task RefreshPreviewAsync()
+    {
+        var version = ++_previewRequestVersion;
+
+        if (string.IsNullOrWhiteSpace(RawName))
+        {
+            ClearPreview();
+            return;
+        }
+
+        try
+        {
+            var preview = await _rooms.PreviewAsync(BuildRequest());
+            if (version != _previewRequestVersion)
+                return;
+
+            PreviewDisplayName = preview.Names.DisplayName;
+            PreviewAddress = preview.Names.Address;
+            PreviewOffice = preview.Names.Office;
+            PreviewRoomList = Kind == ResourceKind.Room
+                ? Decorate(preview.Names.RoomListName, preview.RoomListExists)
+                : "";
+            PreviewDelegateGroup = Decorate(preview.Names.DelegateGroup, preview.DelegateGroupExists);
+            PreviewUsersGroup = preview.Names.UsersGroup.Length > 0
+                ? Decorate(preview.Names.UsersGroup, preview.UsersGroupExists)
+                : "";
+            PreviewSiteInfo = preview.TimeZone is { Length: > 0 }
+                ? $"{preview.Names.SiteCode}: {preview.TimeZone}" +
+                  (string.IsNullOrWhiteSpace(preview.RegionalAdminGroup) ? "" : $" · {preview.RegionalAdminGroup}")
+                : "";
+            PreviewProblems = string.Join("\n", preview.Errors);
+        }
+        catch
+        {
+            // Preview is best-effort (SQL/Exchange may not be reachable yet) - keep the last value.
+        }
+    }
+
+    /// <summary>Marks each derived object as reused, newly created, or not yet checkable.</summary>
+    private static string Decorate(string name, bool? exists)
+    {
+        if (name.Length == 0)
+            return "";
+
+        var state = exists switch
+        {
+            true => "exists - will be reused",
+            false => "will be created",
+            null => "could not check - not connected?",
+        };
+        return $"{name}  ({state})";
+    }
+
+    private void ClearPreview()
+    {
+        PreviewDisplayName = "";
+        PreviewAddress = "";
+        PreviewRoomList = "";
+        PreviewDelegateGroup = "";
+        PreviewUsersGroup = "";
+        PreviewOffice = "";
+        PreviewSiteInfo = "";
+        PreviewProblems = "";
+    }
+
+    // --- create ---
+
+    [RelayCommand]
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(TaskNumber))
+        {
+            StatusMessage = "Enter the ticket/task number authorizing this creation.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(RawName))
+        {
+            StatusMessage = "Enter the name as \"<SITE> <Name>\", e.g. \"NBK Meeting Room 1\".";
+            return;
+        }
+
+        IsBusy = true;
+        StatusMessage = "Starting creation...";
+        Transcript.BeginOperation($"Create {Kind}: {PreviewDisplayName}");
+        try
+        {
+            var result = await _rooms.CreateAsync(BuildRequest(), msg => StatusMessage = msg);
+            StatusMessage = result.Succeeded
+                ? $"'{result.DisplayName}' ({result.PrimarySmtpAddress}) created successfully."
+                  + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}")
+                : $"Creation failed: {result.ErrorMessage}";
+
+            if (result.Succeeded)
+            {
+                ClearForm();
+                _ = RefreshOverviewAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Creation failed: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private void ClearForm()
+    {
+        TaskNumber = "";
+        RequesterIdentity = "";
+        RawName = "";
+        Capacity = "";
+        Building = "";
+        Floor = "";
+        DelegateMembers = "";
+        UserMembers = "";
+        ClearPreview();
+    }
+
+    // --- overview ---
+
+    partial void OnOverviewFilterTextChanged(string value) => RoomsView.Refresh();
+
+    private bool FilterRow(object obj)
+    {
+        if (string.IsNullOrWhiteSpace(OverviewFilterText))
+            return true;
+        if (obj is not RoomResourceOverviewRow r)
+            return true;
+
+        var term = OverviewFilterText.Trim();
+        return Contains(r.DisplayName, term)
+            || Contains(r.Alias, term)
+            || Contains(r.PrimarySmtpAddress, term)
+            || Contains(r.SiteCode, term)
+            || Contains(r.Office, term)
+            || Contains(r.RoomListName, term)
+            || Contains(r.DelegateGroup, term);
+    }
+
+    private static bool Contains(string? value, string term)
+        => !string.IsNullOrEmpty(value) && value.Contains(term, StringComparison.OrdinalIgnoreCase);
+
+    [RelayCommand]
+    private async Task RefreshOverviewAsync()
+    {
+        IsOverviewBusy = true;
+        OverviewStatusMessage = "Loading rooms and resources from SQL...";
+        try
+        {
+            var rows = await _rooms.GetOverviewAsync();
+            Rooms.Clear();
+            foreach (var row in rows)
+                Rooms.Add(row);
+
+            OverviewStatusMessage = $"{Rooms.Count} room(s)/resource(s) loaded.";
+        }
+        catch (Exception ex)
+        {
+            OverviewStatusMessage = $"Could not load rooms: {ex.Message}";
+        }
+        finally
+        {
+            IsOverviewBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ExportToExcel()
+    {
+        var filtered = RoomsView.Cast<RoomResourceOverviewRow>().ToList();
+        if (filtered.Count == 0)
+        {
+            OverviewStatusMessage = "Nothing to export - the (filtered) list is empty.";
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "Excel Workbook (*.xlsx)|*.xlsx",
+            FileName = "RoomsAndResources.xlsx",
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            RoomResourceExportService.ExportToExcel(dialog.FileName, filtered);
+            OverviewStatusMessage = $"Exported {filtered.Count} row(s) to {dialog.FileName}.";
+        }
+        catch (Exception ex)
+        {
+            OverviewStatusMessage = $"Export failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>Selecting a row pre-fills the manage panel, so nothing has to be retyped.</summary>
+    partial void OnSelectedRoomChanged(RoomResourceOverviewRow? value)
+    {
+        RemoveConfirmed = false;
+        CurrentMembers = "";
+        ManageStatusMessage = "";
+
+        if (value is null)
+            return;
+
+        EditCapacity = value.Capacity?.ToString() ?? "";
+        EditBuilding = value.Building;
+        EditFloor = value.Floor;
+        EditTimeZone = value.TimeZone;
+        ChangeBookingPolicy = false;
+        if (Enum.TryParse<BookingPolicyPreset>(value.BookingPolicy, out var preset))
+            EditPreset = preset;
+
+        // A general-use room has no users group - default the membership panel to what it has.
+        MembershipGroupKind = value.HasUsersGroup ? MembershipGroupKind : RoomGroupKind.Delegates;
+        _ = LoadCurrentMembersAsync();
+    }
+
+    partial void OnMembershipGroupKindChanged(RoomGroupKind value) => _ = LoadCurrentMembersAsync();
+
+    private string? SelectedGroupIdentity => SelectedRoom is null
+        ? null
+        : MembershipGroupKind == RoomGroupKind.Delegates ? SelectedRoom.DelegateGroup : SelectedRoom.UsersGroup;
+
+    private async Task LoadCurrentMembersAsync()
+    {
+        var group = SelectedGroupIdentity;
+        if (string.IsNullOrWhiteSpace(group))
+        {
+            CurrentMembers = MembershipGroupKind == RoomGroupKind.Users
+                ? "(general-use room - no authorized-users group)"
+                : "";
+            return;
+        }
+
+        try
+        {
+            var members = await _rooms.GetGroupMembersAsync(group);
+            CurrentMembers = members.Count > 0 ? string.Join("\n", members) : "(no members)";
+        }
+        catch (Exception ex)
+        {
+            CurrentMembers = $"(could not read members: {ex.Message})";
+        }
+    }
+
+    // --- manage: edit details ---
+
+    [RelayCommand]
+    private async Task UpdateDetailsAsync()
+    {
+        if (SelectedRoom is null)
+        {
+            ManageStatusMessage = "Select a room or resource in the grid first.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(ManageTaskNumber))
+        {
+            ManageStatusMessage = "Enter the ticket/task number authorizing this change.";
+            return;
+        }
+
+        var request = new RoomDetailsUpdateRequest
+        {
+            TaskNumber = ManageTaskNumber.Trim(),
+            RequesterIdentity = ManageRequesterIdentity.Trim(),
+            Address = SelectedRoom.PrimarySmtpAddress,
+            Kind = string.Equals(SelectedRoom.ResourceKind, "Equipment", StringComparison.OrdinalIgnoreCase)
+                ? ResourceKind.Equipment
+                : ResourceKind.Room,
+            Capacity = EditCapacity.Trim(),
+            Building = EditBuilding.Trim(),
+            Floor = EditFloor.Trim(),
+            TimeZone = EditTimeZone.Trim(),
+            Preset = ChangeBookingPolicy ? EditPreset : null,
+            CustomPolicy = ChangeBookingPolicy && EditPreset == BookingPolicyPreset.Custom ? BuildCustomPolicy() : null,
+        };
+
+        IsManageBusy = true;
+        ManageStatusMessage = "Applying changes...";
+        Transcript.BeginOperation($"Update details: {SelectedRoom.DisplayName}");
+        try
+        {
+            var result = await _rooms.UpdateDetailsAsync(request, msg => ManageStatusMessage = msg);
+            ManageStatusMessage = result.Succeeded
+                ? $"Updated {result.PrimarySmtpAddress}."
+                  + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}")
+                : $"Update failed: {result.ErrorMessage}";
+
+            if (result.Succeeded)
+                _ = RefreshOverviewAsync();
+        }
+        catch (Exception ex)
+        {
+            ManageStatusMessage = $"Update failed: {ex.Message}";
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+
+    // --- manage: membership ---
+
+    [RelayCommand]
+    private async Task ChangeMembershipAsync()
+    {
+        if (SelectedRoom is null)
+        {
+            ManageStatusMessage = "Select a room or resource in the grid first.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(ManageTaskNumber))
+        {
+            ManageStatusMessage = "Enter the ticket/task number authorizing this change.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(MembershipIdentities))
+        {
+            ManageStatusMessage = "Enter at least one identity to add or remove.";
+            return;
+        }
+
+        var request = new RoomMembershipChangeRequest
+        {
+            TaskNumber = ManageTaskNumber.Trim(),
+            RequesterIdentity = ManageRequesterIdentity.Trim(),
+            Address = SelectedRoom.PrimarySmtpAddress,
+            GroupIdentity = SelectedGroupIdentity ?? "",
+            GroupKind = MembershipGroupKind,
+            Mode = MembershipMode,
+            Identities = MembershipIdentities.Trim(),
+        };
+
+        IsManageBusy = true;
+        ManageStatusMessage = "Applying membership change...";
+        Transcript.BeginOperation($"{MembershipMode} {MembershipGroupKind} member(s): {SelectedRoom.DisplayName}");
+        try
+        {
+            var result = await _rooms.ChangeMembershipAsync(request);
+            if (!result.Succeeded && result.Results.Count == 0)
+            {
+                ManageStatusMessage = $"Membership change failed: {result.ErrorMessage}";
+            }
+            else
+            {
+                var ok = result.Results.Count(r => r.Succeeded);
+                var failed = result.Results.Where(r => !r.Succeeded).ToList();
+                ManageStatusMessage = (failed.Count == 0
+                    ? $"{ok} identity/identities {(MembershipMode == MembershipChangeMode.Add ? "added" : "removed")}."
+                    : $"{ok} succeeded, {failed.Count} failed: " +
+                      string.Join("; ", failed.Select(f => $"{f.Identity} ({f.Error})")))
+                    + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}");
+
+                MembershipIdentities = "";
+                await LoadCurrentMembersAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            ManageStatusMessage = $"Membership change failed: {ex.Message}";
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+
+    // --- manage: remove ---
+
+    [RelayCommand]
+    private async Task RemoveAsync()
+    {
+        if (SelectedRoom is null)
+        {
+            ManageStatusMessage = "Select a room or resource in the grid first.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(ManageTaskNumber))
+        {
+            ManageStatusMessage = "Enter the ticket/task number authorizing this removal.";
+            return;
+        }
+        if (!RemoveConfirmed)
+        {
+            ManageStatusMessage = "Tick the confirmation box - deleting a mailbox cannot be undone here.";
+            return;
+        }
+
+        var address = SelectedRoom.PrimarySmtpAddress;
+        var request = new RoomRemovalRequest
+        {
+            TaskNumber = ManageTaskNumber.Trim(),
+            RequesterIdentity = ManageRequesterIdentity.Trim(),
+            Address = address,
+            RemoveOrphanedGroups = RemoveOrphanedGroups,
+        };
+
+        IsManageBusy = true;
+        ManageStatusMessage = "Removing...";
+        Transcript.BeginOperation($"Remove: {address}");
+        try
+        {
+            var result = await _rooms.RemoveAsync(request, msg => ManageStatusMessage = msg);
+            if (result.Succeeded)
+            {
+                var groups = result.RemovedGroups.Count > 0
+                    ? $" Removed groups: {string.Join(", ", result.RemovedGroups)}."
+                    : "";
+                ManageStatusMessage = $"{address} removed.{groups} A full pre-removal snapshot was written to the log."
+                    + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}");
+                RemoveConfirmed = false;
+                _ = RefreshOverviewAsync();
+            }
+            else
+            {
+                ManageStatusMessage = $"Removal failed: {result.ErrorMessage}";
+            }
+        }
+        catch (Exception ex)
+        {
+            ManageStatusMessage = $"Removal failed: {ex.Message}";
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+}

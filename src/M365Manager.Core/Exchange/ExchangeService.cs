@@ -18,12 +18,14 @@ public sealed class ExchangeService : IExchangeService, IM365Connector
     private readonly PowerShellHost _host;
     private readonly IM365AuthService _auth;
     private readonly ISettingsService _settings;
+    private readonly GraphRestClient _graph;
 
-    public ExchangeService(PowerShellHost host, IM365AuthService auth, ISettingsService settings)
+    public ExchangeService(PowerShellHost host, IM365AuthService auth, ISettingsService settings, GraphRestClient graph)
     {
         _host = host;
         _auth = auth;
         _settings = settings;
+        _graph = graph;
     }
 
     public string DisplayName => "Exchange Online";
@@ -47,7 +49,8 @@ public sealed class ExchangeService : IExchangeService, IM365Connector
               .AddParameter("ErrorAction", "Stop");
             if (!string.IsNullOrWhiteSpace(upn))
                 ps.AddParameter("UserPrincipalName", upn);
-        }, onPrompt, ct);
+            // Kept out of the console transcript - the device-code flow prints a one-time code.
+        }, onPrompt, ct, suppressTranscript: true);
 
         IsConnected = true;
     }
@@ -362,11 +365,12 @@ ORDER BY DisplayName;
                     // "We failed to update the group mailbox" because it conflicts with Teams'
                     // own provisioning sync. Microsoft's guidance is to change membership via
                     // Graph instead.
-                    await _auth.Graph.Groups[ResolveGraphGroupId(group)].Members.Ref.PostAsync(
-                        new Microsoft.Graph.Models.ReferenceCreate
+                    using var _ = await _graph.PostAsync(
+                        $"/groups/{ResolveGraphGroupId(group)}/members/$ref",
+                        new Dictionary<string, object?>
                         {
-                            OdataId = $"https://graph.microsoft.com/v1.0/users/{resolved}",
-                        }, cancellationToken: ct);
+                            ["@odata.id"] = $"https://graph.microsoft.com/v1.0/users/{resolved}",
+                        }, ct);
                 }
                 else
                 {
@@ -400,12 +404,15 @@ ORDER BY DisplayName;
             {
                 if (group.IsUnifiedGroup)
                 {
-                    var user = await _auth.Graph.Users[raw].GetAsync(cfg =>
-                        cfg.QueryParameters.Select = new[] { "id" }, ct);
-                    if (string.IsNullOrEmpty(user?.Id))
+                    string userId;
+                    using (var json = await _graph.GetAsync($"/users/{Uri.EscapeDataString(raw)}?$select=id", ct: ct))
+                    {
+                        userId = json.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? "" : "";
+                    }
+                    if (userId.Length == 0)
                         throw new InvalidOperationException($"Could not resolve '{raw}' to a directory user.");
 
-                    await _auth.Graph.Groups[ResolveGraphGroupId(group)].Members[user.Id].Ref.DeleteAsync(cancellationToken: ct);
+                    using var _ = await _graph.DeleteAsync($"/groups/{ResolveGraphGroupId(group)}/members/{userId}/$ref", ct);
                 }
                 else
                 {
@@ -485,22 +492,5 @@ ORDER BY DisplayName;
     private static string Str(PSObject o, string name)
         => o.Properties[name]?.Value?.ToString() ?? "";
 
-    private static List<string> StrList(PSObject o, string name)
-    {
-        var value = o.Properties[name]?.Value;
-        var list = new List<string>();
-
-        if (value is IEnumerable seq and not string)
-        {
-            foreach (var item in seq)
-                if (item is not null)
-                    list.Add(item.ToString()!);
-        }
-        else if (value is not null)
-        {
-            list.Add(value.ToString()!);
-        }
-
-        return list;
-    }
+    private static List<string> StrList(PSObject o, string name) => PsValues.ToStringList(o, name);
 }

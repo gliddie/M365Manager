@@ -1,0 +1,19 @@
+Subject: New Restricted Room RoomName- TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+The creation of the new restricted room RoomName has been completed.  It may take up to 72 hrs to be available in the offline address list.  Using the Room Finder individuals can select rooms from the XXX Restricted Room:
+ 
+     
+ 
+The individuals configured as Room Delegates and will be responsible manage out of policy requests.  This includes meetings that are longer than 24 hrs, more than 90 days in the future or meetings that conflict with existing reservations.  Room Delegates for this space are:
+Names
+ 
+Individuals who have been authorized to request reservations in this space are:
+Names
+ 
+With this information this ticket will be closed. 
+ 
+

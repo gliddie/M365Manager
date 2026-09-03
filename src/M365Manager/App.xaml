@@ -15,6 +15,7 @@
             <conv:NullToVisibilityConverter x:Key="NullToCollapsed" />
             <conv:EmptyStringToVisibilityConverter x:Key="EmptyToCollapsed" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVisible" />
+            <conv:BoolToVisibilityConverter x:Key="BoolToCollapsed" Invert="True" />
 
             <!-- Map each ViewModel to its View -->
             <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
@@ -22,6 +23,24 @@
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:GroupsViewModel}">
                 <views:GroupsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:TeamsViewModel}">
+                <views:TeamsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:SharedMailboxesViewModel}">
+                <views:SharedMailboxesView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:RoomResourcesViewModel}">
+                <views:RoomResourcesView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:TeamsPoliciesViewModel}">
+                <views:TeamsPoliciesView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:NewHireViewModel}">
+                <views:NewHireView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:TraceViewModel}">
+                <views:TraceView />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
                 <views:SettingsView />

@@ -11,6 +11,9 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IStartupConnectionService _startup;
     private readonly DashboardViewModel _dashboard;
     private readonly GroupsViewModel _groups;
+    private readonly TeamsViewModel _teams;
+    private readonly SharedMailboxesViewModel _sharedMailboxes;
+    private readonly TraceViewModel _trace;
 
     [ObservableProperty]
     private object? _currentViewModel;
@@ -36,20 +39,35 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(
         DashboardViewModel dashboard,
         GroupsViewModel groups,
+        TeamsViewModel teams,
+        SharedMailboxesViewModel sharedMailboxes,
+        RoomResourcesViewModel roomResources,
+        TeamsPoliciesViewModel teamsPolicies,
+        NewHireViewModel newHire,
+        TraceViewModel trace,
         SettingsViewModel settings,
         LogsViewModel logs,
         IStartupConnectionService startup)
     {
         _dashboard = dashboard;
         _groups = groups;
+        _teams = teams;
+        _sharedMailboxes = sharedMailboxes;
+        _trace = trace;
         _startup = startup;
 
         Pages = new ObservableCollection<NavItem>
         {
-            new() { Title = "Dashboard", ViewModel = dashboard },
-            new() { Title = "Groups",    ViewModel = groups },
-            new() { Title = "Logs",      ViewModel = logs },
-            new() { Title = "Settings",  ViewModel = settings },
+            new() { Title = "Dashboard",         ViewModel = dashboard },
+            new() { Title = "Groups",            ViewModel = groups },
+            new() { Title = "Teams",             ViewModel = teams },
+            new() { Title = "Shared Mailboxes",  ViewModel = sharedMailboxes },
+            new() { Title = "Rooms & Resources", ViewModel = roomResources },
+            new() { Title = "Teams Policies",    ViewModel = teamsPolicies },
+            new() { Title = "New Hire",          ViewModel = newHire },
+            new() { Title = "Trace Application", ViewModel = trace },
+            new() { Title = "Logs",              ViewModel = logs },
+            new() { Title = "Settings",          ViewModel = settings },
         };
 
         SelectedPage = Pages[0];
@@ -111,6 +129,8 @@ public sealed partial class MainViewModel : ObservableObject
             IsConnecting = false;
             _dashboard.RefreshCommand.Execute(null);
             _groups.RefreshConnectionState();
+            _sharedMailboxes.RefreshAvailableDomains();
+            _trace.RefreshAfterConnect();
         }
     }
 

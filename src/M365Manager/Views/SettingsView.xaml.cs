@@ -14,14 +14,23 @@ public partial class SettingsView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // Seed the PasswordBox from the view model (it cannot be data-bound directly).
-        if (DataContext is SettingsViewModel vm)
-            SqlPasswordBox.Password = vm.SqlPassword;
+        // Seed the PasswordBoxes from the view model (they cannot be data-bound directly).
+        if (DataContext is not SettingsViewModel vm)
+            return;
+
+        SqlPasswordBox.Password = vm.SqlPassword;
+        SmtpPasswordBox.Password = vm.SmtpPassword;
     }
 
     private void SqlPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
     {
         if (DataContext is SettingsViewModel vm)
             vm.SqlPassword = SqlPasswordBox.Password;
+    }
+
+    private void SmtpPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is SettingsViewModel vm)
+            vm.SmtpPassword = SmtpPasswordBox.Password;
     }
 }

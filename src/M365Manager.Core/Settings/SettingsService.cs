@@ -41,6 +41,7 @@ public sealed class SettingsService : ISettingsService
 
             // Decrypt secrets that were encrypted at rest.
             settings.Sql.Password = SecretProtector.Unprotect(settings.Sql.Password) ?? "";
+            settings.Smtp.Password = SecretProtector.Unprotect(settings.Smtp.Password) ?? "";
 
             Current = settings;
         }
@@ -70,6 +71,57 @@ public sealed class SettingsService : ISettingsService
                 TenantId = settings.M365.TenantId,
                 ClientId = settings.M365.ClientId,
                 Domain = settings.M365.Domain,
+                DefaultMailDomain = settings.M365.DefaultMailDomain,
+                SharePointAdminUrl = settings.M365.SharePointAdminUrl,
+            },
+            Smtp = new SmtpSettings
+            {
+                Host = settings.Smtp.Host,
+                Port = settings.Smtp.Port,
+                UseSsl = settings.Smtp.UseSsl,
+                FromAddress = settings.Smtp.FromAddress,
+                FromDisplayName = settings.Smtp.FromDisplayName,
+                ReplyToAddress = settings.Smtp.ReplyToAddress,
+                BccAddress = settings.Smtp.BccAddress,
+                UserName = settings.Smtp.UserName,
+                Password = SecretProtector.Protect(settings.Smtp.Password) ?? "",
+            },
+            SharedMailboxes = new SharedMailboxSettings
+            {
+                RetentionPolicyName = settings.SharedMailboxes.RetentionPolicyName,
+                RoleAssignmentPolicyName = settings.SharedMailboxes.RoleAssignmentPolicyName,
+                GroupMembershipHelpUrl = settings.SharedMailboxes.GroupMembershipHelpUrl,
+                MailboxHelpLinks = settings.SharedMailboxes.MailboxHelpLinks,
+            },
+            RoomResources = new RoomResourceSettings
+            {
+                RoomMailboxDomain = settings.RoomResources.RoomMailboxDomain,
+                RoomGroupDomain = settings.RoomResources.RoomGroupDomain,
+                RoomListOwnerGroup = settings.RoomResources.RoomListOwnerGroup,
+                GlobalAdminGroup = settings.RoomResources.GlobalAdminGroup,
+                DefaultBookingWindowDays = settings.RoomResources.DefaultBookingWindowDays,
+                DefaultMaximumDurationMinutes = settings.RoomResources.DefaultMaximumDurationMinutes,
+            },
+            TeamsPolicies = new TeamsPolicySettings
+            {
+                GroupPrefixes = settings.TeamsPolicies.GroupPrefixes,
+            },
+            Trace = new TraceSettings
+            {
+                CompanyName = settings.Trace.CompanyName,
+                RedirectUrl = settings.Trace.RedirectUrl,
+                InvitationMessage = settings.Trace.InvitationMessage,
+            },
+            NewHire = new NewHireSettings
+            {
+                Database = settings.NewHire.Database,
+                WriteAdAttributes = settings.NewHire.WriteAdAttributes,
+                LdapServer = settings.NewHire.LdapServer,
+                DeploymentLocator = settings.NewHire.DeploymentLocator,
+                PhoneNumberType = settings.NewHire.PhoneNumberType,
+                TeamsUpgradePolicyName = settings.NewHire.TeamsUpgradePolicyName,
+                NotifyEmployee = settings.NewHire.NotifyEmployee,
+                AdminNotificationAddress = settings.NewHire.AdminNotificationAddress,
             },
         };
 

@@ -5,7 +5,10 @@ using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using M365Manager.Core.Exchange;
+using M365Manager.Core.Groups;
 using M365Manager.Core.M365;
+using M365Manager.Core.PowerShell;
+using M365Manager.Core.Settings;
 using M365Manager.Data.Logging;
 using M365Manager.Services;
 
@@ -14,6 +17,9 @@ namespace M365Manager.ViewModels;
 public sealed partial class GroupsViewModel : ObservableObject
 {
     private readonly IExchangeService _exchange;
+    private readonly IGroupAdminService _groupAdmin;
+    private readonly IGroupNamingService _naming;
+    private readonly ISettingsService _settings;
     private readonly ILogService _log;
     private readonly IM365AuthService _auth;
 
@@ -51,14 +57,104 @@ public sealed partial class GroupsViewModel : ObservableObject
     /// <summary>Filtered view over <see cref="Members"/> that the DataGrid binds to.</summary>
     public ICollectionView MembersView { get; }
 
-    public GroupsViewModel(IExchangeService exchange, ILogService log, IM365AuthService auth)
+    /// <summary>Backs the PowerShell console on this page - see PowerShellConsole.</summary>
+    public IPowerShellTranscript Transcript { get; }
+
+    // ================= Create =================
+
+    [ObservableProperty] private string _createTaskNumber = "";
+
+    /// <summary>Who gets the confirmation e-mail. Empty means none is sent - see GroupCreationRequest.</summary>
+    [ObservableProperty] private string _createRequesterIdentity = "";
+    [ObservableProperty] private string _createRawName = "";
+    [ObservableProperty] private GroupKind _createKind = GroupKind.Distribution;
+    [ObservableProperty] private bool _createIsDynamic;
+    [ObservableProperty] private string _createDomain = "";
+    [ObservableProperty] private bool _createIsTemporary;
+    [ObservableProperty] private DateTime? _createRemoveOn = DateTime.Today.AddMonths(3);
+    [ObservableProperty] private string _createRemoveCharacter = "";
+    [ObservableProperty] private string _createOwners = "";
+    [ObservableProperty] private string _createMembers = "";
+    [ObservableProperty] private string _createAuthorizedSenders = "";
+    [ObservableProperty] private string _createAdditionalAliases = "";
+    [ObservableProperty] private bool _createAllowExternalSenders;
+    [ObservableProperty] private bool _isCreateBusy;
+    [ObservableProperty] private string _createStatusMessage = "Fill in the fields and click Create.";
+
+    // Editable preview, same mechanism as the Shared Mailboxes form.
+    [ObservableProperty] private string _previewName = "";
+    [ObservableProperty] private string _previewAddress = "";
+    [ObservableProperty] private bool _isPreviewNameEdited;
+    [ObservableProperty] private bool _isPreviewAddressEdited;
+    [ObservableProperty] private string _previewProblems = "";
+    private bool _applyingPreview;
+    private int _previewRequestVersion;
+
+    // Dynamic group conditions, pre-filled with the values from the legacy script.
+    [ObservableProperty] private string _dynamicIncludedRecipients = "MailboxUsers";
+    [ObservableProperty] private string _dynamicCompany = "UL.COM";
+    [ObservableProperty] private string _dynamicCustomAttribute1 = "Employee";
+    [ObservableProperty] private string _dynamicCustomAttribute2 = "A";
+    [ObservableProperty] private string _dynamicCustomAttribute3 = "";
+    [ObservableProperty] private string _dynamicCustomAttribute8 = "";
+    [ObservableProperty] private string _dynamicNotes = "";
+    [ObservableProperty] private string _dynamicMailTip = "";
+
+    public IReadOnlyList<GroupKind> GroupKinds { get; } = Enum.GetValues<GroupKind>();
+    public IReadOnlyList<ListChangeMode> ChangeModes { get; } = Enum.GetValues<ListChangeMode>();
+
+    public bool IsStaticCreate => !CreateIsDynamic;
+
+    // ================= Manage selected =================
+
+    [ObservableProperty] private string _manageTaskNumber = "";
+
+    /// <summary>Requester for the manage panel. Alias changes send no mail - they have no template.</summary>
+    [ObservableProperty] private string _manageRequesterIdentity = "";
+
+    [ObservableProperty] private bool _isManageBusy;
+    [ObservableProperty] private string _manageStatusMessage = "";
+
+    [ObservableProperty] private ListChangeMode _ownerChangeMode = ListChangeMode.Add;
+    [ObservableProperty] private string _ownerIdentities = "";
+
+    [ObservableProperty] private ListChangeMode _senderChangeMode = ListChangeMode.Add;
+    [ObservableProperty] private string _senderIdentities = "";
+    [ObservableProperty] private string _currentAuthorizedSenders = "";
+
+    [ObservableProperty] private ListChangeMode _aliasChangeMode = ListChangeMode.Add;
+    [ObservableProperty] private string _aliasIdentities = "";
+    [ObservableProperty] private string _currentAliases = "";
+
+    [ObservableProperty] private string _replaceMembersText = "";
+    [ObservableProperty] private bool _replaceMembersConfirmed;
+
+    [ObservableProperty] private string _renameNewName = "";
+    [ObservableProperty] private string _renameNewAddress = "";
+
+    [ObservableProperty] private bool _removeConfirmed;
+
+    public GroupsViewModel(
+        IExchangeService exchange,
+        ILogService log,
+        IM365AuthService auth,
+        IPowerShellTranscript transcript,
+        IGroupAdminService groupAdmin,
+        IGroupNamingService naming,
+        ISettingsService settings)
     {
         _exchange = exchange;
         _log = log;
         _auth = auth;
+        _groupAdmin = groupAdmin;
+        _naming = naming;
+        _settings = settings;
+        Transcript = transcript;
 
         MembersView = CollectionViewSource.GetDefaultView(Members);
         MembersView.Filter = FilterMember;
+
+        CreateDomain = settings.Current.M365.DefaultMailDomain;
     }
 
     partial void OnMemberFilterTextChanged(string value) => MembersView.Refresh();
@@ -236,7 +332,9 @@ public sealed partial class GroupsViewModel : ObservableObject
     partial void OnSelectedGroupChanged(DistributionGroupInfo? value)
     {
         OwnersText = value is null ? "" : string.Join(", ", value.ManagedBy);
+        ManageStatusMessage = "";
         _ = LoadMembersAsync(value);
+        _ = LoadGroupDetailsAsync(value);
     }
 
     private async Task LoadMembersAsync(DistributionGroupInfo? group)
@@ -291,6 +389,7 @@ public sealed partial class GroupsViewModel : ObservableObject
 
         var group = SelectedGroup;
         IsBusy = true;
+        Transcript.BeginOperation($"Add member(s) to {group.DisplayName}");
         StatusMessage = identities.Count == 1
             ? $"Adding {identities[0]} to {group.DisplayName}..."
             : $"Adding {identities.Count} members to {group.DisplayName}...";
@@ -356,6 +455,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         var group = SelectedGroup;
         var identities = members.Select(m => string.IsNullOrWhiteSpace(m.PrimarySmtpAddress) ? m.DisplayName : m.PrimarySmtpAddress).ToList();
         IsBusy = true;
+        Transcript.BeginOperation($"Remove member(s) from {group.DisplayName}");
         StatusMessage = $"Removing {members.Count} member(s) from {group.DisplayName}...";
         try
         {
@@ -414,6 +514,7 @@ public sealed partial class GroupsViewModel : ObservableObject
 
         var group = SelectedGroup;
         IsBusy = true;
+        Transcript.BeginOperation($"Sync members of {group.DisplayName}");
         StatusMessage = $"Syncing members of {group.DisplayName} from Exchange...";
         try
         {
@@ -521,5 +622,525 @@ public sealed partial class GroupsViewModel : ObservableObject
         {
             // Logging is best-effort; never let it break the UI action.
         }
+    }
+
+    // ================================================================
+    // Create
+    // ================================================================
+
+    partial void OnCreateRawNameChanged(string value) => _ = RefreshPreviewAsync();
+    partial void OnCreateDomainChanged(string value) => _ = RefreshPreviewAsync();
+    partial void OnCreateIsTemporaryChanged(bool value) => _ = RefreshPreviewAsync();
+    partial void OnCreateRemoveCharacterChanged(string value) => _ = RefreshPreviewAsync();
+
+    partial void OnCreateIsDynamicChanged(bool value) => OnPropertyChanged(nameof(IsStaticCreate));
+
+    // Once a preview field is edited by hand it stops being overwritten - typing on in the name
+    // field must not silently discard the correction.
+    partial void OnPreviewNameChanged(string value)
+    {
+        if (!_applyingPreview) IsPreviewNameEdited = true;
+    }
+
+    partial void OnPreviewAddressChanged(string value)
+    {
+        if (!_applyingPreview) IsPreviewAddressEdited = true;
+    }
+
+    [RelayCommand]
+    private void ResetPreview()
+    {
+        IsPreviewNameEdited = false;
+        IsPreviewAddressEdited = false;
+        _ = RefreshPreviewAsync();
+    }
+
+    private void ApplyPreview(string name, string address)
+    {
+        _applyingPreview = true;
+        try
+        {
+            PreviewName = name;
+            PreviewAddress = address;
+        }
+        finally
+        {
+            _applyingPreview = false;
+        }
+    }
+
+    private async Task RefreshPreviewAsync()
+    {
+        var version = ++_previewRequestVersion;
+
+        if (string.IsNullOrWhiteSpace(CreateRawName))
+        {
+            ApplyPreview(IsPreviewNameEdited ? PreviewName : "", IsPreviewAddressEdited ? PreviewAddress : "");
+            PreviewProblems = "";
+            return;
+        }
+
+        try
+        {
+            var names = await _naming.BuildAsync(CreateRawName, CreateIsTemporary, CreateRemoveCharacter, CreateDomain);
+            if (version != _previewRequestVersion)
+                return;
+
+            ApplyPreview(
+                IsPreviewNameEdited ? PreviewName : names.DisplayName,
+                IsPreviewAddressEdited ? PreviewAddress : names.Address);
+
+            PreviewProblems = PreviewName.Length > 64
+                ? $"The name is {PreviewName.Length} characters - Exchange allows at most 64."
+                : "";
+        }
+        catch
+        {
+            // Preview is best-effort (SQL may not be reachable) - keep the last value.
+        }
+    }
+
+    [RelayCommand]
+    private async Task CreateGroupAsync()
+    {
+        if (string.IsNullOrWhiteSpace(CreateTaskNumber))
+        {
+            CreateStatusMessage = "Enter the ticket/task number authorizing this creation.";
+            return;
+        }
+
+        IsCreateBusy = true;
+        try
+        {
+            if (CreateIsDynamic)
+                await CreateDynamicGroupAsync();
+            else
+                await CreateStaticGroupAsync();
+        }
+        catch (Exception ex)
+        {
+            CreateStatusMessage = $"Creation failed: {ErrorText.Describe(ex)}";
+        }
+        finally
+        {
+            IsCreateBusy = false;
+        }
+    }
+
+    private async Task CreateStaticGroupAsync()
+    {
+        var request = new GroupCreationRequest
+        {
+            TaskNumber = CreateTaskNumber.Trim(),
+            RequesterIdentity = CreateRequesterIdentity.Trim(),
+            RawName = CreateRawName.Trim(),
+            Kind = CreateKind,
+            Domain = CreateDomain.Trim(),
+            IsTemporary = CreateIsTemporary,
+            RemoveOn = CreateIsTemporary ? CreateRemoveOn : null,
+            RemoveCharacter = CreateRemoveCharacter,
+            Owners = CreateOwners.Trim(),
+            Members = CreateMembers.Trim(),
+            AuthorizedSenders = CreateAuthorizedSenders.Trim(),
+            AdditionalAliases = CreateAdditionalAliases.Trim(),
+            AllowExternalSenders = CreateAllowExternalSenders,
+            DisplayNameOverride = PreviewName.Trim(),
+            AddressOverride = PreviewAddress.Trim(),
+        };
+
+        CreateStatusMessage = "Starting group creation...";
+        Transcript.BeginOperation($"Create group: {PreviewName.Trim()}");
+
+        var result = await _groupAdmin.CreateAsync(request, msg => CreateStatusMessage = msg);
+        if (result.Succeeded)
+        {
+            CreateStatusMessage = result.Warning is { Length: > 0 }
+                ? $"'{result.DisplayName}' created - but note: {result.Warning}"
+                : $"'{result.DisplayName}' ({result.Address}) created.";
+            ClearCreateForm();
+        }
+        else
+        {
+            CreateStatusMessage = $"Creation failed: {result.ErrorMessage}";
+        }
+    }
+
+    private async Task CreateDynamicGroupAsync()
+    {
+        var request = new DynamicGroupCreationRequest
+        {
+            TaskNumber = CreateTaskNumber.Trim(),
+            RequesterIdentity = CreateRequesterIdentity.Trim(),
+            DisplayName = string.IsNullOrWhiteSpace(PreviewName) ? CreateRawName.Trim() : PreviewName.Trim(),
+            Domain = CreateDomain.Trim(),
+            AddressOverride = PreviewAddress.Trim(),
+            IncludedRecipients = DynamicIncludedRecipients.Trim(),
+            ConditionalCompany = DynamicCompany.Trim(),
+            ConditionalCustomAttribute1 = DynamicCustomAttribute1.Trim(),
+            ConditionalCustomAttribute2 = DynamicCustomAttribute2.Trim(),
+            ConditionalCustomAttribute3 = DynamicCustomAttribute3.Trim(),
+            ConditionalCustomAttribute8 = DynamicCustomAttribute8.Trim(),
+            Notes = DynamicNotes.Trim(),
+            MailTip = DynamicMailTip.Trim(),
+        };
+
+        CreateStatusMessage = "Starting dynamic group creation...";
+        Transcript.BeginOperation($"Create dynamic group: {request.DisplayName}");
+
+        var result = await _groupAdmin.CreateDynamicAsync(request, msg => CreateStatusMessage = msg);
+        CreateStatusMessage = result.Succeeded
+            ? $"'{result.DisplayName}' ({result.Address}) created."
+              + (result.Warning is { Length: > 0 } w ? $" WARNING: {w}" : "")
+            : $"Creation failed: {result.ErrorMessage}";
+
+        if (result.Succeeded)
+            ClearCreateForm();
+    }
+
+    private void ClearCreateForm()
+    {
+        CreateTaskNumber = "";
+        CreateRequesterIdentity = "";
+        CreateRawName = "";
+        CreateOwners = "";
+        CreateMembers = "";
+        CreateAuthorizedSenders = "";
+        CreateAdditionalAliases = "";
+        CreateAllowExternalSenders = false;
+        CreateIsTemporary = false;
+        CreateRemoveCharacter = "";
+        IsPreviewNameEdited = false;
+        IsPreviewAddressEdited = false;
+        ApplyPreview("", "");
+        PreviewProblems = "";
+    }
+
+    // ================================================================
+    // Manage selected group
+    // ================================================================
+
+    /// <summary>Loads the settings shown in the manage panel for the currently selected group.</summary>
+    private async Task LoadGroupDetailsAsync(DistributionGroupInfo? group)
+    {
+        CurrentAuthorizedSenders = "";
+        CurrentAliases = "";
+        RenameNewName = "";
+        RenameNewAddress = "";
+        RemoveConfirmed = false;
+        ReplaceMembersConfirmed = false;
+
+        if (group is null)
+            return;
+
+        try
+        {
+            var identity = GroupIdentity(group);
+            var details = await _groupAdmin.GetDetailsAsync(identity);
+            if (details is null)
+                return;
+
+            CurrentAuthorizedSenders = details.AuthorizedSenders.Count == 0
+                ? "(anyone may send)"
+                : string.Join("\n", details.AuthorizedSenders);
+
+            // EmailAddresses carries the smtp:/SMTP: prefixes; strip them for display.
+            CurrentAliases = string.Join("\n", details.Aliases
+                .Select(a => a.Contains(':') ? a[(a.IndexOf(':') + 1)..] : a));
+
+            RenameNewName = details.DisplayName;
+            RenameNewAddress = details.PrimarySmtpAddress;
+        }
+        catch (Exception ex)
+        {
+            ManageStatusMessage = $"Could not read group details: {ErrorText.Describe(ex)}";
+        }
+    }
+
+    /// <summary>Prefers the SMTP address; a cached row stores the Graph id in Name, which Exchange won't resolve.</summary>
+    private static string GroupIdentity(DistributionGroupInfo group)
+        => string.IsNullOrWhiteSpace(group.PrimarySmtpAddress) ? group.Name : group.PrimarySmtpAddress;
+
+    private bool ValidateManage(out string error)
+    {
+        if (SelectedGroup is null) { error = "Select a group first."; return false; }
+        if (string.IsNullOrWhiteSpace(ManageTaskNumber)) { error = "Enter the ticket/task number authorizing this change."; return false; }
+        error = "";
+        return true;
+    }
+
+    private GroupListChangeRequest BuildListRequest(ListChangeMode mode, string identities) => new()
+    {
+        TaskNumber = ManageTaskNumber.Trim(),
+        RequesterIdentity = ManageRequesterIdentity.Trim(),
+        GroupIdentity = GroupIdentity(SelectedGroup!),
+        Mode = mode,
+        Identities = identities.Trim(),
+        IsUnifiedGroup = SelectedGroup!.IsUnifiedGroup,
+    };
+
+    private void ReportManage(GroupOperationResult result, string success)
+    {
+        if (!result.Succeeded)
+        {
+            ManageStatusMessage = $"Failed: {result.ErrorMessage}";
+            return;
+        }
+
+        var failed = result.Results.Where(r => !r.Succeeded).ToList();
+        ManageStatusMessage = failed.Count == 0
+            ? success
+            : $"{success} {failed.Count} failed: {string.Join("; ", failed.Select(f => $"{f.Identity} ({f.Error})"))}";
+    }
+
+    [RelayCommand]
+    private async Task ChangeOwnersAsync()
+    {
+        if (!ValidateManage(out var error)) { ManageStatusMessage = error; return; }
+        if (string.IsNullOrWhiteSpace(OwnerIdentities)) { ManageStatusMessage = "Enter at least one owner."; return; }
+
+        IsManageBusy = true;
+        ManageStatusMessage = "Applying owner change...";
+        Transcript.BeginOperation($"{OwnerChangeMode} owner(s) on {SelectedGroup!.DisplayName}");
+        try
+        {
+            var result = await _groupAdmin.ChangeOwnersAsync(BuildListRequest(OwnerChangeMode, OwnerIdentities));
+            ReportManage(result, $"Owners updated ({OwnerChangeMode}).");
+            if (result.Succeeded)
+            {
+                OwnerIdentities = "";
+                await RefreshSelectedGroupAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            ManageStatusMessage = $"Owner change failed: {ErrorText.Describe(ex)}";
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ChangeAuthorizedSendersAsync()
+    {
+        if (!ValidateManage(out var error)) { ManageStatusMessage = error; return; }
+        if (string.IsNullOrWhiteSpace(SenderIdentities)) { ManageStatusMessage = "Enter at least one identity."; return; }
+
+        IsManageBusy = true;
+        ManageStatusMessage = "Applying authorized sender change...";
+        Transcript.BeginOperation($"{SenderChangeMode} authorized sender(s) on {SelectedGroup!.DisplayName}");
+        try
+        {
+            var result = await _groupAdmin.ChangeAuthorizedSendersAsync(BuildListRequest(SenderChangeMode, SenderIdentities));
+            ReportManage(result, $"Authorized senders updated ({SenderChangeMode}).");
+            if (result.Succeeded)
+            {
+                SenderIdentities = "";
+                await LoadGroupDetailsAsync(SelectedGroup);
+            }
+        }
+        catch (Exception ex)
+        {
+            ManageStatusMessage = $"Authorized sender change failed: {ErrorText.Describe(ex)}";
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ChangeAliasesAsync()
+    {
+        if (!ValidateManage(out var error)) { ManageStatusMessage = error; return; }
+        if (string.IsNullOrWhiteSpace(AliasIdentities)) { ManageStatusMessage = "Enter at least one address."; return; }
+
+        IsManageBusy = true;
+        ManageStatusMessage = "Applying alias change...";
+        Transcript.BeginOperation($"{AliasChangeMode} alias(es) on {SelectedGroup!.DisplayName}");
+        try
+        {
+            var result = await _groupAdmin.ChangeAliasesAsync(BuildListRequest(AliasChangeMode, AliasIdentities));
+            ReportManage(result, $"Aliases updated ({AliasChangeMode}).");
+            if (result.Succeeded)
+            {
+                AliasIdentities = "";
+                await LoadGroupDetailsAsync(SelectedGroup);
+            }
+        }
+        catch (Exception ex)
+        {
+            ManageStatusMessage = $"Alias change failed: {ErrorText.Describe(ex)}";
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ReplaceMembersAsync()
+    {
+        if (!ValidateManage(out var error)) { ManageStatusMessage = error; return; }
+        if (!ReplaceMembersConfirmed)
+        {
+            ManageStatusMessage = "Tick the confirmation box - this discards the current membership.";
+            return;
+        }
+
+        IsManageBusy = true;
+        ManageStatusMessage = "Replacing membership...";
+        Transcript.BeginOperation($"Replace membership of {SelectedGroup!.DisplayName}");
+        try
+        {
+            var result = await _groupAdmin.ReplaceMembersAsync(
+                BuildListRequest(ListChangeMode.Replace, ReplaceMembersText),
+                msg => ManageStatusMessage = msg);
+
+            ReportManage(result, "Membership replaced. The previous list was written to the log.");
+            if (result.Succeeded)
+            {
+                ReplaceMembersText = "";
+                ReplaceMembersConfirmed = false;
+                await RefreshSelectedGroupAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            ManageStatusMessage = $"Replace failed: {ErrorText.Describe(ex)}";
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Rewrites the group's MailTip from its current owners. Repairs tips written before the
+    /// flattened-ManagedBy fix, which otherwise only correct themselves on the next owner change.
+    /// </summary>
+    [RelayCommand]
+    private async Task RefreshMailTipAsync()
+    {
+        if (!ValidateManage(out var error)) { ManageStatusMessage = error; return; }
+
+        IsManageBusy = true;
+        ManageStatusMessage = "Rebuilding the MailTip from the current owners...";
+        Transcript.BeginOperation($"Refresh MailTip: {SelectedGroup!.DisplayName}");
+        try
+        {
+            var result = await _groupAdmin.RefreshMailTipAsync(
+                GroupIdentity(SelectedGroup!), ManageTaskNumber.Trim());
+
+            ManageStatusMessage = result.Succeeded
+                ? $"MailTip is now: {result.Info}"
+                : $"MailTip refresh failed: {result.ErrorMessage}";
+        }
+        catch (Exception ex)
+        {
+            ManageStatusMessage = $"MailTip refresh failed: {ErrorText.Describe(ex)}";
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task RenameGroupAsync()
+    {
+        if (!ValidateManage(out var error)) { ManageStatusMessage = error; return; }
+
+        IsManageBusy = true;
+        ManageStatusMessage = "Renaming...";
+        Transcript.BeginOperation($"Rename {SelectedGroup!.DisplayName} -> {RenameNewName}");
+        try
+        {
+            var result = await _groupAdmin.RenameAsync(new GroupRenameRequest
+            {
+                TaskNumber = ManageTaskNumber.Trim(),
+                RequesterIdentity = ManageRequesterIdentity.Trim(),
+                GroupIdentity = GroupIdentity(SelectedGroup!),
+                NewName = RenameNewName.Trim(),
+                NewAddress = RenameNewAddress.Trim(),
+            }, msg => ManageStatusMessage = msg);
+
+            if (result.Succeeded)
+            {
+                ManageStatusMessage = $"Renamed to '{result.DisplayName}' ({result.Address}). The previous address is kept as an alias."
+                    + (result.Warning is { Length: > 0 } w ? $" WARNING: {w}" : "");
+                await SearchAsync();
+            }
+            else
+            {
+                ManageStatusMessage = $"Rename failed: {result.ErrorMessage}";
+            }
+        }
+        catch (Exception ex)
+        {
+            ManageStatusMessage = $"Rename failed: {ErrorText.Describe(ex)}";
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task RemoveGroupAsync()
+    {
+        if (!ValidateManage(out var error)) { ManageStatusMessage = error; return; }
+        if (!RemoveConfirmed)
+        {
+            ManageStatusMessage = "Tick the confirmation box - deleting a group cannot be undone here.";
+            return;
+        }
+
+        var name = SelectedGroup!.DisplayName;
+        IsManageBusy = true;
+        ManageStatusMessage = "Removing...";
+        Transcript.BeginOperation($"Remove group: {name}");
+        try
+        {
+            var result = await _groupAdmin.RemoveAsync(new GroupRemovalRequest
+            {
+                TaskNumber = ManageTaskNumber.Trim(),
+                RequesterIdentity = ManageRequesterIdentity.Trim(),
+                GroupIdentity = GroupIdentity(SelectedGroup!),
+            }, msg => ManageStatusMessage = msg);
+
+            if (result.Succeeded)
+            {
+                ManageStatusMessage = $"'{name}' removed as {result.RemovedAs}. A snapshot was written to the log."
+                    + (result.Warning is { Length: > 0 } w ? $" WARNING: {w}" : "");
+                RemoveConfirmed = false;
+                SelectedGroup = null;
+                await SearchAsync();
+            }
+            else
+            {
+                ManageStatusMessage = $"Removal failed: {result.ErrorMessage}";
+            }
+        }
+        catch (Exception ex)
+        {
+            ManageStatusMessage = $"Removal failed: {ErrorText.Describe(ex)}";
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+
+    /// <summary>Re-reads the selected group's members and settings after a change.</summary>
+    private async Task RefreshSelectedGroupAsync()
+    {
+        var group = SelectedGroup;
+        if (group is null)
+            return;
+
+        await LoadMembersAsync(group);
+        await LoadGroupDetailsAsync(group);
     }
 }

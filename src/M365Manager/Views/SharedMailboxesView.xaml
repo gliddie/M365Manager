@@ -131,15 +131,17 @@
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
                              Text="{Binding ChangeOwnerTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Shared mailbox address" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding ChangeOwnerMailboxAddress, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Primary SMTP address, e.g. HQ.Facilities@contoso.com" />
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Shared mailbox" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding ChangeOwnerMailboxAddress, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Display name or SMTP address - e.g. HQ Facilities or HQ.Facilities@contoso.com. An alias or UPN works too. If a display name matches more than one mailbox, the address is asked for instead." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Owner identities" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding ChangeOwnerIdentities, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Comma-separated SamAccountName, UPN or e-mail address" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding ChangeOwnerIdentities, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Comma-separated. SamAccountName, UPN or e-mail address." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Mode" />
                     <ComboBox Margin="0,0,0,16" Width="160" HorizontalAlignment="Left"

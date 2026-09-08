@@ -353,7 +353,7 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject
         }
         if (string.IsNullOrWhiteSpace(ChangeOwnerMailboxAddress))
         {
-            ChangeOwnerStatusMessage = "Enter the shared mailbox's address.";
+            ChangeOwnerStatusMessage = "Enter the shared mailbox's display name or address.";
             return;
         }
         if (string.IsNullOrWhiteSpace(ChangeOwnerIdentities))

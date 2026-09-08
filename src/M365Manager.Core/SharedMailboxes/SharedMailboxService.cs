@@ -284,26 +284,31 @@ public sealed class SharedMailboxService : ISharedMailboxService
         {
             await LogAsync(correlationId, "ChangeOwner", "STAR", "Change Shared Mailbox Owner has started", request.TaskNumber, Severity.Info);
 
-            var address = (request.MailboxAddress ?? "").Trim();
-            var atIndex = address.IndexOf('@');
-            if (atIndex <= 0)
-                return await FailChangeAsync(correlationId, request.TaskNumber, $"'{request.MailboxAddress}' is not a valid mailbox address.");
-
-            var domain = address[(atIndex + 1)..];
+            var identity = (request.MailboxAddress ?? "").Trim();
+            if (identity.Length == 0)
+                return await FailChangeAsync(correlationId, request.TaskNumber, "Enter the shared mailbox's display name or address.");
 
             // The access groups are named after the mailbox's DISPLAY name ("MBX.<display name>.ED"),
             // not its address, so the display name has to come from Exchange - it can't be derived
             // from the address, whose local part has the spaces stripped and a dot inserted.
-            var mailbox = await _host.InvokeAsync(ps => ps
-                .AddCommand("Get-Mailbox")
-                .AddParameter("Identity", address)
-                .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
-            if (mailbox.Count == 0)
-                return await FailChangeAsync(correlationId, request.TaskNumber, $"No mailbox found for '{address}'.");
+            var (mailbox, resolveError) = await ResolveMailboxAsync(identity, ct);
+            if (mailbox is null)
+                return await FailChangeAsync(correlationId, request.TaskNumber, resolveError!);
 
-            var mailboxDisplayName = Str(mailbox[0], "DisplayName");
+            var mailboxDisplayName = Str(mailbox, "DisplayName");
             if (mailboxDisplayName.Length == 0)
-                return await FailChangeAsync(correlationId, request.TaskNumber, $"Mailbox '{address}' has no display name to derive its access group names from.");
+                return await FailChangeAsync(correlationId, request.TaskNumber, $"Mailbox '{identity}' has no display name to derive its access group names from.");
+
+            // Taken from the resolved mailbox rather than from what was typed. The operator may have
+            // entered a display name, an alias, or a secondary address on a different domain - in
+            // every one of those cases deriving the group domain from the input would be wrong.
+            var address = Str(mailbox, "PrimarySmtpAddress");
+            var atIndex = address.IndexOf('@');
+            if (atIndex <= 0)
+                return await FailChangeAsync(correlationId, request.TaskNumber,
+                    $"Mailbox '{mailboxDisplayName}' has no usable primary SMTP address ('{address}').");
+
+            var domain = address[(atIndex + 1)..];
 
             var newOwnerUpns = SplitIdentities(request.OwnerIdentities).Select(AppendDomain).ToArray();
             if (newOwnerUpns.Length == 0)
@@ -1249,6 +1254,46 @@ public sealed class SharedMailboxService : ISharedMailboxService
     }
 
     private static void Progress(Action<string>? onProgress, string message) => onProgress?.Invoke(message);
+
+    /// <summary>
+    /// Finds the mailbox an operator named, by whatever they typed: primary or secondary SMTP
+    /// address, alias, UPN, or display name.
+    ///
+    /// Get-Mailbox -Identity already accepts all of those, but it fails on a display name shared by
+    /// more than one mailbox - and with -ErrorAction SilentlyContinue that failure is
+    /// indistinguishable from "no such mailbox". So an empty result is retried as an explicit
+    /// display-name filter, purely to tell those two cases apart and name the candidates.
+    /// </summary>
+    /// <returns>The mailbox, or null plus the message to show the operator.</returns>
+    private async Task<(PSObject? Mailbox, string? Error)> ResolveMailboxAsync(string identity, CancellationToken ct)
+    {
+        var byIdentity = await _host.InvokeAsync(ps => ps
+            .AddCommand("Get-Mailbox")
+            .AddParameter("Identity", identity)
+            .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
+
+        if (byIdentity.Count == 1)
+            return (byIdentity[0], null);
+
+        // Single quotes have to be doubled inside an OPATH filter string.
+        var literal = identity.Replace("'", "''");
+        var byDisplayName = await _host.InvokeAsync(ps => ps
+            .AddCommand("Get-Mailbox")
+            .AddParameter("Filter", $"DisplayName -eq '{literal}'")
+            .AddParameter("ResultSize", 10)
+            .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
+
+        var candidates = byDisplayName.Count > 0 ? byDisplayName : byIdentity;
+
+        return candidates.Count switch
+        {
+            1 => (candidates[0], null),
+            0 => (null, $"No mailbox found for '{identity}'. Enter its display name or primary SMTP address."),
+            _ => (null, $"'{identity}' matches {candidates.Count} mailboxes "
+                        + $"({string.Join(", ", candidates.Select(m => Str(m, "PrimarySmtpAddress")).Where(a => a.Length > 0))}). "
+                        + "Enter the primary SMTP address instead."),
+        };
+    }
 
     private static string Str(PSObject? o, string name) => o?.Properties[name]?.Value?.ToString() ?? "";
 

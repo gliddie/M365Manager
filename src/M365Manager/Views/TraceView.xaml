@@ -32,14 +32,16 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Guest name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="The name the guest is invited under, e.g. Ralf Terjung" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="The name the guest is invited under, e.g. Ralf Terjung." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="E-mail address" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="The customer's own address - this is where the invitation is sent" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="The customer's own address - this is where the invitation is sent." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number (optional)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
@@ -81,16 +83,20 @@
         <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
                    Text="Read live from Entra - every guest carrying the configured company name. No SQL cache and no scheduled import here, so the list is always current." />
 
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
             <TextBox Style="{StaticResource ModernTextBox}" Width="320"
-                     Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Filter by name, e-mail or status" />
+                     Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" />
             <Button Content="Refresh" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
                     Command="{Binding RefreshGuestsCommand}"
                     IsEnabled="{Binding IsOverviewBusy, Converter={StaticResource InverseBool}}" />
             <Button Content="Export Excel" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
                     Command="{Binding ExportToExcelCommand}" />
         </StackPanel>
+
+        <!-- Below the row rather than under the box: the row is horizontal, so a hint placed
+             inside it would sit beside the box instead of under it. -->
+        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                   Text="Filter by name, e-mail or status." />
 
         <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,12"
                      Visibility="{Binding IsOverviewBusy, Converter={StaticResource BoolToVisible}}" />

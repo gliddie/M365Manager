@@ -30,14 +30,16 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Required - authorizes this creation, e.g. TASK0012345" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Required - authorizes this creation, e.g. TASK0012345." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Location" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding Location, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="First segment of the enforced mailbox name, e.g. HQ" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding Location, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="First segment of the enforced mailbox name, e.g. HQ." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Name" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
@@ -56,13 +58,11 @@
                         <StackPanel>
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Display name" />
                             <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,10"
-                                     Text="{Binding PreviewName, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="Filled in from Location + Name - correct it here if needed" />
+                                     Text="{Binding PreviewName, UpdateSourceTrigger=PropertyChanged}" />
 
                             <TextBlock Style="{StaticResource FieldLabel}" Text="E-mail address" />
                             <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,10"
-                                     Text="{Binding PreviewAddress, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="Filled in from Location + Name + domain - correct it here if needed" />
+                                     Text="{Binding PreviewAddress, UpdateSourceTrigger=PropertyChanged}" />
 
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center"
@@ -78,31 +78,27 @@
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Owner(s)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding OwnerIdentities, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Comma-separated SamAccountName, UPN or e-mail address" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                               Text="Authorized to manage the .ED/.AU/.RE access groups' membership below." />
+                             Text="{Binding OwnerIdentities, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap"
+                               Text="Comma-separated SamAccountName, UPN or e-mail address. Authorized to manage the .ED/.AU/.RE access groups' membership below." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text=".ED members (Editor - Full Access + Send As)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding EditorMembers, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Comma-separated identities - leave empty to put the owner(s) in this group" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Always created. If left empty, the owner(s) above become its members." />
+                             Text="{Binding EditorMembers, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Comma-separated identities. Always created. If left empty, the owner(s) above become its members." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text=".AU members (Author - Send on Behalf)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding AuthorMembers, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Comma-separated identities - leave empty and no .AU group is created" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Only created when you name at least one member." />
+                             Text="{Binding AuthorMembers, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Comma-separated identities. Only created when you name at least one member." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text=".RE members (Reader - read-only)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding ReaderMembers, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Comma-separated identities - leave empty and no .RE group is created" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
-                               Text="Only created when you name at least one member." />
+                             Text="{Binding ReaderMembers, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4" TextWrapping="Wrap"
+                               Text="Comma-separated identities. Only created when you name at least one member." />
 
                     <CheckBox Content="Allow external senders" Margin="0,10,0,16"
                               FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
@@ -167,16 +163,19 @@
         <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
                    Text="Read directly from the SQL cache (dbo.SharedMailboxes), never live from M365. Refreshed automatically after you create a mailbox or change an owner here; otherwise kept current by the scheduled Import-SharedMailboxesToSql.ps1 script." />
 
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
             <TextBox Style="{StaticResource ModernTextBox}" Width="320"
-                     Text="{Binding OverviewFilterText, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Filter by name, alias, address or owner" />
+                     Text="{Binding OverviewFilterText, UpdateSourceTrigger=PropertyChanged}" />
             <Button Content="Refresh" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
                     Command="{Binding RefreshOverviewCommand}"
                     IsEnabled="{Binding IsOverviewBusy, Converter={StaticResource InverseBool}}" />
             <Button Content="Export Excel" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
                     Command="{Binding ExportToExcelCommand}" />
         </StackPanel>
+
+        <!-- Below the row rather than under the box: the row is horizontal. -->
+        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                   Text="Filter by name, alias, address or owner." />
 
         <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,12"
                      Visibility="{Binding IsOverviewBusy, Converter={StaticResource BoolToVisible}}" />

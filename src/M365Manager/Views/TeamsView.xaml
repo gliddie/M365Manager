@@ -20,14 +20,16 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Required - authorizes this creation, e.g. TASK0012345" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Required - authorizes this creation, e.g. TASK0012345." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Location" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding Location, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Middle segment of the enforced team name, e.g. HQ" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding Location, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Middle segment of the enforced team name, e.g. HQ." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Name" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
@@ -43,10 +45,11 @@
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Owner" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding OwnerIdentity, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="SamAccountName, UPN or e-mail address" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                               Text="Must have a licensed mailbox. Becomes the sole owner of the new team - you are not added as a member." />
+                             Text="{Binding OwnerIdentity, UpdateSourceTrigger=PropertyChanged}" />
+                    <!-- The format note is folded into the hint this field already had, rather than
+                         stacking a second muted line under the first. -->
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap"
+                               Text="SamAccountName, UPN or e-mail address. Must have a licensed mailbox. Becomes the sole owner of the new team - you are not added as a member." />
 
                     <CheckBox Content="Public group" Margin="0,2,0,12"
                               FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
@@ -76,16 +79,19 @@
         <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
                    Text="Read directly from the SQL cache (dbo.Teams), never live from M365. Refreshed automatically after you create a team here; otherwise kept current by the scheduled Import-TeamsToSql.ps1 script." />
 
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
             <TextBox Style="{StaticResource ModernTextBox}" Width="320"
-                     Text="{Binding OverviewFilterText, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Filter by name, alias, address, owner or visibility" />
+                     Text="{Binding OverviewFilterText, UpdateSourceTrigger=PropertyChanged}" />
             <Button Content="Refresh" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
                     Command="{Binding RefreshTeamsOverviewCommand}"
                     IsEnabled="{Binding IsOverviewBusy, Converter={StaticResource InverseBool}}" />
             <Button Content="Export Excel" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
                     Command="{Binding ExportTeamsToExcelCommand}" />
         </StackPanel>
+
+        <!-- Below the row rather than under the box: the row is horizontal. -->
+        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                   Text="Filter by name, alias, address, owner or visibility." />
 
         <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,12"
                      Visibility="{Binding IsOverviewBusy, Converter={StaticResource BoolToVisible}}" />

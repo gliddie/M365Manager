@@ -20,16 +20,16 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Required - authorizes this creation, e.g. TASK0012345" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Required - authorizes this creation, e.g. TASK0012345." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding RequesterIdentity, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="SamAccountName, UPN or e-mail address" />
+                             Text="{Binding RequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Gets the confirmation e-mail describing the room, its delegates and the booking policy. Leave empty to send no mail." />
+                               Text="SamAccountName, UPN or e-mail address. Gets the confirmation e-mail describing the room, its delegates and the booking policy. Leave empty to send no mail." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Type" />
                     <ComboBox Margin="0,0,0,12" Width="200" HorizontalAlignment="Left"
@@ -37,8 +37,7 @@
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Name" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding RawName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="&quot;&lt;SITE&gt; &lt;Name&gt;&quot; - the first word is the site code, e.g. &quot;NBK Meeting Room 1&quot;" />
+                             Text="{Binding RawName, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
                                Text="Start with the three-letter site code, then the room name - e.g. &quot;NBK Meeting Room 1&quot;." />
 
@@ -52,8 +51,7 @@
                         <StackPanel Margin="0,0,16,0">
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Floor" />
                             <TextBox Style="{StaticResource ModernTextBox}" Width="90" HorizontalAlignment="Left"
-                                     Text="{Binding Floor, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="Floor number, or 0 / Ground for the ground floor" />
+                                     Text="{Binding Floor, UpdateSourceTrigger=PropertyChanged}" />
                         </StackPanel>
                         <StackPanel>
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Capacity" />
@@ -61,6 +59,12 @@
                                      Text="{Binding Capacity, UpdateSourceTrigger=PropertyChanged}" />
                         </StackPanel>
                     </StackPanel>
+
+                    <!-- Under the whole row: the Floor box is 90px wide, so a hint beneath it
+                         alone would wrap to four lines. -->
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,-6,0,12" TextWrapping="Wrap"
+                               Visibility="{Binding IsRoom, Converter={StaticResource BoolToVisible}}"
+                               Text="Floor: a number, or 0 / Ground for the ground floor." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Access model" />
                     <ComboBox Margin="0,0,0,4" Width="320" HorizontalAlignment="Left"
@@ -93,28 +97,30 @@
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Delegate group members" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding DelegateMembers, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Comma-separated identities - only used when the delegate group is created here" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Approve out-of-policy requests and get FullAccess on the mailbox. Ignored when an existing group is reused." />
+                             Text="{Binding DelegateMembers, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Comma-separated identities. Approve out-of-policy requests and get FullAccess on the mailbox. Ignored when an existing group is reused." />
 
                     <StackPanel Visibility="{Binding IsRestricted, Converter={StaticResource BoolToVisible}}">
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Authorized users" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                                 Text="{Binding UserMembers, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Comma-separated identities - only these may book a restricted room" />
+                        <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                                 Text="{Binding UserMembers, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                                   Text="Comma-separated identities - only these may book a restricted room." />
                     </StackPanel>
 
                     <Expander Header="Domain overrides" Margin="0,0,0,12" Foreground="{StaticResource TextBrush}">
                         <StackPanel Margin="0,8,0,0">
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Mailbox domain" />
                             <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,8"
-                                     Text="{Binding MailboxDomainOverride, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="Leave empty to use the configured room mailbox domain" />
+                                     Text="{Binding MailboxDomainOverride, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,10" TextWrapping="Wrap"
+                                       Text="Leave empty to use the configured room mailbox domain." />
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Group domain" />
                             <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding GroupDomainOverride, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="Leave empty to use the configured room group domain" />
+                                     Text="{Binding GroupDomainOverride, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                       Text="Leave empty to use the configured room group domain." />
                         </StackPanel>
                     </Expander>
 
@@ -169,16 +175,19 @@
         <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
                    Text="Read directly from the SQL cache (dbo.RoomResources), never live from M365. Select a row to manage it below. Kept current by the scheduled Import-RoomResourcesToSql.ps1 script and refreshed after every change made here." />
 
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
             <TextBox Style="{StaticResource ModernTextBox}" Width="320"
-                     Text="{Binding OverviewFilterText, UpdateSourceTrigger=PropertyChanged}"
-                     ToolTip="Filter by name, alias, address, site, location or group" />
+                     Text="{Binding OverviewFilterText, UpdateSourceTrigger=PropertyChanged}" />
             <Button Content="Refresh" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
                     Command="{Binding RefreshOverviewCommand}"
                     IsEnabled="{Binding IsOverviewBusy, Converter={StaticResource InverseBool}}" />
             <Button Content="Export Excel" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
                     Command="{Binding ExportToExcelCommand}" />
         </StackPanel>
+
+        <!-- Below the row rather than under the box: the row is horizontal. -->
+        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                   Text="Filter by name, alias, address, site, location or group." />
 
         <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,12"
                      Visibility="{Binding IsOverviewBusy, Converter={StaticResource BoolToVisible}}" />
@@ -235,10 +244,9 @@
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding ManageRequesterIdentity, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="SamAccountName, UPN or e-mail address" />
+                             Text="{Binding ManageRequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
-                               Text="Gets a confirmation e-mail for a detail change, a removal, or users added to a restricted room. Leave empty to send no mail." />
+                               Text="SamAccountName, UPN or e-mail address. Gets a confirmation e-mail for a detail change, a removal, or users added to a restricted room. Leave empty to send no mail." />
                 </StackPanel>
             </Border>
 
@@ -266,9 +274,10 @@
                     </StackPanel>
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Time zone" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding EditTimeZone, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Windows time zone id, e.g. W. Europe Standard Time" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding EditTimeZone, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Windows time zone id, e.g. W. Europe Standard Time." />
 
                     <CheckBox Content="Also change the booking policy" Margin="0,0,0,8"
                               FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
@@ -311,9 +320,10 @@
                     </Border>
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Identities" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding MembershipIdentities, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Comma-separated SamAccountName, UPN, e-mail address or group name" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                             Text="{Binding MembershipIdentities, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="Comma-separated SamAccountName, UPN, e-mail address or group name." />
 
                     <Button Style="{StaticResource PrimaryButton}" Content="Apply membership change"
                             HorizontalAlignment="Left"

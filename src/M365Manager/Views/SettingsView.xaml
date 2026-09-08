@@ -64,24 +64,21 @@
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Default UPN domain" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding Domain, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. global.ul.com" />
+                             Text="{Binding Domain, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
                                Text="Used to complete a bare SamAccountName (e.g. 'jdoe' becomes 'jdoe@global.ul.com') when adding group members or resolving an owner. This is the sign-in (UPN) domain - can differ from the mail domain below." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Default mail domain" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding DefaultMailDomain, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. ul.com" />
+                             Text="{Binding DefaultMailDomain, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
                                Text="Pre-selected address domain when creating a shared mailbox (e.g. 'ul.com'). Usually different from the UPN domain above." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="SharePoint admin center URL" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding SharePointAdminUrl, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. https://contoso-admin.sharepoint.com" />
+                             Text="{Binding SharePointAdminUrl, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                               Text="Used by the Teams feature to lock down site sharing on internal teams." />
+                               Text="Used by the Teams feature to lock down site sharing on internal teams. Example: https://contoso-admin.sharepoint.com" />
 
                     <Button Style="{StaticResource PrimaryButton}" Content="Sign in and test"
                             HorizontalAlignment="Left"
@@ -98,9 +95,10 @@
                                Text="Relay used for the confirmation mails sent when a shared mailbox, team or owner change is completed. Leave the host empty to fall back to sending as the signed-in admin via Microsoft Graph - that only works if the admin account has a licensed Exchange mailbox. Password is encrypted on this PC with Windows DPAPI." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="SMTP server" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding SmtpHost, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. smtp-relay.contoso.com" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                              Text="{Binding SmtpHost, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                               Text="Relay host name, e.g. smtp-relay.contoso.com. Leave empty to send as the signed-in admin via Graph instead." />
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                         <StackPanel Margin="0,0,16,0">
@@ -110,33 +108,34 @@
                         </StackPanel>
                         <CheckBox Content="Use TLS (STARTTLS)" VerticalAlignment="Bottom" Margin="0,0,0,8"
                                   FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                                  IsChecked="{Binding SmtpUseSsl}"
-                                  ToolTip="Usually off for an internal relay on port 25, on for port 587." />
+                                  IsChecked="{Binding SmtpUseSsl}" />
                     </StackPanel>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,-6,0,12"
+                               Text="TLS is usually off for an internal relay on port 25, and on for port 587." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Sender address" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding SmtpFromAddress, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. messaging-team@contoso.com" />
+                             Text="{Binding SmtpFromAddress, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Every notification is sent from this address. The relay has to allow it as a sender." />
+                               Text="Every notification is sent from this address; the relay has to allow it as a sender. Example: messaging-team@contoso.com" />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Sender display name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding SmtpFromDisplayName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. Enterprise Messaging Services Team" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                              Text="{Binding SmtpFromDisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                               Text="Shown next to the sender address, e.g. Enterprise Messaging Services Team." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Reply-To (optional)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding SmtpReplyToAddress, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Where replies should go, if not the sender address" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                              Text="{Binding SmtpReplyToAddress, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                               Text="Where replies should go, if not the sender address." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Bcc (optional)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding SmtpBccAddress, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Comma- or semicolon-separated" />
+                             Text="{Binding SmtpBccAddress, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap"
-                               Text="Blind-copies every notification, e.g. to a team mailbox for the record." />
+                               Text="Comma- or semicolon-separated. Blind-copies every notification, e.g. to a team mailbox for the record." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="User name (optional)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
@@ -151,14 +150,15 @@
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Send a test message to" />
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                         <TextBox Style="{StaticResource ModernTextBox}" Width="280"
-                                 Text="{Binding SmtpTestRecipient, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Your own address - the test uses the settings currently entered here" />
+                                 Text="{Binding SmtpTestRecipient, UpdateSourceTrigger=PropertyChanged}" />
                         <Button Style="{StaticResource PrimaryButton}" Content="Send test" Margin="10,0,0,0"
                                 Command="{Binding SendTestMailCommand}"
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
                         <Button Style="{StaticResource SecondaryButton}" Content="Save" Margin="10,0,0,0"
                                 Command="{Binding SaveCommand}" />
                     </StackPanel>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                               Text="Your own address - the test uses the settings currently entered here, saved or not." />
                 </StackPanel>
             </Border>
 
@@ -170,14 +170,16 @@
                                Text="Optional. If set, applied to every newly created shared mailbox. Leave empty to skip this step (the legacy tenant-specific policy names won't exist in every tenant)." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Retention policy name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding SharedMailboxRetentionPolicyName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Exact name of an existing Exchange retention policy, e.g. 'Default MRM Policy'" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                              Text="{Binding SharedMailboxRetentionPolicyName, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                               Text="Exact name of an existing Exchange retention policy, e.g. &apos;Default MRM Policy&apos;." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Role assignment policy name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,16"
-                             Text="{Binding SharedMailboxRoleAssignmentPolicyName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Exact name of an existing Exchange role assignment policy" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                              Text="{Binding SharedMailboxRoleAssignmentPolicyName, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
+                               Text="Exact name of an existing Exchange role assignment policy." />
 
                     <TextBlock Style="{StaticResource H2}" FontSize="14" Margin="0,4,0,0"
                                Text="Confirmation e-mail links" />
@@ -185,9 +187,10 @@
                                Text="Knowledge-base articles linked from the mails sent after a mailbox is created or its owners change. Taken from the legacy Outlook templates - verify they still resolve. Leave a field empty to drop that link from the mail." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Editing group membership (URL)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding SharedMailboxGroupMembershipHelpUrl, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Linked where the mail explains the .ED/.AU/.RE access groups" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                              Text="{Binding SharedMailboxGroupMembershipHelpUrl, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                               Text="Linked where the mail explains the .ED/.AU/.RE access groups." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Further help links" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
@@ -212,27 +215,27 @@
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Room mailbox domain" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding RoomMailboxDomain, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. contoso.onmicrosoft.com" />
+                             Text="{Binding RoomMailboxDomain, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Address domain for room/equipment mailboxes themselves - typically the tenant's onmicrosoft.com domain." />
+                               Text="Address domain for room/equipment mailboxes themselves - typically the tenant&apos;s onmicrosoft.com domain, e.g. contoso.onmicrosoft.com." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Room group domain" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding RoomGroupDomain, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. ul.com" />
+                             Text="{Binding RoomGroupDomain, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Address domain for the room list, delegate and authorized-users groups." />
+                               Text="Address domain for the room list, delegate and authorized-users groups, e.g. ul.com." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Room list / group owner" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding RoomListOwnerGroup, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Set as ManagedBy on new room lists and groups, e.g. MBX.RRS.Owner" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                              Text="{Binding RoomListOwnerGroup, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                               Text="Set as ManagedBy on new room lists and groups, e.g. MBX.RRS.Owner." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Global admin group" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding RoomGlobalAdminGroup, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="Granted FullAccess on every new room, e.g. DBS.CRP.RRS.Admins" />
+                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
+                              Text="{Binding RoomGlobalAdminGroup, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                               Text="Granted FullAccess on every new room, e.g. DBS.CRP.RRS.Admins." />
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                         <StackPanel Margin="0,0,16,0">
@@ -283,12 +286,13 @@
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Telephony database" />
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                         <TextBox Style="{StaticResource ModernTextBox}" Width="260"
-                                 Text="{Binding NewHireDatabase, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="e.g. uchelper" />
+                                 Text="{Binding NewHireDatabase, UpdateSourceTrigger=PropertyChanged}" />
                         <Button Style="{StaticResource SecondaryButton}" Content="Test connection" Margin="10,0,0,0"
                                 Command="{Binding TestNewHireSqlCommand}"
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
                     </StackPanel>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
+                               Text="Catalog name only, e.g. uchelper - server and credentials come from the SQL Server section above." />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap"
                                Text="{Binding NewHireStatusMessage}" />
 
@@ -297,46 +301,41 @@
                               FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
                               IsChecked="{Binding NewHireWriteAdAttributes}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Leave this on while Entra Connect still synchronises the msRTCSIP-* attributes: on-premises is then the authoritative source, and a number assigned only in Teams gets overwritten - or cleared - on the next sync cycle. Writing both sides with the same value makes the sync a no-op. Turn it off only once those attributes are no longer synchronised. The write runs as your own Windows account over Kerberos; no credentials are stored." />
+                               Text="Leave this on while Entra Connect still synchronises the msRTCSIP-* attributes: on-premises is then the authoritative source, and a number assigned only in Teams gets overwritten - or cleared - on the next sync cycle. Writing both sides with the same value makes the sync a no-op. Turn it off only once those attributes are no longer synchronised. The write runs as the account configured below, or as your own Windows account when none is set." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Domain controller (optional)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding NewHireLdapServer, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. dc01.corp.contoso.com" />
+                             Text="{Binding NewHireLdapServer, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Leave empty on a domain-joined machine - the domain and its search base are then discovered automatically." />
+                               Text="Leave empty on a domain-joined machine - the domain and its search base are then discovered automatically. Example: dc01.corp.contoso.com" />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Active Directory account (optional)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,8"
-                             Text="{Binding NewHireAdUserName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. GLOBAL\admin.jdoe or admin.jdoe@corp.contoso.com" />
+                             Text="{Binding NewHireAdUserName, UpdateSourceTrigger=PropertyChanged}" />
                     <PasswordBox x:Name="AdPasswordBox" Style="{StaticResource ModernPasswordBox}"
                                  Margin="0,0,0,4" PasswordChanged="AdPasswordBox_PasswordChanged" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Leave empty to bind as the signed-in Windows user. Fill it in where admin work is done from a separate admin account - the desktop session runs as the unprivileged account, and that is the identity an LDAP bind picks up, so every write comes back 'Access is denied'. Unlike Microsoft 365 there is no interactive sign-in to reuse here; LDAP needs the account and its password. The password is encrypted on this PC with Windows DPAPI." />
+                               Text="Given as GLOBAL\admin.jdoe or admin.jdoe@corp.contoso.com. Leave empty to bind as the signed-in Windows user. Fill it in where admin work is done from a separate admin account - the desktop session runs as the unprivileged account, and that is the identity an LDAP bind picks up, so every write comes back 'Access is denied'. Unlike Microsoft 365 there is no interactive sign-in to reuse here; LDAP needs the account and its password. The password is encrypted on this PC with Windows DPAPI." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Deployment locator" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding NewHireDeploymentLocator, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. sipfed.online.lync.com" />
+                             Text="{Binding NewHireDeploymentLocator, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Written to msRTCSIP-DeploymentLocator, which marks the account as homed online." />
+                               Text="Written to msRTCSIP-DeploymentLocator, which marks the account as homed online. Example: sipfed.online.lync.com" />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Phone number type" />
                     <TextBox Style="{StaticResource ModernTextBox}" Width="260" HorizontalAlignment="Left"
                              Margin="0,0,0,4"
-                             Text="{Binding NewHirePhoneNumberType, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="DirectRouting, CallingPlan or OperatorConnect" />
+                             Text="{Binding NewHirePhoneNumberType, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Passed to Set-CsPhoneNumberAssignment. DirectRouting for numbers from your own SBC." />
+                               Text="Passed to Set-CsPhoneNumberAssignment: DirectRouting, CallingPlan or OperatorConnect. DirectRouting for numbers from your own SBC." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Teams upgrade policy" />
                     <TextBox Style="{StaticResource ModernTextBox}" Width="260" HorizontalAlignment="Left"
                              Margin="0,0,0,4"
-                             Text="{Binding NewHireTeamsUpgradePolicyName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. UpgradeToTeams" />
+                             Text="{Binding NewHireTeamsUpgradePolicyName, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Granted to every new hire. The four voice policies are not configured here - they are always named after the site's location code." />
+                               Text="Granted to every new hire, e.g. UpgradeToTeams. The four voice policies are not configured here - they are always named after the site&apos;s location code." />
 
                     <CheckBox Content="Tell the employee their new number by e-mail" Margin="0,2,0,12"
                               FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
@@ -344,10 +343,9 @@
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Telephony team address (optional)" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding NewHireAdminNotificationAddress, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. telephony-team@contoso.com" />
+                             Text="{Binding NewHireAdminNotificationAddress, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Notified when a run does not complete cleanly, so somebody picks up the half-configured account. Comma- or semicolon-separated. Empty skips the notice." />
+                               Text="Notified when a run does not complete cleanly, so somebody picks up the half-configured account. Comma- or semicolon-separated, e.g. telephony-team@contoso.com. Empty skips the notice." />
 
                     <Button Style="{StaticResource SecondaryButton}" Content="Save" HorizontalAlignment="Left"
                             Command="{Binding SaveCommand}" />
@@ -363,17 +361,15 @@
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Company name" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding TraceCompanyName, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. EXT-CALLIS" />
+                             Text="{Binding TraceCompanyName, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Stamped onto every invited guest, and what the guest overview filters on." />
+                               Text="Stamped onto every invited guest, and what the guest overview filters on. Example: EXT-CALLIS" />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Redirect URL" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding TraceRedirectUrl, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="e.g. https://trace.ul.com" />
+                             Text="{Binding TraceRedirectUrl, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Where the invitation link sends the guest after they accept." />
+                               Text="Where the invitation link sends the guest after they accept. Example: https://trace.ul.com" />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Invitation e-mail text" />
                     <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
@@ -433,20 +429,20 @@
 
                     <StackPanel Orientation="Horizontal">
                         <TextBox Style="{StaticResource ModernTextBox}" Width="70"
-                                 Text="{Binding NewSiteCode, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Site code, e.g. NBK" />
+                                 Text="{Binding NewSiteCode, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBox Style="{StaticResource ModernTextBox}" Width="200" Margin="8,0,0,0"
-                                 Text="{Binding NewSiteTimeZone, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Windows time zone id, e.g. W. Europe Standard Time" />
+                                 Text="{Binding NewSiteTimeZone, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBox Style="{StaticResource ModernTextBox}" Width="60" Margin="8,0,0,0"
-                                 Text="{Binding NewSiteRegion, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Region, e.g. EU" />
+                                 Text="{Binding NewSiteRegion, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBox Style="{StaticResource ModernTextBox}" Width="180" Margin="8,0,0,0"
-                                 Text="{Binding NewSiteAdminGroup, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Regional admin group, e.g. MBX.EU.RRS.Admins" />
+                                 Text="{Binding NewSiteAdminGroup, UpdateSourceTrigger=PropertyChanged}" />
                         <Button Content="Add" Style="{StaticResource SecondaryButtonSmall}" Margin="8,0,0,0"
                                 Command="{Binding AddRoomSiteCommand}" />
                     </StackPanel>
+                    <!-- One hint under the row: the fields sit side by side, so a hint per field
+                         would land beside it instead of below. -->
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                               Text="Site code (e.g. NBK), Windows time zone id (e.g. W. Europe Standard Time), region (e.g. EU) and the regional admin group (e.g. MBX.EU.RRS.Admins)." />
 
                     <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0" Text="{Binding RoomSiteStatusMessage}" />
                 </StackPanel>
@@ -484,14 +480,14 @@
 
                     <StackPanel Orientation="Horizontal">
                         <TextBox Style="{StaticResource ModernTextBox}" Width="200"
-                                 Text="{Binding NewAcronym, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="New acronym" />
+                                 Text="{Binding NewAcronym, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBox Style="{StaticResource ModernTextBox}" Width="200" Margin="8,0,0,0"
-                                 Text="{Binding NewTranslation, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="New translation" />
+                                 Text="{Binding NewTranslation, UpdateSourceTrigger=PropertyChanged}" />
                         <Button Content="Add" Style="{StaticResource SecondaryButtonSmall}" Margin="8,0,0,0"
                                 Command="{Binding AddAcronymCommand}" />
                     </StackPanel>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                               Text="The acronym as it appears in a name, then what it is replaced with." />
 
                     <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0" Text="{Binding AcronymStatusMessage}" />
                 </StackPanel>

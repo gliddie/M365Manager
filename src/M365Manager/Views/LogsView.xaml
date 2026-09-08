@@ -19,17 +19,23 @@
             <StackPanel>
                 <!-- Row 1: free text + task -->
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <!-- Each filter sits in its own vertical panel, so a hint can go under the box
+                         without landing beside it the way it would in the horizontal row. -->
                     <StackPanel Margin="0,0,12,0">
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Search" />
                         <TextBox Style="{StaticResource ModernTextBox}" Width="300"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Matches message, target, action or event code" />
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" Width="300"
+                                   TextWrapping="Wrap"
+                                   Text="Matches message, target, action or event code." />
                     </StackPanel>
                     <StackPanel Margin="0,0,12,0">
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Task #" />
                         <TextBox Style="{StaticResource ModernTextBox}" Width="150"
-                                 Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Partial ticket number is enough" />
+                                 Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" Width="150"
+                                   TextWrapping="Wrap"
+                                   Text="Partial number is enough." />
                     </StackPanel>
                     <StackPanel Margin="0,0,12,0">
                         <TextBlock Style="{StaticResource FieldLabel}" Text="From (UTC)" />

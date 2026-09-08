@@ -116,14 +116,16 @@
                     <TextBlock Style="{StaticResource H2}" FontSize="15" Text="Who is being enabled?" Margin="0,0,0,12" />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Employee" />
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                         <TextBox Style="{StaticResource ModernTextBox}" Width="320"
-                                 Text="{Binding Identity, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="SamAccountName, UPN or e-mail address" />
+                                 Text="{Binding Identity, UpdateSourceTrigger=PropertyChanged}" />
                         <Button Style="{StaticResource PrimaryButton}" Content="Look up" Margin="10,0,0,0"
                                 Command="{Binding LookUpCommand}"
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
                     </StackPanel>
+                    <!-- Below the row rather than under the box: the row is horizontal. -->
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                               Text="SamAccountName, UPN or e-mail address." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
                     <TextBox Style="{StaticResource ModernTextBox}" Width="320" HorizontalAlignment="Left"

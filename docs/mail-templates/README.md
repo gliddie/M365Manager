@@ -81,4 +81,10 @@ derived from.
   mailbox with an .ED group only got a mail pointing at two groups that do not exist. It also gains
   a sentence saying the previous address is kept as an alias, which is what the rename now does.
 - **Group alias changes send nothing** - no legacy template covered them.
-
+- **All three shared mailbox mails explain how to add the mailbox to Outlook by hand** (new
+  Outlook / OWA and classic Outlook), followed by an offer to contact the Service Desk for help.
+  Access runs through the .ED/.AU/.RE groups, and Exchange's AutoMapping only works for users
+  granted FullAccess directly, so the mailbox never shows up in a member's Outlook on its own. Not
+  in the originals.
+- **The creation mail tells the owners they are .ED members.** The original told them to add
+  themselves if they needed access; the owners are now always added to the .ED group.

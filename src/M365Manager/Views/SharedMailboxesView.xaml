@@ -391,7 +391,7 @@
                             <TextBox AutomationProperties.Name=".ED members (Editor - Full Access + Send As)" Style="{StaticResource ModernTextBox}"
                                      Text="{Binding EditorMembers, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
-                                       Text="Always created. If left empty, the owner(s) above become its members." />
+                                       Text="Always created. The owner(s) above are added as members automatically - list only additional people here. Owners listed under .AU or .RE are left out there, since everyone belongs only in the group with the highest access." />
 
                             <TextBlock Style="{StaticResource FieldLabel}" Text=".AU members (Author - Send on Behalf)" />
                             <TextBox AutomationProperties.Name=".AU members (Author - Send on Behalf)" Style="{StaticResource ModernTextBox}"

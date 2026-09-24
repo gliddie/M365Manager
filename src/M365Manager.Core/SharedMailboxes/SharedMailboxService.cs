@@ -158,22 +158,35 @@ public sealed class SharedMailboxService : ISharedMailboxService
                 $"External senders {(request.AllowExternalSenders ? "allowed" : "blocked")}", request.TaskNumber, Severity.Success);
 
             // The Editor group is always created - it carries FullAccess/SendAs and is what
-            // "owner" resolves to later. If no explicit .ED members were given, the owners
-            // themselves go in, so the mailbox is never left without anyone who can open it.
-            // The Author and Reader tiers are only created when someone was actually named for
-            // them; empty ones would just be clutter.
-            var editorMembers = string.IsNullOrWhiteSpace(request.EditorMembers)
-                ? request.OwnerIdentities
-                : request.EditorMembers;
+            // "owner" resolves to later. The owners always go in as members as well: owning the
+            // groups doesn't grant access to the mailbox, and owners left out used to be added by
+            // hand afterwards. The Author and Reader tiers are only created when someone was
+            // actually named for them; empty ones would just be clutter.
+            var editorMembers = string.Join(",", SplitIdentities(request.EditorMembers)
+                .Select(AppendDomain)
+                .Concat(ownerUpns)
+                .Distinct(StringComparer.OrdinalIgnoreCase));
+
+            // An individual belongs only in the group granting the highest access. The owners are
+            // in .ED now, so any owner also listed for .AU/.RE is dropped there - and a tier left
+            // with nobody in it isn't created at all.
+            var authorMembers = await WithoutOwnersAsync(request.AuthorMembers, ownerUpns, ct);
+            var readerMembers = await WithoutOwnersAsync(request.ReaderMembers, ownerUpns, ct);
+            foreach (var (tier, requested, kept) in new[] { ("AU", request.AuthorMembers, authorMembers), ("RE", request.ReaderMembers, readerMembers) })
+            {
+                if (SplitIdentities(requested).Count() != SplitIdentities(kept).Count())
+                    await LogAsync(correlationId, "CreateSharedMailbox", "INPUT",
+                        $"Owner(s) removed from the .{tier} members - they are .ED members already", request.TaskNumber, Severity.Info);
+            }
 
             var tiers = new List<(string Tier, string FolderRight, string MembersCsv)>
             {
                 ("ED", "Editor", editorMembers),
             };
-            if (!string.IsNullOrWhiteSpace(request.AuthorMembers))
-                tiers.Add(("AU", "PublishingAuthor", request.AuthorMembers));
-            if (!string.IsNullOrWhiteSpace(request.ReaderMembers))
-                tiers.Add(("RE", "Reviewer", request.ReaderMembers));
+            if (!string.IsNullOrWhiteSpace(authorMembers))
+                tiers.Add(("AU", "PublishingAuthor", authorMembers));
+            if (!string.IsNullOrWhiteSpace(readerMembers))
+                tiers.Add(("RE", "Reviewer", readerMembers));
 
             string? edGroupAddress = null, auGroupAddress = null, reGroupAddress = null;
             var createdTiers = new List<AccessTier>();
@@ -1167,6 +1180,33 @@ public sealed class SharedMailboxService : ISharedMailboxService
         }
     }
 
+    /// <summary>
+    /// Drops every entry of <paramref name="membersCsv"/> that is one of the owners. Each entry is
+    /// resolved through the directory first: the form takes SamAccountNames, UPNs and mail
+    /// addresses alike, so comparing the typed text with the owners' UPNs would miss most matches.
+    /// An entry that doesn't resolve is kept - AddGroupMembersAsync decides what happens to it.
+    /// </summary>
+    private async Task<string> WithoutOwnersAsync(string membersCsv, IReadOnlyCollection<string> ownerUpns, CancellationToken ct)
+    {
+        var kept = new List<string>();
+        foreach (var raw in SplitIdentities(membersCsv))
+        {
+            (string Id, string Upn, string DisplayName, string Mail)? user;
+            try
+            {
+                user = await ResolveUserAsync(raw, ct);
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                user = null;   // a failed lookup must not abort the creation - just keep the entry
+            }
+
+            if (user is null || !ownerUpns.Contains(user.Value.Upn, StringComparer.OrdinalIgnoreCase))
+                kept.Add(raw);
+        }
+        return string.Join(",", kept);
+    }
+
     // ----- owner resolution -----
 
     private async Task<List<(string Upn, string DisplayName, string Mail)>> ResolveOwnersAsync(string ownersCsv, CancellationToken ct)
@@ -1385,10 +1425,9 @@ public sealed class SharedMailboxService : ISharedMailboxService
             {WebUtility_HtmlEscape(string.Join(", ", owners.Select(o => o.DisplayName)))}</p>
 
             <p>As the owner of the mailbox you have been granted the rights to update the membership of the
-            group(s) that control(s) access to the mailbox. Mailbox ownership does not give you rights to
-            access the mailbox. If you did not list yourself in one of the access groups in your request and
-            you need access to the mailbox you will need to add yourself as a member of one of the group(s)
-            shown below. By default we only create groups where individuals have been identified for access.
+            group(s) that control(s) access to the mailbox. Mailbox ownership on its own does not give you
+            rights to access the mailbox, so you have also been added as a member of the Editor group and
+            can open the mailbox. By default we only create groups where individuals have been identified for access.
             An individual should only be added to the group which grants the highest level of access.</p>
 
             <p>To grant others access to the mailbox you will modify the membership of the group(s):</p>
@@ -1404,6 +1443,7 @@ public sealed class SharedMailboxService : ISharedMailboxService
             {accessLists}
             <p>Mailbox Name: <b>{name}</b><br>
             Email Address: <b>{WebUtility_HtmlEscape(address)}</b></p>
+            {BuildAddToOutlookSteps(address)}
             {BuildHelpLinks(settings)}
 
             <p>In the future if this mailbox is no longer needed/used please create a request with the Service
@@ -1465,6 +1505,7 @@ public sealed class SharedMailboxService : ISharedMailboxService
 
             <p>Mailbox Name: <b>{name}</b><br>
             Email Address: <b>{WebUtility_HtmlEscape(address)}</b></p>
+            {BuildAddToOutlookSteps(address)}
             {BuildHelpLinks(settings)}
 
             <p>With this information this ticket is being closed.</p>
@@ -1530,6 +1571,7 @@ public sealed class SharedMailboxService : ISharedMailboxService
 
             <p>Mailbox Name: <b>{newName}</b><br>
             Email Address: <b>{WebUtility_HtmlEscape(newAddress)}</b></p>
+            {BuildAddToOutlookSteps(newAddress)}
             {BuildHelpLinks(settings)}
 
             <p>With this information this ticket is being closed.</p>
@@ -1539,6 +1581,40 @@ public sealed class SharedMailboxService : ISharedMailboxService
             ownerMails,
             $"{oldDisplayName} Renamed to {newDisplayName} - {taskNumber}",
             html, ct);
+    }
+
+    /// <summary>
+    /// Step-by-step instructions for adding the mailbox to Outlook by hand. Needed because access is
+    /// granted through the .ED/.AU/.RE groups, and Exchange's AutoMapping only works for users
+    /// granted FullAccess directly - so the mailbox never appears in a member's Outlook on its own.
+    /// </summary>
+    private static string BuildAddToOutlookSteps(string address)
+    {
+        var mail = WebUtility_HtmlEscape(address);
+        return $"""
+            <p><b>How to add the mailbox to Outlook</b><br>
+            Access is granted through the group(s) above, so the mailbox does not appear in Outlook
+            automatically &ndash; each member adds it once. After someone is added to a group, it can take
+            up to an hour before the mailbox can be opened.</p>
+
+            <p><i>New Outlook and Outlook on the web</i></p>
+            <ol>
+            <li>In the folder list on the left, right-click <b>Folders</b> (or your own mailbox name).</li>
+            <li>Select <b>Add shared folder or mailbox</b>.</li>
+            <li>Enter <b>{mail}</b> and select <b>Add</b>.</li>
+            </ol>
+
+            <p><i>Classic Outlook (Windows)</i></p>
+            <ol>
+            <li>Select <b>File</b> &gt; <b>Account Settings</b> &gt; <b>Account Settings&hellip;</b></li>
+            <li>Select your own account and choose <b>Change&hellip;</b></li>
+            <li>Select <b>More Settings&hellip;</b> and open the <b>Advanced</b> tab.</li>
+            <li>Under <i>Open these additional mailboxes</i>, select <b>Add&hellip;</b>, enter <b>{mail}</b> and confirm with <b>OK</b>.</li>
+            <li>Close the remaining windows with <b>OK</b>, <b>Next</b> and <b>Finish</b>. The mailbox appears in the folder list below your own.</li>
+            </ol>
+
+            <p>If you need help adding the mailbox, please contact the Service Desk &ndash; we are happy to help.</p>
+            """;
     }
 
     private static string BuildGroupMembershipLink(SharedMailboxSettings settings) =>

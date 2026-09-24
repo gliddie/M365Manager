@@ -3,506 +3,568 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignHeight="700" d:DesignWidth="820">
+             xmlns:controls="clr-namespace:M365Manager.Controls"
+             mc:Ignorable="d" d:DesignHeight="700" d:DesignWidth="1100">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="28" MaxWidth="720" HorizontalAlignment="Left">
+    <!--
+        Eleven sections used to sit in one 500-line scroll column, which meant scrolling past nine
+        of them to reach the tenth. They are grouped into seven here, behind a vertical rail on the
+        left - the same idea as the main nav, one level down.
 
-            <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
-                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+        Note for the code-behind: a tab's content tree does not exist until the tab is first shown,
+        so the PasswordBoxes seed themselves on their own Loaded event.
+    -->
+    <Grid Margin="28,20,28,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
-            <!-- ============ SQL Server ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,20">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="SQL Server (logging)" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,16"
-                               Text="Where audit and activity logs are stored. Passwords are encrypted on this PC with Windows DPAPI." />
+        <ProgressBar Grid.Row="0" Style="{StaticResource BusyBar}" Margin="0,0,0,12"
+                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Server" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding SqlServer, UpdateSourceTrigger=PropertyChanged}" />
+        <TabControl Grid.Row="1" TabStripPlacement="Left" Background="Transparent"
+                    BorderThickness="0" Padding="20,0,0,0">
+            <TabControl.Resources>
+                <Style TargetType="TabItem" BasedOn="{StaticResource SubNavTabItem}" />
+            </TabControl.Resources>
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Database" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding SqlDatabase, UpdateSourceTrigger=PropertyChanged}" />
+            <!-- ===== Connections ===== -->
+            <TabItem Header="Connections">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left" Margin="0,0,8,8">
 
-                    <CheckBox Content="Use Windows (integrated) authentication" Margin="0,2,0,12"
-                              FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                              IsChecked="{Binding SqlUseIntegratedSecurity}" />
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource H2}" Text="SQL Server (logging)" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16"
+                                           Text="Where audit and activity logs are stored. Passwords are encrypted on this PC with Windows DPAPI." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="User ID" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding SqlUserId, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Server" />
+                                <TextBox AutomationProperties.Name="Server" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                         Text="{Binding SqlServer, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Password" />
-                    <PasswordBox x:Name="SqlPasswordBox" Style="{StaticResource ModernPasswordBox}"
-                                 Margin="0,0,0,16" PasswordChanged="SqlPasswordBox_PasswordChanged" />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Database" />
+                                <TextBox AutomationProperties.Name="Database" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                         Text="{Binding SqlDatabase, UpdateSourceTrigger=PropertyChanged}" />
 
-                    <StackPanel Orientation="Horizontal">
-                        <Button Style="{StaticResource PrimaryButton}" Content="Test connection"
-                                Command="{Binding TestSqlCommand}" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                        <Button Style="{StaticResource SecondaryButton}" Content="Save" Margin="10,0,0,0"
-                                Command="{Binding SaveCommand}" />
+                                <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,16"
+                                          Content="Use Windows (integrated) authentication"
+                                          IsChecked="{Binding SqlUseIntegratedSecurity}" />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="User ID" />
+                                <TextBox AutomationProperties.Name="User ID" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                         Text="{Binding SqlUserId, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Password" />
+                                <PasswordBox AutomationProperties.Name="Password" x:Name="SqlPasswordBox" Style="{StaticResource ModernPasswordBox}"
+                                             Margin="0,0,0,20"
+                                             Loaded="PasswordBox_Loaded"
+                                             PasswordChanged="SqlPasswordBox_PasswordChanged" />
+
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Style="{StaticResource PrimaryButton}" Content="_Test connection"
+                                            Command="{Binding TestSqlCommand}"
+                                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                                    <Button Style="{StaticResource SecondaryButton}" Content="_Save"
+                                            Margin="{DynamicResource GapInline}" Command="{Binding SaveCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource H2}" Text="Microsoft 365 connection" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16"
+                                           Text="Sign in interactively with your own admin account. All changes are performed under your identity and audited by Microsoft. Requires an Entra ID app registration." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Tenant ID" />
+                                <TextBox AutomationProperties.Name="Tenant ID" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                         Text="{Binding TenantId, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Application (Client) ID" />
+                                <TextBox AutomationProperties.Name="Application (Client) ID" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                         Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Default UPN domain" />
+                                <TextBox AutomationProperties.Name="Default UPN domain" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding Domain, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Used to complete a bare SamAccountName (e.g. 'jdoe' becomes 'jdoe@global.ul.com') when adding group members or resolving an owner. This is the sign-in (UPN) domain - can differ from the mail domain below." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Default mail domain" />
+                                <TextBox AutomationProperties.Name="Default mail domain" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding DefaultMailDomain, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Pre-selected address domain when creating a shared mailbox (e.g. 'ul.com'). Usually different from the UPN domain above." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="SharePoint admin center URL" />
+                                <TextBox AutomationProperties.Name="SharePoint admin center URL" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding SharePointAdminUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,20"
+                                           Text="Used by the Teams feature to lock down site sharing on internal teams. Example: https://contoso-admin.sharepoint.com" />
+
+                                <Button Style="{StaticResource PrimaryButton}" Content="Si_gn in and test"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding SignInM365Command}"
+                                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource H2}" Text="Notification e-mail (SMTP)" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16"
+                                           Text="Relay used for the confirmation mails sent when a shared mailbox, team or owner change is completed. Leave the host empty to fall back to sending as the signed-in admin via Microsoft Graph - that only works if the admin account has a licensed Exchange mailbox. Password is encrypted on this PC with Windows DPAPI." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="SMTP server" />
+                                <TextBox AutomationProperties.Name="SMTP server" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding SmtpHost, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Relay host name, e.g. smtp-relay.contoso.com. Leave empty to send as the signed-in admin via Graph instead." />
+
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Port" />
+                                        <TextBox AutomationProperties.Name="Port" Style="{StaticResource ModernTextBox}" Width="120"
+                                                 Text="{Binding SmtpPort, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <CheckBox Style="{StaticResource ModernCheckBox}" VerticalAlignment="Bottom"
+                                              Margin="0,0,0,8" Content="Use TLS (STARTTLS)"
+                                              IsChecked="{Binding SmtpUseSsl}" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="TLS is usually off for an internal relay on port 25, and on for port 587." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Sender address" />
+                                <TextBox AutomationProperties.Name="Sender address" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding SmtpFromAddress, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Every notification is sent from this address; the relay has to allow it as a sender. Example: messaging-team@contoso.com" />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Sender display name" />
+                                <TextBox AutomationProperties.Name="Sender display name" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding SmtpFromDisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Shown next to the sender address, e.g. Enterprise Messaging Services Team." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Reply-To (optional)" />
+                                <TextBox AutomationProperties.Name="Reply-To (optional)" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding SmtpReplyToAddress, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Where replies should go, if not the sender address." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Bcc (optional)" />
+                                <TextBox AutomationProperties.Name="Bcc (optional)" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding SmtpBccAddress, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Comma- or semicolon-separated. Blind-copies every notification, e.g. to a team mailbox for the record." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="User name (optional)" />
+                                <TextBox AutomationProperties.Name="User name (optional)" Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
+                                         Text="{Binding SmtpUserName, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Password (optional)" />
+                                <PasswordBox AutomationProperties.Name="Password (optional)" x:Name="SmtpPasswordBox" Style="{StaticResource ModernPasswordBox}"
+                                             Loaded="PasswordBox_Loaded"
+                                             PasswordChanged="SmtpPasswordBox_PasswordChanged" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Leave both empty for a relay that authorises by IP address - nothing is sent to the server then, it connects anonymously. Fill them in only if your relay requires SMTP AUTH." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Send a test message to" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox AutomationProperties.Name="Send a test message to" Style="{StaticResource ModernTextBox}" Width="280"
+                                             Text="{Binding SmtpTestRecipient, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Style="{StaticResource PrimaryButton}" Content="Sen_d test"
+                                            Margin="{DynamicResource GapInline}"
+                                            Command="{Binding SendTestMailCommand}"
+                                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                                    <Button Style="{StaticResource SecondaryButton}" Content="_Save"
+                                            Margin="{DynamicResource GapInline}" Command="{Binding SaveCommand}" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource FieldHint}"
+                                           Text="Your own address - the test uses the settings currently entered here, saved or not." />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                </StackPanel>
-            </Border>
+                </ScrollViewer>
+            </TabItem>
 
-            <!-- ============ M365 ============ -->
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Microsoft 365 connection" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,16"
-                               Text="Sign in interactively with your own admin account. All changes are performed under your identity and audited by Microsoft. Requires an Entra ID app registration." />
+            <!-- ===== Shared mailboxes ===== -->
+            <TabItem Header="Shared mailboxes">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left" Margin="0,0,8,8">
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource H2}" Text="Shared mailboxes" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16"
+                                           Text="Optional. If set, applied to every newly created shared mailbox. Leave empty to skip this step (the legacy tenant-specific policy names won't exist in every tenant)." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Tenant ID" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding TenantId, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Retention policy name" />
+                                <TextBox AutomationProperties.Name="Retention policy name" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding SharedMailboxRetentionPolicyName, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Exact name of an existing Exchange retention policy, e.g. &apos;Default MRM Policy&apos;." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Application (Client) ID" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Role assignment policy name" />
+                                <TextBox AutomationProperties.Name="Role assignment policy name" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding SharedMailboxRoleAssignmentPolicyName, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,20"
+                                           Text="Exact name of an existing Exchange role assignment policy." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Default UPN domain" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding Domain, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                               Text="Used to complete a bare SamAccountName (e.g. 'jdoe' becomes 'jdoe@global.ul.com') when adding group members or resolving an owner. This is the sign-in (UPN) domain - can differ from the mail domain below." />
+                                <Border Style="{StaticResource Separator}" Margin="0,0,0,20" />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Default mail domain" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding DefaultMailDomain, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                               Text="Pre-selected address domain when creating a shared mailbox (e.g. 'ul.com'). Usually different from the UPN domain above." />
+                                <TextBlock Style="{StaticResource H3}" Text="Confirmation e-mail links" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16"
+                                           Text="Knowledge-base articles linked from the mails sent after a mailbox is created or its owners change. Taken from the legacy Outlook templates - verify they still resolve. Leave a field empty to drop that link from the mail." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="SharePoint admin center URL" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding SharePointAdminUrl, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                               Text="Used by the Teams feature to lock down site sharing on internal teams. Example: https://contoso-admin.sharepoint.com" />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Editing group membership (URL)" />
+                                <TextBox AutomationProperties.Name="Editing group membership (URL)" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding SharedMailboxGroupMembershipHelpUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Linked where the mail explains the .ED/.AU/.RE access groups." />
 
-                    <Button Style="{StaticResource PrimaryButton}" Content="Sign in and test"
-                            HorizontalAlignment="Left"
-                            Command="{Binding SignInM365Command}"
-                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                </StackPanel>
-            </Border>
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Further help links" />
+                                <TextBox AutomationProperties.Name="Further help links" Style="{StaticResource ModernTextBoxMultiline}" Height="90"
+                                         TextWrapping="NoWrap" HorizontalScrollBarVisibility="Auto"
+                                         Text="{Binding SharedMailboxHelpLinks, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="One link per line, written as Label|URL. Listed at the end of both confirmation mails." />
 
-            <!-- ============ Notification e-mail (SMTP) ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,20,0,0">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Notification e-mail (SMTP)" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,16" TextWrapping="Wrap"
-                               Text="Relay used for the confirmation mails sent when a shared mailbox, team or owner change is completed. Leave the host empty to fall back to sending as the signed-in admin via Microsoft Graph - that only works if the admin account has a licensed Exchange mailbox. Password is encrypted on this PC with Windows DPAPI." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="SMTP server" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                              Text="{Binding SmtpHost, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Relay host name, e.g. smtp-relay.contoso.com. Leave empty to send as the signed-in admin via Graph instead." />
-
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <StackPanel Margin="0,0,16,0">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Port" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="120" HorizontalAlignment="Left"
-                                     Text="{Binding SmtpPort, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                        <CheckBox Content="Use TLS (STARTTLS)" VerticalAlignment="Bottom" Margin="0,0,0,8"
-                                  FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                                  IsChecked="{Binding SmtpUseSsl}" />
+                                <Button Style="{StaticResource PrimaryButton}" Content="_Save"
+                                        HorizontalAlignment="Left" Command="{Binding SaveCommand}" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,-6,0,12"
-                               Text="TLS is usually off for an internal relay on port 25, and on for port 587." />
+                </ScrollViewer>
+            </TabItem>
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sender address" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding SmtpFromAddress, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Every notification is sent from this address; the relay has to allow it as a sender. Example: messaging-team@contoso.com" />
+            <!-- ===== Rooms ===== -->
+            <TabItem Header="Rooms &amp; resources">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left" Margin="0,0,8,8">
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource H2}" Text="Room &amp; resource mailboxes" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16"
+                                           Text="Defaults used when creating conference rooms and equipment/resource mailboxes. Domains fall back to the default mail domain under Connections when left empty." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sender display name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                              Text="{Binding SmtpFromDisplayName, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Shown next to the sender address, e.g. Enterprise Messaging Services Team." />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Room mailbox domain" />
+                                <TextBox AutomationProperties.Name="Room mailbox domain" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding RoomMailboxDomain, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Address domain for room/equipment mailboxes themselves - typically the tenant&apos;s onmicrosoft.com domain, e.g. contoso.onmicrosoft.com." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Reply-To (optional)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                              Text="{Binding SmtpReplyToAddress, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Where replies should go, if not the sender address." />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Room group domain" />
+                                <TextBox AutomationProperties.Name="Room group domain" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding RoomGroupDomain, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Address domain for the room list, delegate and authorized-users groups, e.g. ul.com." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Bcc (optional)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding SmtpBccAddress, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap"
-                               Text="Comma- or semicolon-separated. Blind-copies every notification, e.g. to a team mailbox for the record." />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Room list / group owner" />
+                                <TextBox AutomationProperties.Name="Room list / group owner" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding RoomListOwnerGroup, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Set as ManagedBy on new room lists and groups, e.g. MBX.RRS.Owner." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="User name (optional)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding SmtpUserName, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Global admin group" />
+                                <TextBox AutomationProperties.Name="Global admin group" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding RoomGlobalAdminGroup, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Granted FullAccess on every new room, e.g. DBS.CRP.RRS.Admins." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Password (optional)" Margin="0,8,0,0" />
-                    <PasswordBox x:Name="SmtpPasswordBox" Style="{StaticResource ModernPasswordBox}"
-                                 Margin="0,0,0,4" PasswordChanged="SmtpPasswordBox_PasswordChanged" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap"
-                               Text="Leave both empty for a relay that authorises by IP address - nothing is sent to the server then, it connects anonymously. Fill them in only if your relay requires SMTP AUTH." />
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Booking window (days)" />
+                                        <TextBox AutomationProperties.Name="Booking window (days)" Style="{StaticResource ModernTextBox}" Width="120"
+                                                 Text="{Binding RoomBookingWindowDays, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Max duration (minutes)" />
+                                        <TextBox AutomationProperties.Name="Max duration (minutes)" Style="{StaticResource ModernTextBox}" Width="120"
+                                                 Text="{Binding RoomMaximumDurationMinutes, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                </StackPanel>
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Send a test message to" />
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="280"
-                                 Text="{Binding SmtpTestRecipient, UpdateSourceTrigger=PropertyChanged}" />
-                        <Button Style="{StaticResource PrimaryButton}" Content="Send test" Margin="10,0,0,0"
-                                Command="{Binding SendTestMailCommand}"
-                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                        <Button Style="{StaticResource SecondaryButton}" Content="Save" Margin="10,0,0,0"
-                                Command="{Binding SaveCommand}" />
+                                <Button Style="{StaticResource PrimaryButton}" Content="_Save"
+                                        HorizontalAlignment="Left" Command="{Binding SaveCommand}" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
-                               Text="Your own address - the test uses the settings currently entered here, saved or not." />
-                </StackPanel>
-            </Border>
+                </ScrollViewer>
+            </TabItem>
 
-            <!-- ============ Shared Mailboxes ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,20,0,0">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Shared mailboxes" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,16"
-                               Text="Optional. If set, applied to every newly created shared mailbox. Leave empty to skip this step (the legacy tenant-specific policy names won't exist in every tenant)." />
+            <!-- ===== Teams policies ===== -->
+            <TabItem Header="Teams policies">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left" Margin="0,0,8,8">
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource H2}" Text="Teams policies" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16"
+                                           Text="Entra groups that carry a Teams meeting policy - recording, transcription, Copilot. The Teams Policies page only ever looks at groups whose display name starts with one of these prefixes; the rest of the directory is ignored." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Retention policy name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                              Text="{Binding SharedMailboxRetentionPolicyName, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Exact name of an existing Exchange retention policy, e.g. &apos;Default MRM Policy&apos;." />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Policy group prefixes" />
+                                <TextBox AutomationProperties.Name="Policy group prefixes" Style="{StaticResource ModernTextBoxMultiline}" Height="80"
+                                         TextWrapping="NoWrap" HorizontalScrollBarVisibility="Auto"
+                                         Text="{Binding TeamsPolicyGroupPrefixes, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,20"
+                                           Text="One prefix per line, e.g. POL.Teams.MTG. - include the trailing dot. Each line is its own category: a user holds at most one group per prefix, and assigning within a prefix replaces whatever they had from that same prefix. Groups under a different prefix are never touched." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Role assignment policy name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                              Text="{Binding SharedMailboxRoleAssignmentPolicyName, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                               Text="Exact name of an existing Exchange role assignment policy." />
-
-                    <TextBlock Style="{StaticResource H2}" FontSize="14" Margin="0,4,0,0"
-                               Text="Confirmation e-mail links" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,12" TextWrapping="Wrap"
-                               Text="Knowledge-base articles linked from the mails sent after a mailbox is created or its owners change. Taken from the legacy Outlook templates - verify they still resolve. Leave a field empty to drop that link from the mail." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Editing group membership (URL)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                              Text="{Binding SharedMailboxGroupMembershipHelpUrl, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Linked where the mail explains the .ED/.AU/.RE access groups." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Further help links" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             AcceptsReturn="True" TextWrapping="NoWrap" Height="90"
-                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                             VerticalContentAlignment="Top"
-                             Text="{Binding SharedMailboxHelpLinks, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4" TextWrapping="Wrap"
-                               Text="One link per line, written as Label|URL. Listed at the end of both confirmation mails." />
-
-                    <Button Style="{StaticResource SecondaryButton}" Content="Save" Margin="0,12,0,0"
-                            HorizontalAlignment="Left" Command="{Binding SaveCommand}" />
-                </StackPanel>
-            </Border>
-
-            <!-- ============ Room & resource mailboxes ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,20,0,0">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Room &amp; resource mailboxes" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,16"
-                               Text="Defaults used when creating conference rooms and equipment/resource mailboxes. Domains fall back to the default mail domain above when left empty." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Room mailbox domain" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding RoomMailboxDomain, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Address domain for room/equipment mailboxes themselves - typically the tenant&apos;s onmicrosoft.com domain, e.g. contoso.onmicrosoft.com." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Room group domain" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding RoomGroupDomain, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Address domain for the room list, delegate and authorized-users groups, e.g. ul.com." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Room list / group owner" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                              Text="{Binding RoomListOwnerGroup, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Set as ManagedBy on new room lists and groups, e.g. MBX.RRS.Owner." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Global admin group" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                              Text="{Binding RoomGlobalAdminGroup, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Granted FullAccess on every new room, e.g. DBS.CRP.RRS.Admins." />
-
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                        <StackPanel Margin="0,0,16,0">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Booking window (days)" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="120" HorizontalAlignment="Left"
-                                     Text="{Binding RoomBookingWindowDays, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Max duration (minutes)" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="120" HorizontalAlignment="Left"
-                                     Text="{Binding RoomMaximumDurationMinutes, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
+                                <Button Style="{StaticResource PrimaryButton}" Content="_Save"
+                                        HorizontalAlignment="Left" Command="{Binding SaveCommand}" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-                    <Button Style="{StaticResource SecondaryButton}" Content="Save" Margin="0,12,0,0"
-                            HorizontalAlignment="Left" Command="{Binding SaveCommand}" />
-                </StackPanel>
-            </Border>
+            <!-- ===== New Hire ===== -->
+            <TabItem Header="New Hire">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left" Margin="0,0,8,8">
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource H2}" Text="New Hire (telephony)" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16"
+                                           Text="The number inventory - sites, DID ranges, blocked numbers, endpoints - lives in a separate, long-standing telephony database on the SAME server as the one under Connections, so only its name is needed here. Server and credentials are reused from there." />
 
-            <!-- ============ Teams policies ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,20,0,0">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Teams policies" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,16" TextWrapping="Wrap"
-                               Text="Entra groups that carry a Teams meeting policy - recording, transcription, Copilot. The Teams Policies page only ever looks at groups whose display name starts with one of these prefixes; the rest of the directory is ignored." />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Telephony database" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox AutomationProperties.Name="Telephony database" Style="{StaticResource ModernTextBox}" Width="260"
+                                             Text="{Binding NewHireDatabase, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Style="{StaticResource SecondaryButton}" Content="_Test connection"
+                                            Margin="{DynamicResource GapInline}"
+                                            Command="{Binding TestNewHireSqlCommand}"
+                                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,8"
+                                           Text="Catalog name only, e.g. uchelper - server and credentials come from the SQL Server section under Connections." />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
+                                           Text="{Binding NewHireStatusMessage}" />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Policy group prefixes" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             AcceptsReturn="True" TextWrapping="NoWrap" Height="80"
-                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                             VerticalContentAlignment="Top"
-                             Text="{Binding TeamsPolicyGroupPrefixes, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4" TextWrapping="Wrap"
-                               Text="One prefix per line, e.g. POL.Teams.MTG. - include the trailing dot. Each line is its own category: a user holds at most one group per prefix, and assigning within a prefix replaces whatever they had from that same prefix. Groups under a different prefix are never touched." />
+                                <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,4"
+                                          Content="Write the SIP address and line URI to on-premises Active Directory"
+                                          IsChecked="{Binding NewHireWriteAdAttributes}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,16"
+                                           Text="Leave this on while Entra Connect still synchronises the msRTCSIP-* attributes: on-premises is then the authoritative source, and a number assigned only in Teams gets overwritten - or cleared - on the next sync cycle. Writing both sides with the same value makes the sync a no-op. Turn it off only once those attributes are no longer synchronised. The write runs as the account configured below, or as your own Windows account when none is set." />
 
-                    <Button Style="{StaticResource SecondaryButton}" Content="Save" Margin="0,12,0,0"
-                            HorizontalAlignment="Left" Command="{Binding SaveCommand}" />
-                </StackPanel>
-            </Border>
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Domain controller (optional)" />
+                                <TextBox AutomationProperties.Name="Domain controller (optional)" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding NewHireLdapServer, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Leave empty on a domain-joined machine - the domain and its search base are then discovered automatically. Example: dc01.corp.contoso.com" />
 
-            <!-- ============ New Hire (telephony) ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,20,0,0">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="New Hire (telephony)" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,16" TextWrapping="Wrap"
-                               Text="The number inventory - sites, DID ranges, blocked numbers, endpoints - lives in a separate, long-standing telephony database on the SAME server as the one above, so only its name is needed here. Server and credentials are reused from the SQL Server section." />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Active Directory account (optional)" />
+                                <TextBox AutomationProperties.Name="Active Directory account (optional)" Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
+                                         Text="{Binding NewHireAdUserName, UpdateSourceTrigger=PropertyChanged}" />
+                                <PasswordBox x:Name="AdPasswordBox" AutomationProperties.Name="Active Directory account password" Style="{StaticResource ModernPasswordBox}"
+                                             Loaded="PasswordBox_Loaded"
+                                             PasswordChanged="AdPasswordBox_PasswordChanged" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Given as GLOBAL\admin.jdoe or admin.jdoe@corp.contoso.com. Leave empty to bind as the signed-in Windows user. Fill it in where admin work is done from a separate admin account - the desktop session runs as the unprivileged account, and that is the identity an LDAP bind picks up, so every write comes back 'Access is denied'. Unlike Microsoft 365 there is no interactive sign-in to reuse here; LDAP needs the account and its password. The password is encrypted on this PC with Windows DPAPI." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Telephony database" />
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="260"
-                                 Text="{Binding NewHireDatabase, UpdateSourceTrigger=PropertyChanged}" />
-                        <Button Style="{StaticResource SecondaryButton}" Content="Test connection" Margin="10,0,0,0"
-                                Command="{Binding TestNewHireSqlCommand}"
-                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Deployment locator" />
+                                <TextBox AutomationProperties.Name="Deployment locator" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding NewHireDeploymentLocator, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Written to msRTCSIP-DeploymentLocator, which marks the account as homed online. Example: sipfed.online.lync.com" />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Phone number type" />
+                                <TextBox AutomationProperties.Name="Phone number type" Style="{StaticResource ModernTextBox}" Width="260" HorizontalAlignment="Left"
+                                         Text="{Binding NewHirePhoneNumberType, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Passed to Set-CsPhoneNumberAssignment: DirectRouting, CallingPlan or OperatorConnect. DirectRouting for numbers from your own SBC." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Teams upgrade policy" />
+                                <TextBox AutomationProperties.Name="Teams upgrade policy" Style="{StaticResource ModernTextBox}" Width="260" HorizontalAlignment="Left"
+                                         Text="{Binding NewHireTeamsUpgradePolicyName, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Granted to every new hire, e.g. UpgradeToTeams. The four voice policies are not configured here - they are always named after the site&apos;s location code." />
+
+                                <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,16"
+                                          Content="Tell the employee their new number by e-mail"
+                                          IsChecked="{Binding NewHireNotifyEmployee}" />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Telephony team address (optional)" />
+                                <TextBox AutomationProperties.Name="Telephony team address (optional)" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding NewHireAdminNotificationAddress, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,20"
+                                           Text="Notified when a run does not complete cleanly, so somebody picks up the half-configured account. Comma- or semicolon-separated, e.g. telephony-team@contoso.com. Empty skips the notice." />
+
+                                <Button Style="{StaticResource PrimaryButton}" Content="_Save"
+                                        HorizontalAlignment="Left" Command="{Binding SaveCommand}" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
-                               Text="Catalog name only, e.g. uchelper - server and credentials come from the SQL Server section above." />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap"
-                               Text="{Binding NewHireStatusMessage}" />
+                </ScrollViewer>
+            </TabItem>
 
-                    <CheckBox Content="Write the SIP address and line URI to on-premises Active Directory"
-                              Margin="0,2,0,4"
-                              FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                              IsChecked="{Binding NewHireWriteAdAttributes}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Leave this on while Entra Connect still synchronises the msRTCSIP-* attributes: on-premises is then the authoritative source, and a number assigned only in Teams gets overwritten - or cleared - on the next sync cycle. Writing both sides with the same value makes the sync a no-op. Turn it off only once those attributes are no longer synchronised. The write runs as the account configured below, or as your own Windows account when none is set." />
+            <!-- ===== Trace ===== -->
+            <TabItem Header="Trace application">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left" Margin="0,0,8,8">
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource H2}" Text="Trace application" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16"
+                                           Text="Used when inviting customers as Entra guest accounts for Trace." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Domain controller (optional)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding NewHireLdapServer, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Leave empty on a domain-joined machine - the domain and its search base are then discovered automatically. Example: dc01.corp.contoso.com" />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Company name" />
+                                <TextBox AutomationProperties.Name="Company name" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding TraceCompanyName, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Stamped onto every invited guest, and what the guest overview filters on. Example: EXT-CALLIS" />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Active Directory account (optional)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,8"
-                             Text="{Binding NewHireAdUserName, UpdateSourceTrigger=PropertyChanged}" />
-                    <PasswordBox x:Name="AdPasswordBox" Style="{StaticResource ModernPasswordBox}"
-                                 Margin="0,0,0,4" PasswordChanged="AdPasswordBox_PasswordChanged" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Given as GLOBAL\admin.jdoe or admin.jdoe@corp.contoso.com. Leave empty to bind as the signed-in Windows user. Fill it in where admin work is done from a separate admin account - the desktop session runs as the unprivileged account, and that is the identity an LDAP bind picks up, so every write comes back 'Access is denied'. Unlike Microsoft 365 there is no interactive sign-in to reuse here; LDAP needs the account and its password. The password is encrypted on this PC with Windows DPAPI." />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Redirect URL" />
+                                <TextBox AutomationProperties.Name="Redirect URL" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding TraceRedirectUrl, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Where the invitation link sends the guest after they accept. Example: https://trace.ul.com" />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Deployment locator" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding NewHireDeploymentLocator, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Written to msRTCSIP-DeploymentLocator, which marks the account as homed online. Example: sipfed.online.lync.com" />
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Invitation e-mail text" />
+                                <TextBox AutomationProperties.Name="Invitation e-mail text" Style="{StaticResource ModernTextBoxMultiline}" Height="200"
+                                         Text="{Binding TraceInvitationMessage, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,20"
+                                           Text="Sent by Microsoft with the invitation. {RedirectUrl} and {DisplayName} are replaced before sending; everything else - including the signature - is used literally." />
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Phone number type" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Width="260" HorizontalAlignment="Left"
-                             Margin="0,0,0,4"
-                             Text="{Binding NewHirePhoneNumberType, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Passed to Set-CsPhoneNumberAssignment: DirectRouting, CallingPlan or OperatorConnect. DirectRouting for numbers from your own SBC." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Teams upgrade policy" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Width="260" HorizontalAlignment="Left"
-                             Margin="0,0,0,4"
-                             Text="{Binding NewHireTeamsUpgradePolicyName, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Granted to every new hire, e.g. UpgradeToTeams. The four voice policies are not configured here - they are always named after the site&apos;s location code." />
-
-                    <CheckBox Content="Tell the employee their new number by e-mail" Margin="0,2,0,12"
-                              FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                              IsChecked="{Binding NewHireNotifyEmployee}" />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Telephony team address (optional)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding NewHireAdminNotificationAddress, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Notified when a run does not complete cleanly, so somebody picks up the half-configured account. Comma- or semicolon-separated, e.g. telephony-team@contoso.com. Empty skips the notice." />
-
-                    <Button Style="{StaticResource SecondaryButton}" Content="Save" HorizontalAlignment="Left"
-                            Command="{Binding SaveCommand}" />
-                </StackPanel>
-            </Border>
-
-            <!-- ============ Trace application ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,20,0,0">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Trace application" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,16"
-                               Text="Used when inviting customers as Entra guest accounts for Trace." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Company name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding TraceCompanyName, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Stamped onto every invited guest, and what the guest overview filters on. Example: EXT-CALLIS" />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Redirect URL" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding TraceRedirectUrl, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Where the invitation link sends the guest after they accept. Example: https://trace.ul.com" />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Invitation e-mail text" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             AcceptsReturn="True" TextWrapping="Wrap" Height="200"
-                             VerticalScrollBarVisibility="Auto"
-                             VerticalContentAlignment="Top"
-                             Text="{Binding TraceInvitationMessage, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Sent by Microsoft with the invitation. {RedirectUrl} and {DisplayName} are replaced before sending; everything else - including the signature - is used literally." />
-
-                    <StackPanel Orientation="Horizontal">
-                        <Button Style="{StaticResource SecondaryButton}" Content="Save"
-                                Command="{Binding SaveCommand}" />
-                        <Button Style="{StaticResource SecondaryButton}" Content="Reset text" Margin="10,0,0,0"
-                                Command="{Binding ResetTraceInvitationMessageCommand}"
-                                ToolTip="Restores the wording from the original invite script" />
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Style="{StaticResource PrimaryButton}" Content="_Save"
+                                            Command="{Binding SaveCommand}" />
+                                    <Button Style="{StaticResource GhostButton}" Content="_Reset text"
+                                            Margin="{DynamicResource GapInline}"
+                                            Command="{Binding ResetTraceInvitationMessageCommand}"
+                                            ToolTip="Restores the wording from the original invite script" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                </StackPanel>
-            </Border>
+                </ScrollViewer>
+            </TabItem>
 
-            <!-- ============ Room & resource sites ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,20,0,0">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Room &amp; resource sites" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,4"
-                               Text="Maps the site code that prefixes every room name to its calendar time zone and regional admin group. Replaces the old RoomTimeZones.csv. Edit cells directly, then click 'Save changes'." />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                               Text="Stored in the SQL table dbo.RoomSites - run src/M365Manager.Data/Scripts/06_RoomResources.sql once against the database before using this. 'Import CSV...' loads the old RoomTimeZones.csv in one go." />
+            <!-- ===== Reference data ===== -->
+            <TabItem Header="Reference data">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left" Margin="0,0,8,8">
 
-                    <DataGrid ItemsSource="{Binding RoomSites}"
-                              SelectedItem="{Binding SelectedRoomSite, Mode=TwoWay}"
-                              MaxHeight="260" Margin="0,0,0,12"
-                              AutoGenerateColumns="False" IsReadOnly="False"
-                              HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                              RowHeight="28" FontFamily="Segoe UI" FontSize="12"
-                              Background="Transparent" BorderThickness="1"
-                              BorderBrush="{StaticResource BorderBrush}"
-                              VerticalScrollBarVisibility="Auto"
-                              CanUserAddRows="False" CanUserDeleteRows="False">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Site" Width="70" Binding="{Binding SiteCode}" />
-                            <DataGridTextColumn Header="Time zone" Width="*" Binding="{Binding TimeZone}" />
-                            <DataGridTextColumn Header="Region" Width="70" Binding="{Binding Region}" />
-                            <DataGridTextColumn Header="Regional admin group" Width="*" Binding="{Binding RegionalAdminGroup}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource H2}" Text="Room &amp; resource sites" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,8"
+                                           Text="Maps the site code that prefixes every room name to its calendar time zone and regional admin group. Replaces the old RoomTimeZones.csv. Edit cells directly, then click 'Save changes'." />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
+                                           Text="Stored in the SQL table dbo.RoomSites - run src/M365Manager.Data/Scripts/06_RoomResources.sql once against the database before using this. 'Import CSV...' loads the old RoomTimeZones.csv in one go." />
 
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <Button Content="Save changes" Style="{StaticResource PrimaryButton}"
-                                Command="{Binding SaveRoomSiteChangesCommand}" />
-                        <Button Content="Delete selected" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
-                                Command="{Binding DeleteRoomSiteCommand}" />
-                        <Button Content="Import CSV..." Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
-                                Command="{Binding ImportRoomSitesCommand}"
-                                ToolTip="Import the legacy RoomTimeZones.csv (columns Code, Zone, Admins)" />
+                                <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,16">
+                                    <DataGrid Style="{StaticResource ModernDataGrid}"
+                                              ItemsSource="{Binding RoomSites}"
+                                              SelectedItem="{Binding SelectedRoomSite, Mode=TwoWay}"
+                                              IsReadOnly="False" MaxHeight="260"
+                                              CanUserAddRows="False" CanUserDeleteRows="False"
+                                              AutomationProperties.Name="Room sites">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Site" Width="76" Binding="{Binding SiteCode}" />
+                                            <DataGridTextColumn Header="Time zone" Width="*" Binding="{Binding TimeZone}" />
+                                            <DataGridTextColumn Header="Region" Width="76" Binding="{Binding Region}" />
+                                            <DataGridTextColumn Header="Regional admin group" Width="*" Binding="{Binding RegionalAdminGroup}" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Border>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                    <Button Content="_Save changes" Style="{StaticResource PrimaryButton}"
+                                            Command="{Binding SaveRoomSiteChangesCommand}" />
+                                    <Button Content="_Delete selected site" Style="{StaticResource DangerButton}"
+                                            Margin="{DynamicResource GapInline}"
+                                            Command="{Binding DeleteRoomSiteCommand}" />
+                                    <Button Content="_Import CSV..." Style="{StaticResource GhostButton}"
+                                            Margin="{DynamicResource GapInline}"
+                                            Command="{Binding ImportRoomSitesCommand}"
+                                            ToolTip="Import the legacy RoomTimeZones.csv (columns Code, Zone, Admins)" />
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox Style="{StaticResource ModernTextBox}" Width="76"
+                                             AutomationProperties.Name="New site code"
+                                             Text="{Binding NewSiteCode, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Style="{StaticResource ModernTextBox}" Width="210" Margin="8,0,0,0"
+                                             AutomationProperties.Name="New site time zone"
+                                             Text="{Binding NewSiteTimeZone, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Style="{StaticResource ModernTextBox}" Width="68" Margin="8,0,0,0"
+                                             AutomationProperties.Name="New site region"
+                                             Text="{Binding NewSiteRegion, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Style="{StaticResource ModernTextBox}" Width="190" Margin="8,0,0,0"
+                                             AutomationProperties.Name="New site admin group"
+                                             Text="{Binding NewSiteAdminGroup, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Content="_Add" Style="{StaticResource SecondaryButtonSmall}"
+                                            Margin="8,0,0,0" VerticalAlignment="Center"
+                                            Command="{Binding AddRoomSiteCommand}" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource FieldHint}"
+                                           Text="Site code (e.g. NBK), Windows time zone id (e.g. W. Europe Standard Time), region (e.g. EU) and the regional admin group (e.g. MBX.EU.RRS.Admins)." />
+
+                                <controls:AlertBox Margin="0,12,0,0" Severity="Info"
+                                                   Text="{Binding RoomSiteStatusMessage}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource H2}" Text="Team naming acronyms" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,16"
+                                           Text="Applied to the team name (GRP.&lt;Location&gt;.&lt;Name&gt;) when creating a team, and to shared mailbox names. Edit cells directly, then click 'Save changes'." />
+
+                                <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,16">
+                                    <DataGrid Style="{StaticResource ModernDataGrid}"
+                                              ItemsSource="{Binding Acronyms}"
+                                              SelectedItem="{Binding SelectedAcronym, Mode=TwoWay}"
+                                              IsReadOnly="False" MaxHeight="260"
+                                              CanUserAddRows="False" CanUserDeleteRows="False"
+                                              AutomationProperties.Name="Team naming acronyms">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Acronym" Width="*" Binding="{Binding Acronym}" />
+                                            <DataGridTextColumn Header="Translation" Width="*" Binding="{Binding Translation}" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Border>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                    <Button Content="_Save changes" Style="{StaticResource PrimaryButton}"
+                                            Command="{Binding SaveAcronymChangesCommand}" />
+                                    <Button Content="_Delete selected acronym" Style="{StaticResource DangerButton}"
+                                            Margin="{DynamicResource GapInline}"
+                                            Command="{Binding DeleteAcronymCommand}" />
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox Style="{StaticResource ModernTextBox}" Width="210"
+                                             AutomationProperties.Name="New acronym"
+                                             Text="{Binding NewAcronym, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBox Style="{StaticResource ModernTextBox}" Width="210" Margin="8,0,0,0"
+                                             AutomationProperties.Name="New translation"
+                                             Text="{Binding NewTranslation, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Content="_Add" Style="{StaticResource SecondaryButtonSmall}"
+                                            Margin="8,0,0,0" VerticalAlignment="Center"
+                                            Command="{Binding AddAcronymCommand}" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource FieldHint}"
+                                           Text="The acronym as it appears in a name, then what it is replaced with." />
+
+                                <controls:AlertBox Margin="0,12,0,0" Severity="Info"
+                                                   Text="{Binding AcronymStatusMessage}" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
 
-                    <StackPanel Orientation="Horizontal">
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="70"
-                                 Text="{Binding NewSiteCode, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="200" Margin="8,0,0,0"
-                                 Text="{Binding NewSiteTimeZone, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="60" Margin="8,0,0,0"
-                                 Text="{Binding NewSiteRegion, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="180" Margin="8,0,0,0"
-                                 Text="{Binding NewSiteAdminGroup, UpdateSourceTrigger=PropertyChanged}" />
-                        <Button Content="Add" Style="{StaticResource SecondaryButtonSmall}" Margin="8,0,0,0"
-                                Command="{Binding AddRoomSiteCommand}" />
-                    </StackPanel>
-                    <!-- One hint under the row: the fields sit side by side, so a hint per field
-                         would land beside it instead of below. -->
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
-                               Text="Site code (e.g. NBK), Windows time zone id (e.g. W. Europe Standard Time), region (e.g. EU) and the regional admin group (e.g. MBX.EU.RRS.Admins)." />
-
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0" Text="{Binding RoomSiteStatusMessage}" />
-                </StackPanel>
-            </Border>
-
-            <!-- ============ Team naming acronyms ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,20,0,0">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Team naming acronyms" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,16"
-                               Text="Applied to the team name (GRP.&lt;Location&gt;.&lt;Name&gt;) when creating a team. Edit cells directly, then click 'Save changes'." />
-
-                    <DataGrid ItemsSource="{Binding Acronyms}"
-                              SelectedItem="{Binding SelectedAcronym, Mode=TwoWay}"
-                              MaxHeight="260" Margin="0,0,0,12"
-                              AutoGenerateColumns="False" IsReadOnly="False"
-                              HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                              RowHeight="28" FontFamily="Segoe UI" FontSize="12"
-                              Background="Transparent" BorderThickness="1"
-                              BorderBrush="{StaticResource BorderBrush}"
-                              VerticalScrollBarVisibility="Auto"
-                              CanUserAddRows="False" CanUserDeleteRows="False">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Acronym" Width="*" Binding="{Binding Acronym}" />
-                            <DataGridTextColumn Header="Translation" Width="*" Binding="{Binding Translation}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <Button Content="Save changes" Style="{StaticResource PrimaryButton}"
-                                Command="{Binding SaveAcronymChangesCommand}" />
-                        <Button Content="Delete selected" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
-                                Command="{Binding DeleteAcronymCommand}" />
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal">
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="200"
-                                 Text="{Binding NewAcronym, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="200" Margin="8,0,0,0"
-                                 Text="{Binding NewTranslation, UpdateSourceTrigger=PropertyChanged}" />
-                        <Button Content="Add" Style="{StaticResource SecondaryButtonSmall}" Margin="8,0,0,0"
-                                Command="{Binding AddAcronymCommand}" />
-                    </StackPanel>
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
-                               Text="The acronym as it appears in a name, then what it is replaced with." />
-
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0" Text="{Binding AcronymStatusMessage}" />
-                </StackPanel>
-            </Border>
-
-            <!-- ============ Status ============ -->
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,20,0,0">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource Muted}" Text="{Binding StatusMessage}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0"
-                               Text="{Binding SettingsFilePath, StringFormat='Settings file: {0}'}" />
-                </StackPanel>
-            </Border>
-
+        <StackPanel Grid.Row="2" Margin="0,12,0,0">
+            <controls:AlertBox Text="{Binding StatusMessage}" Severity="Info" />
+            <TextBlock Style="{StaticResource FieldHint}"
+                       Text="{Binding SettingsFilePath, StringFormat='Settings file: {0}'}" />
         </StackPanel>
-    </ScrollViewer>
+    </Grid>
 </UserControl>
+

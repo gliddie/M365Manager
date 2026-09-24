@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using M365Manager.Controls;
 using M365Manager.Core.PowerShell;
 using M365Manager.Core.TeamsPolicies;
 
@@ -29,6 +30,24 @@ public sealed partial class PolicyCategoryViewModel : ObservableObject
 
     public IReadOnlyList<TeamsPolicyGroup> CurrentGroups { get; set; } = Array.Empty<TeamsPolicyGroup>();
 
+    /// <summary>
+    /// Shown only when the user really does hold more than one group under this prefix. Names the
+    /// prefix and says what is out of scope - a user can easily be in a dozen POL.* groups that
+    /// have nothing to do with meeting policies, and "removes the others" reads as a threat to all
+    /// of them.
+    /// </summary>
+    public string ConflictText =>
+        $"This user is in {CurrentGroups.Count} groups under {Prefix} - there should only ever be one. "
+        + $"Assigning one below removes the other {Prefix} groups. No group outside this prefix is touched.";
+
+    /// <summary>
+    /// Always visible, conflict or not. The question "what else might this delete?" is the one that
+    /// stops someone pressing the button, so it gets answered before it is asked.
+    /// </summary>
+    public string ScopeHint =>
+        $"Only groups whose name starts with {Prefix} are affected. Any other group this user is in "
+        + "stays exactly as it is.";
+
     public bool HasPendingConfirmation => PendingConfirmation.Length > 0;
 
     partial void OnPendingConfirmationChanged(string value) => OnPropertyChanged(nameof(HasPendingConfirmation));
@@ -50,6 +69,20 @@ public sealed partial class TeamsPoliciesViewModel : ObservableObject
     [ObservableProperty] private string _statusMessage = "Enter a user and click Look up.";
     [ObservableProperty] private string _userSummary = "";
 
+    /// <summary>True once a lookup has produced something to show, so the page can offer an empty state.</summary>
+    public bool HasUser => UserSummary.Length > 0;
+
+    partial void OnUserSummaryChanged(string value) => OnPropertyChanged(nameof(HasUser));
+
+    // Status severity, so a failed lookup stops looking like a hint.
+    [ObservableProperty] private AlertSeverity _statusSeverity = AlertSeverity.Info;
+
+    private void Status(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        StatusSeverity = severity;
+        StatusMessage = text;
+    }
+
     private PolicyUser? _user;
 
     public ObservableCollection<PolicyCategoryViewModel> Categories { get; } = new();
@@ -65,7 +98,7 @@ public sealed partial class TeamsPoliciesViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(UserIdentity))
         {
-            StatusMessage = "Enter a SamAccountName, UPN or e-mail address.";
+            Status("Enter a SamAccountName, UPN or e-mail address.", AlertSeverity.Error);
             return;
         }
 
@@ -81,7 +114,7 @@ public sealed partial class TeamsPoliciesViewModel : ObservableObject
             var lookup = await _policies.LookupUserAsync(UserIdentity.Trim());
             if (!lookup.Succeeded || lookup.User is null)
             {
-                StatusMessage = lookup.ErrorMessage ?? "Lookup failed.";
+                Status(lookup.ErrorMessage ?? "Lookup failed.", AlertSeverity.Error);
                 return;
             }
 
@@ -97,7 +130,7 @@ public sealed partial class TeamsPoliciesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Lookup failed: {ErrorText.Describe(ex)}";
+            Status($"Lookup failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -143,7 +176,7 @@ public sealed partial class TeamsPoliciesViewModel : ObservableObject
 
         if (string.IsNullOrWhiteSpace(TaskNumber))
         {
-            StatusMessage = "Enter the ticket/task number authorizing this change.";
+            Status("Enter the ticket/task number authorizing this change.", AlertSeverity.Error);
             return;
         }
 
@@ -155,13 +188,13 @@ public sealed partial class TeamsPoliciesViewModel : ObservableObject
 
         if (target is not null && removing.Count == 0 && category.CurrentGroups.Count > 0)
         {
-            StatusMessage = $"{_user.DisplayName} already holds {target.DisplayName} - nothing to change.";
+            Status($"{_user.DisplayName} already holds {target.DisplayName} - nothing to change.", AlertSeverity.Info);
             return;
         }
 
         if (target is null && removing.Count == 0)
         {
-            StatusMessage = $"{_user.DisplayName} holds no group under {category.Prefix} - nothing to change.";
+            Status($"{_user.DisplayName} holds no group under {category.Prefix} - nothing to change.", AlertSeverity.Info);
             return;
         }
 
@@ -217,13 +250,15 @@ public sealed partial class TeamsPoliciesViewModel : ObservableObject
 
             if (!result.Succeeded)
             {
-                StatusMessage = $"Change failed: {result.ErrorMessage}";
+                Status($"Change failed: {result.ErrorMessage}", AlertSeverity.Error);
                 return;
             }
 
             var parts = new List<string>();
             if (result.Added.Count > 0) parts.Add($"added {string.Join(", ", result.Added)}");
             if (result.Removed.Count > 0) parts.Add($"removed {string.Join(", ", result.Removed)}");
+
+            StatusSeverity = AlertSeverity.Success;
 
             StatusMessage = (parts.Count == 0 ? "No change was needed." : $"Done: {string.Join("; ", parts)}.")
                 + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}");
@@ -234,7 +269,7 @@ public sealed partial class TeamsPoliciesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Change failed: {ErrorText.Describe(ex)}";
+            Status($"Change failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {

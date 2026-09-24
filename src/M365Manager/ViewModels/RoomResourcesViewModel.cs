@@ -3,14 +3,20 @@ using System.ComponentModel;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using M365Manager.Controls;
 using M365Manager.Core.PowerShell;
+using M365Manager.Services;
 using M365Manager.Core.RoomResources;
 
 namespace M365Manager.ViewModels;
 
-public sealed partial class RoomResourcesViewModel : ObservableObject
+public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPage
 {
+    /// <summary>Which tab the view shows; set by the shell when a Home tile navigates here.</summary>
+    [ObservableProperty] private int _selectedTabIndex;
+
     private readonly IRoomResourceService _rooms;
+    private readonly IDialogService _dialogs;
 
     // --- Create form ---
     [ObservableProperty] private string _taskNumber = "";
@@ -89,14 +95,37 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
     [ObservableProperty] private string _currentMembers = "";
 
     [ObservableProperty] private bool _removeOrphanedGroups = true;
-    [ObservableProperty] private bool _removeConfirmed;
+
+    // Status severity, so a failure stops looking like a success.
+    [ObservableProperty] private AlertSeverity _statusSeverity = AlertSeverity.Info;
+    [ObservableProperty] private AlertSeverity _overviewStatusSeverity = AlertSeverity.Info;
+    [ObservableProperty] private AlertSeverity _manageStatusSeverity = AlertSeverity.Info;
+
+    private void Status(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        StatusSeverity = severity;
+        StatusMessage = text;
+    }
+
+    private void OverviewStatus(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        OverviewStatusSeverity = severity;
+        OverviewStatusMessage = text;
+    }
+
+    private void ManageStatus(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        ManageStatusSeverity = severity;
+        ManageStatusMessage = text;
+    }
 
     /// <summary>Backs the PowerShell console on this page - see PowerShellConsole.</summary>
     public IPowerShellTranscript Transcript { get; }
 
-    public RoomResourcesViewModel(IRoomResourceService rooms, IPowerShellTranscript transcript)
+    public RoomResourcesViewModel(IRoomResourceService rooms, IPowerShellTranscript transcript, IDialogService dialogs)
     {
         _rooms = rooms;
+        _dialogs = dialogs;
         Transcript = transcript;
 
         RoomsView = CollectionViewSource.GetDefaultView(Rooms);
@@ -225,7 +254,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(TaskNumber))
         {
-            StatusMessage = "Enter the ticket/task number authorizing this creation.";
+            Status("Enter the ticket/task number authorizing this creation.", AlertSeverity.Error);
             return;
         }
         if (string.IsNullOrWhiteSpace(RawName))
@@ -240,6 +269,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
         try
         {
             var result = await _rooms.CreateAsync(BuildRequest(), msg => StatusMessage = msg);
+            StatusSeverity = result.Succeeded ? AlertSeverity.Success : AlertSeverity.Error;
             StatusMessage = result.Succeeded
                 ? $"'{result.DisplayName}' ({result.PrimarySmtpAddress}) created successfully."
                   + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}")
@@ -253,7 +283,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Creation failed: {ex.Message}";
+            Status($"Creation failed: {ex.Message}", AlertSeverity.Error);
         }
         finally
         {
@@ -310,11 +340,11 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
             foreach (var row in rows)
                 Rooms.Add(row);
 
-            OverviewStatusMessage = $"{Rooms.Count} room(s)/resource(s) loaded.";
+            OverviewStatus($"{Rooms.Count} room(s)/resource(s) loaded.", Rooms.Count > 0 ? AlertSeverity.Success : AlertSeverity.Info);
         }
         catch (Exception ex)
         {
-            OverviewStatusMessage = $"Could not load rooms: {ex.Message}";
+            OverviewStatus($"Could not load rooms: {ex.Message}", AlertSeverity.Error);
         }
         finally
         {
@@ -328,7 +358,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
         var filtered = RoomsView.Cast<RoomResourceOverviewRow>().ToList();
         if (filtered.Count == 0)
         {
-            OverviewStatusMessage = "Nothing to export - the (filtered) list is empty.";
+            OverviewStatus("Nothing to export - the (filtered) list is empty.", AlertSeverity.Error);
             return;
         }
 
@@ -343,18 +373,17 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
         try
         {
             RoomResourceExportService.ExportToExcel(dialog.FileName, filtered);
-            OverviewStatusMessage = $"Exported {filtered.Count} row(s) to {dialog.FileName}.";
+            OverviewStatus($"Exported {filtered.Count} row(s) to {dialog.FileName}.", AlertSeverity.Success);
         }
         catch (Exception ex)
         {
-            OverviewStatusMessage = $"Export failed: {ex.Message}";
+            OverviewStatus($"Export failed: {ex.Message}", AlertSeverity.Error);
         }
     }
 
     /// <summary>Selecting a row pre-fills the manage panel, so nothing has to be retyped.</summary>
     partial void OnSelectedRoomChanged(RoomResourceOverviewRow? value)
     {
-        RemoveConfirmed = false;
         CurrentMembers = "";
         ManageStatusMessage = "";
 
@@ -409,12 +438,12 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
     {
         if (SelectedRoom is null)
         {
-            ManageStatusMessage = "Select a room or resource in the grid first.";
+            ManageStatus("Select a room or resource in the grid first.", AlertSeverity.Error);
             return;
         }
         if (string.IsNullOrWhiteSpace(ManageTaskNumber))
         {
-            ManageStatusMessage = "Enter the ticket/task number authorizing this change.";
+            ManageStatus("Enter the ticket/task number authorizing this change.", AlertSeverity.Error);
             return;
         }
 
@@ -440,6 +469,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
         try
         {
             var result = await _rooms.UpdateDetailsAsync(request, msg => ManageStatusMessage = msg);
+            ManageStatusSeverity = result.Succeeded ? AlertSeverity.Success : AlertSeverity.Error;
             ManageStatusMessage = result.Succeeded
                 ? $"Updated {result.PrimarySmtpAddress}."
                   + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}")
@@ -450,7 +480,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            ManageStatusMessage = $"Update failed: {ex.Message}";
+            ManageStatus($"Update failed: {ex.Message}", AlertSeverity.Error);
         }
         finally
         {
@@ -465,17 +495,17 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
     {
         if (SelectedRoom is null)
         {
-            ManageStatusMessage = "Select a room or resource in the grid first.";
+            ManageStatus("Select a room or resource in the grid first.", AlertSeverity.Error);
             return;
         }
         if (string.IsNullOrWhiteSpace(ManageTaskNumber))
         {
-            ManageStatusMessage = "Enter the ticket/task number authorizing this change.";
+            ManageStatus("Enter the ticket/task number authorizing this change.", AlertSeverity.Error);
             return;
         }
         if (string.IsNullOrWhiteSpace(MembershipIdentities))
         {
-            ManageStatusMessage = "Enter at least one identity to add or remove.";
+            ManageStatus("Enter at least one identity to add or remove.", AlertSeverity.Error);
             return;
         }
 
@@ -498,7 +528,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
             var result = await _rooms.ChangeMembershipAsync(request);
             if (!result.Succeeded && result.Results.Count == 0)
             {
-                ManageStatusMessage = $"Membership change failed: {result.ErrorMessage}";
+                ManageStatus($"Membership change failed: {result.ErrorMessage}", AlertSeverity.Error);
             }
             else
             {
@@ -516,7 +546,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            ManageStatusMessage = $"Membership change failed: {ex.Message}";
+            ManageStatus($"Membership change failed: {ex.Message}", AlertSeverity.Error);
         }
         finally
         {
@@ -531,19 +561,29 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
     {
         if (SelectedRoom is null)
         {
-            ManageStatusMessage = "Select a room or resource in the grid first.";
+            ManageStatus("Select a room or resource in the grid first.", AlertSeverity.Error);
             return;
         }
         if (string.IsNullOrWhiteSpace(ManageTaskNumber))
         {
-            ManageStatusMessage = "Enter the ticket/task number authorizing this removal.";
+            ManageStatus("Enter the ticket/task number authorizing this removal.", AlertSeverity.Error);
             return;
         }
-        if (!RemoveConfirmed)
-        {
-            ManageStatusMessage = "Tick the confirmation box - deleting a mailbox cannot be undone here.";
+        // Replaces the inline "yes I am sure" checkbox: a modal asks at the moment of the
+        // decision and spells out whether the room's own groups are going with it.
+        var extras = RemoveOrphanedGroups
+            ? "Its own delegate/users groups are deleted too, and it is dropped from its room list. "
+              + "Shared site-wide delegate groups are never deleted."
+            : "Its delegate/users groups and its room list membership are left in place.";
+
+        if (!_dialogs.ConfirmDestructive(
+                $"Delete {SelectedRoom.DisplayName}?",
+                "The mailbox is deleted from the tenant. This cannot be undone from here.",
+                "Delete mailbox",
+                $"{SelectedRoom.PrimarySmtpAddress}\n\n{extras}\n\n"
+                + "A full snapshot - mailbox, statistics, permissions, calendar processing and configuration - "
+                + "is written to the log before anything is deleted."))
             return;
-        }
 
         var address = SelectedRoom.PrimarySmtpAddress;
         var request = new RoomRemovalRequest
@@ -567,17 +607,16 @@ public sealed partial class RoomResourcesViewModel : ObservableObject
                     : "";
                 ManageStatusMessage = $"{address} removed.{groups} A full pre-removal snapshot was written to the log."
                     + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}");
-                RemoveConfirmed = false;
                 _ = RefreshOverviewAsync();
             }
             else
             {
-                ManageStatusMessage = $"Removal failed: {result.ErrorMessage}";
+                ManageStatus($"Removal failed: {result.ErrorMessage}", AlertSeverity.Error);
             }
         }
         catch (Exception ex)
         {
-            ManageStatusMessage = $"Removal failed: {ex.Message}";
+            ManageStatus($"Removal failed: {ex.Message}", AlertSeverity.Error);
         }
         finally
         {

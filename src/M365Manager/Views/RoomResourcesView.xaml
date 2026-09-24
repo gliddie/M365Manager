@@ -4,368 +4,479 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:M365Manager.Controls"
-             mc:Ignorable="d" d:DesignHeight="1000" d:DesignWidth="900">
+             mc:Ignorable="d" d:DesignHeight="700" d:DesignWidth="1000">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="28">
-        <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+    <!--
+        Same shape as Groups: overview first, because a ticket names a room; creating on the second
+        tab; and the three management actions as sub-tabs on the selected room so only one is on
+        screen at a time. The twelve-column grid is cut to four, with the rest in the detail card.
+    -->
+    <TabControl Style="{StaticResource TabStrip}" Padding="0"
+                SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+        <TabControl.Resources>
+            <Style TargetType="TabItem" BasedOn="{StaticResource TabStripItem}" />
+        </TabControl.Resources>
 
-            <TextBlock Style="{StaticResource H2}" Text="Create Room / Resource" Margin="0,0,0,4" />
-            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                       Text="Creates a conference room or equipment mailbox with its room list, delegate group and (for restricted rooms) authorized-users group, calendar booking policy, permissions and time zone - everything the old Room &amp; Resource Admin Menu did, in one step and with a preview of what will be created." />
+        <TabItem Header="Find &amp; manage">
+            <Grid Margin="28,20,28,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
-                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
-
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Required - authorizes this creation, e.g. TASK0012345." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding RequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="SamAccountName, UPN or e-mail address. Gets the confirmation e-mail describing the room, its delegates and the booking policy. Leave empty to send no mail." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Type" />
-                    <ComboBox Margin="0,0,0,12" Width="200" HorizontalAlignment="Left"
-                              ItemsSource="{Binding ResourceKinds}" SelectedItem="{Binding Kind}" />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding RawName, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Start with the three-letter site code, then the room name - e.g. &quot;NBK Meeting Room 1&quot;." />
-
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12"
-                                Visibility="{Binding IsRoom, Converter={StaticResource BoolToVisible}}">
-                        <StackPanel Margin="0,0,16,0">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Building" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="140" HorizontalAlignment="Left"
-                                     Text="{Binding Building, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                        <StackPanel Margin="0,0,16,0">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Floor" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="90" HorizontalAlignment="Left"
-                                     Text="{Binding Floor, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Capacity" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="90" HorizontalAlignment="Left"
-                                     Text="{Binding Capacity, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
+                <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Style="{StaticResource ModernTextBox}" Width="320"
+                                 AutomationProperties.Name="Filter rooms and resources"
+                                 Text="{Binding OverviewFilterText, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Content="_Refresh" Style="{StaticResource SecondaryButton}"
+                                Margin="{DynamicResource GapInline}"
+                                Command="{Binding RefreshOverviewCommand}"
+                                IsEnabled="{Binding IsOverviewBusy, Converter={StaticResource InverseBool}}" />
+                        <Button Content="_Export Excel" Style="{StaticResource GhostButton}"
+                                Margin="{DynamicResource GapInline}"
+                                Command="{Binding ExportToExcelCommand}" />
                     </StackPanel>
+                    <TextBlock Style="{StaticResource FieldHint}"
+                               Text="Filter by name, alias, address, site, location or group. Read from the SQL cache, not live from M365 - refreshed after every change made here." />
 
-                    <!-- Under the whole row: the Floor box is 90px wide, so a hint beneath it
-                         alone would wrap to four lines. -->
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,-6,0,12" TextWrapping="Wrap"
-                               Visibility="{Binding IsRoom, Converter={StaticResource BoolToVisible}}"
-                               Text="Floor: a number, or 0 / Ground for the ground floor." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Access model" />
-                    <ComboBox Margin="0,0,0,4" Width="320" HorizontalAlignment="Left"
-                              ItemsSource="{Binding AccessModels}" SelectedItem="{Binding AccessModel}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="GeneralUseSiteDelegates: anyone books, the shared site delegate group approves out-of-policy. GeneralUseCustomDelegates: same, but with its own delegate group. Restricted: only members of the room's users group may book." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Booking policy" />
-                    <ComboBox Margin="0,0,0,4" Width="200" HorizontalAlignment="Left"
-                              ItemsSource="{Binding Presets}" SelectedItem="{Binding Preset}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Standard: recurring meetings allowed, limited conflicts. Hoteling: no recurring meetings, no conflicts. Custom: set the values yourself below." />
-
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12"
-                                Visibility="{Binding IsCustomPolicy, Converter={StaticResource BoolToVisible}}">
-                        <StackPanel Margin="0,0,16,0">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Window (days)" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="110" HorizontalAlignment="Left"
-                                     Text="{Binding CustomBookingWindowDays, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                        <StackPanel Margin="0,0,16,0">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Max duration (min)" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="130" HorizontalAlignment="Left"
-                                     Text="{Binding CustomMaxDurationMinutes, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                        <CheckBox Content="Allow recurring meetings" VerticalAlignment="Bottom" Margin="0,0,0,6"
-                                  FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                                  IsChecked="{Binding CustomAllowRecurring}" />
-                    </StackPanel>
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Delegate group members" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding DelegateMembers, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Comma-separated identities. Approve out-of-policy requests and get FullAccess on the mailbox. Ignored when an existing group is reused." />
-
-                    <StackPanel Visibility="{Binding IsRestricted, Converter={StaticResource BoolToVisible}}">
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Authorized users" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                                 Text="{Binding UserMembers, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                                   Text="Comma-separated identities - only these may book a restricted room." />
-                    </StackPanel>
-
-                    <Expander Header="Domain overrides" Margin="0,0,0,12" Foreground="{StaticResource TextBrush}">
-                        <StackPanel Margin="0,8,0,0">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Mailbox domain" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,8"
-                                     Text="{Binding MailboxDomainOverride, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,10" TextWrapping="Wrap"
-                                       Text="Leave empty to use the configured room mailbox domain." />
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Group domain" />
-                            <TextBox Style="{StaticResource ModernTextBox}"
-                                     Text="{Binding GroupDomainOverride, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap"
-                                       Text="Leave empty to use the configured room group domain." />
-                        </StackPanel>
-                    </Expander>
-
-                    <Button Style="{StaticResource PrimaryButton}" Content="Create"
-                            HorizontalAlignment="Left"
-                            Command="{Binding CreateCommand}"
-                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,12,0,0"
+                                 Visibility="{Binding IsOverviewBusy, Converter={StaticResource BoolToVisible}}" />
                 </StackPanel>
-            </Border>
 
-            <!-- ============ Live preview ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,16,0,0"
-                    Visibility="{Binding PreviewDisplayName, Converter={StaticResource EmptyToCollapsed}}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Preview" FontSize="15" Margin="0,0,0,10" />
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="430" />
+                    </Grid.ColumnDefinitions>
 
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
-                               Text="{Binding PreviewDisplayName, StringFormat='Display name:  {0}'}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
-                               Text="{Binding PreviewAddress, StringFormat='Address:  {0}'}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
-                               Text="{Binding PreviewOffice, StringFormat='Location:  {0}'}"
-                               Visibility="{Binding PreviewOffice, Converter={StaticResource EmptyToCollapsed}}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
-                               Text="{Binding PreviewSiteInfo, StringFormat='Site:  {0}'}"
-                               Visibility="{Binding PreviewSiteInfo, Converter={StaticResource EmptyToCollapsed}}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
-                               Text="{Binding PreviewRoomList, StringFormat='Room list:  {0}'}"
-                               Visibility="{Binding PreviewRoomList, Converter={StaticResource EmptyToCollapsed}}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
-                               Text="{Binding PreviewDelegateGroup, StringFormat='Delegate group:  {0}'}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
-                               Text="{Binding PreviewUsersGroup, StringFormat='Users group:  {0}'}"
-                               Visibility="{Binding PreviewUsersGroup, Converter={StaticResource EmptyToCollapsed}}" />
+                    <Border Grid.Column="0" Style="{StaticResource Card}" Padding="0">
+                        <Grid>
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Rooms.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="&#xE787;" FontFamily="Segoe MDL2 Assets" FontSize="28"
+                                           HorizontalAlignment="Center"
+                                           Foreground="{DynamicResource TextDisabledBrush}" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,12,0,0" TextAlignment="Center"
+                                           Text="No rooms or resources in the cache. Check the SQL connection in Settings, or run the scheduled import." />
+                            </StackPanel>
 
-                    <TextBlock Margin="0,10,0,0" TextWrapping="Wrap"
-                               FontFamily="Segoe UI" FontSize="12" Foreground="#C0392B"
-                               Text="{Binding PreviewProblems}"
-                               Visibility="{Binding PreviewProblems, Converter={StaticResource EmptyToCollapsed}}" />
-                </StackPanel>
-            </Border>
-
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,16,0,0">
-                <TextBlock Style="{StaticResource Muted}" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
-            </Border>
-
-        </StackPanel>
-
-        <!-- ============ Overview grid ============ -->
-        <TextBlock Style="{StaticResource H2}" Text="Rooms &amp; resources overview" Margin="0,32,0,4" />
-        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                   Text="Read directly from the SQL cache (dbo.RoomResources), never live from M365. Select a row to manage it below. Kept current by the scheduled Import-RoomResourcesToSql.ps1 script and refreshed after every change made here." />
-
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-            <TextBox Style="{StaticResource ModernTextBox}" Width="320"
-                     Text="{Binding OverviewFilterText, UpdateSourceTrigger=PropertyChanged}" />
-            <Button Content="Refresh" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
-                    Command="{Binding RefreshOverviewCommand}"
-                    IsEnabled="{Binding IsOverviewBusy, Converter={StaticResource InverseBool}}" />
-            <Button Content="Export Excel" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
-                    Command="{Binding ExportToExcelCommand}" />
-        </StackPanel>
-
-        <!-- Below the row rather than under the box: the row is horizontal. -->
-        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                   Text="Filter by name, alias, address, site, location or group." />
-
-        <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,12"
-                     Visibility="{Binding IsOverviewBusy, Converter={StaticResource BoolToVisible}}" />
-
-        <Border Style="{StaticResource Card}" Padding="0">
-            <DataGrid ItemsSource="{Binding RoomsView}"
-                      SelectedItem="{Binding SelectedRoom, Mode=TwoWay}"
-                      MaxHeight="420"
-                      AutoGenerateColumns="False" IsReadOnly="True"
-                      HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                      RowHeight="28" FontFamily="Segoe UI" FontSize="12"
-                      Background="Transparent" BorderThickness="0"
-                      VerticalScrollBarVisibility="Auto"
-                      SelectionMode="Single" SelectionUnit="FullRow"
-                      ClipboardCopyMode="IncludeHeader">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Name" Width="200" Binding="{Binding DisplayName}" />
-                    <DataGridTextColumn Header="Type" Width="80" Binding="{Binding ResourceKind}" />
-                    <DataGridTextColumn Header="Address" Width="220" Binding="{Binding PrimarySmtpAddress}" />
-                    <DataGridTextColumn Header="Cap." Width="55" Binding="{Binding Capacity}" />
-                    <DataGridTextColumn Header="Site" Width="55" Binding="{Binding SiteCode}" />
-                    <DataGridTextColumn Header="Location" Width="150" Binding="{Binding Office}" />
-                    <DataGridTextColumn Header="Access" Width="150" Binding="{Binding AccessModel}" />
-                    <DataGridTextColumn Header="Policy" Width="80" Binding="{Binding BookingPolicy}" />
-                    <DataGridTextColumn Header="Room list" Width="170" Binding="{Binding RoomListName}" />
-                    <DataGridTextColumn Header="Delegate group" Width="220" Binding="{Binding DelegateGroup}" />
-                    <DataGridTextColumn Header="Users group" Width="220" Binding="{Binding UsersGroup}" />
-                    <DataGridTextColumn Header="Time zone" Width="160" Binding="{Binding TimeZone}" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </Border>
-
-        <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0" Text="{Binding OverviewStatusMessage}" />
-
-        <!-- ============ Manage selected ============ -->
-        <StackPanel MaxWidth="760" HorizontalAlignment="Left" Margin="0,32,0,0"
-                    Visibility="{Binding SelectedRoom, Converter={StaticResource NullToCollapsed}}">
-
-            <TextBlock Style="{StaticResource H2}" Margin="0,0,0,4"
-                       Text="{Binding SelectedRoom.DisplayName, StringFormat='Manage: {0}'}" />
-            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                       Text="Change details, manage the delegate/authorized-users groups, or remove this room. Every action is recorded in the log with the ticket number below." />
-
-            <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
-                         Visibility="{Binding IsManageBusy, Converter={StaticResource BoolToVisible}}" />
-
-            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding ManageTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Required for every action in this section." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding ManageRequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
-                               Text="SamAccountName, UPN or e-mail address. Gets a confirmation e-mail for a detail change, a removal, or users added to a restricted room. Leave empty to send no mail." />
-                </StackPanel>
-            </Border>
-
-            <!-- Edit details -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Details" FontSize="15" Margin="0,0,0,12" />
-
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <StackPanel Margin="0,0,16,0">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Capacity" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="90" HorizontalAlignment="Left"
-                                     Text="{Binding EditCapacity, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                        <StackPanel Margin="0,0,16,0">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Building" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="140" HorizontalAlignment="Left"
-                                     Text="{Binding EditBuilding, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Floor" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="90" HorizontalAlignment="Left"
-                                     Text="{Binding EditFloor, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-                    </StackPanel>
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Time zone" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding EditTimeZone, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Windows time zone id, e.g. W. Europe Standard Time." />
-
-                    <CheckBox Content="Also change the booking policy" Margin="0,0,0,8"
-                              FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                              IsChecked="{Binding ChangeBookingPolicy}" />
-                    <ComboBox Margin="0,0,0,12" Width="200" HorizontalAlignment="Left"
-                              ItemsSource="{Binding Presets}" SelectedItem="{Binding EditPreset}"
-                              IsEnabled="{Binding ChangeBookingPolicy}" />
-
-                    <Button Style="{StaticResource PrimaryButton}" Content="Apply changes"
-                            HorizontalAlignment="Left"
-                            Command="{Binding UpdateDetailsCommand}"
-                            IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
-                </StackPanel>
-            </Border>
-
-            <!-- Membership -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Delegates &amp; authorized users" FontSize="15" Margin="0,0,0,12" />
-
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <StackPanel Margin="0,0,16,0">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Group" />
-                            <ComboBox Width="140" HorizontalAlignment="Left"
-                                      ItemsSource="{Binding GroupKinds}" SelectedItem="{Binding MembershipGroupKind}" />
-                        </StackPanel>
-                        <StackPanel>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Action" />
-                            <ComboBox Width="120" HorizontalAlignment="Left"
-                                      ItemsSource="{Binding MembershipModes}" SelectedItem="{Binding MembershipMode}" />
-                        </StackPanel>
-                    </StackPanel>
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Current members" />
-                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,12">
-                        <ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto">
-                            <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Text="{Binding CurrentMembers}" />
-                        </ScrollViewer>
+                            <DataGrid ItemsSource="{Binding RoomsView}"
+                                      SelectedItem="{Binding SelectedRoom, Mode=TwoWay}"
+                                      AutomationProperties.Name="Rooms and resources">
+                                <DataGrid.Style>
+                                    <Style TargetType="DataGrid" BasedOn="{StaticResource ModernDataGrid}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Rooms.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.Style>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Name" Width="2*" MinWidth="140" Binding="{Binding DisplayName}" />
+                                    <DataGridTextColumn Header="Address" Width="2*" MinWidth="150" Binding="{Binding PrimarySmtpAddress}" />
+                                    <DataGridTextColumn Header="Site" Width="54" Binding="{Binding SiteCode}" />
+                                    <DataGridTextColumn Header="Cap." Width="54" Binding="{Binding Capacity}" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
                     </Border>
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Identities" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding MembershipIdentities, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Comma-separated SamAccountName, UPN, e-mail address or group name." />
+                    <Border Grid.Column="2" Style="{StaticResource Card}"
+                            Visibility="{Binding SelectedRoom, Converter={StaticResource NotNullToCollapsed}}">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="&#xE787;" FontFamily="Segoe MDL2 Assets" FontSize="28"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource TextDisabledBrush}" />
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,12,0,0" TextAlignment="Center"
+                                       Text="Select a room or resource to change its details, manage its groups, or remove it." />
+                        </StackPanel>
+                    </Border>
 
-                    <Button Style="{StaticResource PrimaryButton}" Content="Apply membership change"
-                            HorizontalAlignment="Left"
-                            Command="{Binding ChangeMembershipCommand}"
-                            IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                    <Grid Grid.Column="2"
+                          Visibility="{Binding SelectedRoom, Converter={StaticResource NullToCollapsed}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Carries the columns the grid no longer has room for. -->
+                        <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource H2}" Text="{Binding SelectedRoom.DisplayName}" />
+                                    <Border Margin="12,2,0,0" Padding="8,2" VerticalAlignment="Center"
+                                            CornerRadius="{DynamicResource RadiusPill}"
+                                            Background="{DynamicResource SurfaceAltBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                        <TextBlock Text="{Binding SelectedRoom.ResourceKind}"
+                                                   FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,12"
+                                           Text="{Binding SelectedRoom.PrimarySmtpAddress}" />
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="104" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Muted}" Text="Location" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.Office}" />
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Muted}" Text="Access" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.AccessModel}" />
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource Muted}" Text="Policy" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.BookingPolicy}" />
+
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource Muted}" Text="Room list" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.RoomListName}" />
+
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource Muted}" Text="Delegates" />
+                                    <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.DelegateGroup}" />
+
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource Muted}" Text="Users group" />
+                                    <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.UsersGroup}" />
+
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource Muted}" Text="Time zone" />
+                                    <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.TimeZone}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Ticket + requester apply to all three actions below -->
+                        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
+                                <TextBox Style="{StaticResource ModernTextBox}"
+                                         AutomationProperties.Name="Ticket or task number"
+                                         Text="{Binding ManageTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,12"
+                                           Text="Required for every action below." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
+                                <TextBox AutomationProperties.Name="Requester (optional)" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding ManageRequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}"
+                                           Text="Gets the confirmation e-mail for a detail change, a removal, or users added to a restricted room. Leave empty to send none." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0">
+                            <TabControl Style="{StaticResource TabStrip}" Margin="16,4,16,12">
+                                <TabControl.Resources>
+                                    <Style TargetType="TabItem" BasedOn="{StaticResource TabStripItem}" />
+                                </TabControl.Resources>
+
+                                <TabItem Header="Details">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="{DynamicResource GapField}">
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Capacity" />
+                                                    <TextBox AutomationProperties.Name="Capacity" Style="{StaticResource ModernTextBox}" Width="90"
+                                                             Text="{Binding EditCapacity, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Building" />
+                                                    <TextBox AutomationProperties.Name="Building" Style="{StaticResource ModernTextBox}" Width="130"
+                                                             Text="{Binding EditBuilding, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                                <StackPanel>
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Floor" />
+                                                    <TextBox AutomationProperties.Name="Floor" Style="{StaticResource ModernTextBox}" Width="80"
+                                                             Text="{Binding EditFloor, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Time zone" />
+                                            <TextBox AutomationProperties.Name="Time zone" Style="{StaticResource ModernTextBox}"
+                                                     Text="{Binding EditTimeZone, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                                       Text="Windows time zone id, e.g. W. Europe Standard Time." />
+
+                                            <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,8"
+                                                      Content="Also change the booking policy"
+                                                      IsChecked="{Binding ChangeBookingPolicy}" />
+                                            <ComboBox Style="{StaticResource ModernComboBox}" Width="200"
+                                                      HorizontalAlignment="Left" Margin="{DynamicResource GapField}"
+                                                      ItemsSource="{Binding Presets}" SelectedItem="{Binding EditPreset}"
+                                                      IsEnabled="{Binding ChangeBookingPolicy}" />
+
+                                            <Button Style="{StaticResource PrimaryButton}" Content="_Apply changes"
+                                                    HorizontalAlignment="Left"
+                                                    Command="{Binding UpdateDetailsCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <TabItem Header="Members">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="{DynamicResource GapField}">
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Group" />
+                                                    <ComboBox AutomationProperties.Name="Group" Style="{StaticResource ModernComboBox}" Width="140"
+                                                              ItemsSource="{Binding GroupKinds}" SelectedItem="{Binding MembershipGroupKind}" />
+                                                </StackPanel>
+                                                <StackPanel>
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Action" />
+                                                    <ComboBox AutomationProperties.Name="Action" Style="{StaticResource ModernComboBox}" Width="120"
+                                                              ItemsSource="{Binding MembershipModes}" SelectedItem="{Binding MembershipMode}" />
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Current members" />
+                                            <Border Style="{StaticResource Inset}" Padding="12" Margin="0,0,0,16">
+                                                <ScrollViewer MaxHeight="110" VerticalScrollBarVisibility="Auto">
+                                                    <TextBlock Style="{StaticResource Muted}" Text="{Binding CurrentMembers}" />
+                                                </ScrollViewer>
+                                            </Border>
+
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Identities" />
+                                            <TextBox AutomationProperties.Name="Identities" Style="{StaticResource ModernTextBox}"
+                                                     Text="{Binding MembershipIdentities, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                                       Text="Comma-separated SamAccountName, UPN, e-mail address or group name." />
+
+                                            <Button Style="{StaticResource PrimaryButton}" Content="_Apply membership change"
+                                                    HorizontalAlignment="Left"
+                                                    Command="{Binding ChangeMembershipCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <TabItem Header="Danger zone">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource H3}" Text="Delete room / resource" Margin="0,0,0,8" />
+                                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                                                       Text="A full snapshot - mailbox, statistics, permissions, calendar processing and configuration - is written to the log before anything is deleted. You are asked to confirm." />
+
+                                            <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,8"
+                                                      Content="Also delete this room's own delegate/users groups and drop it from its room list"
+                                                      IsChecked="{Binding RemoveOrphanedGroups}" />
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,16"
+                                                       Text="Shared site-wide delegate groups are never deleted - only groups belonging to this room alone." />
+
+                                            <Button Style="{StaticResource DangerButton}" Content="_Delete room / resource"
+                                                    HorizontalAlignment="Left"
+                                                    Command="{Binding RemoveCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+                            </TabControl>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,12"
+                                 Visibility="{Binding IsManageBusy, Converter={StaticResource BoolToVisible}}" />
+                    <controls:AlertBox Text="{Binding ManageStatusMessage}" Severity="{Binding ManageStatusSeverity}"
+                                       Margin="0,0,0,12" />
+                    <controls:AlertBox Text="{Binding OverviewStatusMessage}" Severity="{Binding OverviewStatusSeverity}" />
                 </StackPanel>
-            </Border>
 
-            <!-- Remove -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Remove" FontSize="15" Margin="0,0,0,8" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="A full snapshot (mailbox, statistics, permissions, calendar processing and configuration) is written to the log before anything is deleted." />
+            </Grid>
+        </TabItem>
 
-                    <CheckBox Content="Also delete this room's own delegate/users groups and drop it from its room list"
-                              Margin="0,0,0,8" FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                              IsChecked="{Binding RemoveOrphanedGroups}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Shared site-wide delegate groups are never deleted - only groups belonging to this room alone." />
+        <TabItem Header="Create room or resource">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="28,20,28,32" MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left">
 
-                    <CheckBox Content="Yes, delete this mailbox - this cannot be undone here"
-                              Margin="0,0,0,12" FontFamily="Segoe UI" FontSize="13" Foreground="#C0392B"
-                              IsChecked="{Binding RemoveConfirmed}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
+                               Text="Creates a conference room or equipment mailbox with its room list, delegate group and (for restricted rooms) authorized-users group, calendar booking policy, permissions and time zone - in one step, with a preview of what will be created." />
 
-                    <Button Style="{StaticResource SecondaryButton}" Content="Remove room / resource"
-                            HorizontalAlignment="Left"
-                            Command="{Binding RemoveCommand}"
-                            IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
+                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <Grid Margin="{DynamicResource GapField}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
+                                    <TextBox AutomationProperties.Name="Ticket / task number" Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
+                                    <TextBox AutomationProperties.Name="Requester (optional)" Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding RequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldHint}"
+                                               Text="Gets the confirmation e-mail. Leave empty to send none." />
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Type" />
+                            <ComboBox AutomationProperties.Name="Type" Style="{StaticResource ModernComboBox}" Margin="{DynamicResource GapField}"
+                                      Width="200" HorizontalAlignment="Left"
+                                      ItemsSource="{Binding ResourceKinds}" SelectedItem="{Binding Kind}" />
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Name" />
+                            <TextBox AutomationProperties.Name="Name" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding RawName, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="Start with the three-letter site code, then the room name - e.g. &quot;NBK Meeting Room 1&quot;." />
+
+                            <StackPanel Visibility="{Binding IsRoom, Converter={StaticResource BoolToVisible}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Building" />
+                                        <TextBox AutomationProperties.Name="Building" Style="{StaticResource ModernTextBox}" Width="140"
+                                                 Text="{Binding Building, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Floor" />
+                                        <TextBox AutomationProperties.Name="Floor" Style="{StaticResource ModernTextBox}" Width="90"
+                                                 Text="{Binding Floor, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Capacity" />
+                                        <TextBox AutomationProperties.Name="Capacity" Style="{StaticResource ModernTextBox}" Width="90"
+                                                 Text="{Binding Capacity, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Floor: a number, or 0 / Ground for the ground floor." />
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Access model" />
+                            <ComboBox AutomationProperties.Name="Access model" Style="{StaticResource ModernComboBox}" Width="320" HorizontalAlignment="Left"
+                                      ItemsSource="{Binding AccessModels}" SelectedItem="{Binding AccessModel}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="GeneralUseSiteDelegates: anyone books, the shared site delegate group approves out-of-policy. GeneralUseCustomDelegates: same, but with its own delegate group. Restricted: only members of the room's users group may book." />
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Booking policy" />
+                            <ComboBox AutomationProperties.Name="Booking policy" Style="{StaticResource ModernComboBox}" Width="200" HorizontalAlignment="Left"
+                                      ItemsSource="{Binding Presets}" SelectedItem="{Binding Preset}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="Standard: recurring meetings allowed, limited conflicts. Hoteling: no recurring meetings, no conflicts. Custom: set the values yourself below." />
+
+                            <StackPanel Orientation="Horizontal" Margin="{DynamicResource GapField}"
+                                        Visibility="{Binding IsCustomPolicy, Converter={StaticResource BoolToVisible}}">
+                                <StackPanel Margin="0,0,16,0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Window (days)" />
+                                    <TextBox AutomationProperties.Name="Window (days)" Style="{StaticResource ModernTextBox}" Width="110"
+                                             Text="{Binding CustomBookingWindowDays, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,16,0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Max duration (min)" />
+                                    <TextBox AutomationProperties.Name="Max duration (min)" Style="{StaticResource ModernTextBox}" Width="130"
+                                             Text="{Binding CustomMaxDurationMinutes, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <CheckBox Style="{StaticResource ModernCheckBox}" VerticalAlignment="Bottom"
+                                          Margin="0,0,0,8" Content="Allow recurring meetings"
+                                          IsChecked="{Binding CustomAllowRecurring}" />
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Delegate group members" />
+                            <TextBox AutomationProperties.Name="Delegate group members" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding DelegateMembers, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="Comma-separated identities. Approve out-of-policy requests and get FullAccess on the mailbox. Ignored when an existing group is reused." />
+
+                            <StackPanel Visibility="{Binding IsRestricted, Converter={StaticResource BoolToVisible}}">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Authorized users" />
+                                <TextBox AutomationProperties.Name="Authorized users" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding UserMembers, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Comma-separated identities - only these may book a restricted room." />
+                            </StackPanel>
+
+                            <Expander Header="Domain overrides" Margin="{DynamicResource GapField}"
+                                      Foreground="{DynamicResource TextBrush}">
+                                <StackPanel Margin="0,12,0,0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Mailbox domain" />
+                                    <TextBox AutomationProperties.Name="Mailbox domain" Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding MailboxDomainOverride, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,12"
+                                               Text="Leave empty to use the configured room mailbox domain." />
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Group domain" />
+                                    <TextBox AutomationProperties.Name="Group domain" Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding GroupDomainOverride, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldHint}"
+                                               Text="Leave empty to use the configured room group domain." />
+                                </StackPanel>
+                            </Expander>
+
+                            <!-- Live preview of everything that will be created -->
+                            <Border Style="{StaticResource Inset}" Margin="0,4,0,16"
+                                    Visibility="{Binding PreviewDisplayName, Converter={StaticResource EmptyToCollapsed}}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Will be created as" />
+                                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
+                                               Text="{Binding PreviewDisplayName, StringFormat='Display name:  {0}'}" />
+                                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
+                                               Text="{Binding PreviewAddress, StringFormat='Address:  {0}'}" />
+                                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
+                                               Text="{Binding PreviewOffice, StringFormat='Location:  {0}'}"
+                                               Visibility="{Binding PreviewOffice, Converter={StaticResource EmptyToCollapsed}}" />
+                                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
+                                               Text="{Binding PreviewSiteInfo, StringFormat='Site:  {0}'}"
+                                               Visibility="{Binding PreviewSiteInfo, Converter={StaticResource EmptyToCollapsed}}" />
+                                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
+                                               Text="{Binding PreviewRoomList, StringFormat='Room list:  {0}'}"
+                                               Visibility="{Binding PreviewRoomList, Converter={StaticResource EmptyToCollapsed}}" />
+                                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
+                                               Text="{Binding PreviewDelegateGroup, StringFormat='Delegate group:  {0}'}" />
+                                    <TextBlock Style="{StaticResource Muted}"
+                                               Text="{Binding PreviewUsersGroup, StringFormat='Users group:  {0}'}"
+                                               Visibility="{Binding PreviewUsersGroup, Converter={StaticResource EmptyToCollapsed}}" />
+
+                                    <TextBlock Margin="0,12,0,0" Style="{StaticResource Muted}"
+                                               Foreground="{DynamicResource DangerBrush}"
+                                               Text="{Binding PreviewProblems}"
+                                               Visibility="{Binding PreviewProblems, Converter={StaticResource EmptyToCollapsed}}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Button Style="{StaticResource PrimaryButton}" Content="_Create room or resource"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding CreateCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <controls:AlertBox Margin="0,16,0,0"
+                                       Text="{Binding StatusMessage}" Severity="{Binding StatusSeverity}" />
                 </StackPanel>
-            </Border>
-
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Padding="14">
-                <TextBlock Style="{StaticResource Muted}" Text="{Binding ManageStatusMessage}" TextWrapping="Wrap" />
-            </Border>
-
-        </StackPanel>
-
-        <!-- ============ PowerShell console ============ -->
-        <controls:PowerShellConsole Margin="0,32,0,0" Transcript="{Binding Transcript}" />
-
-        </StackPanel>
-    </ScrollViewer>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
 </UserControl>
+

@@ -4,131 +4,261 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:M365Manager.Controls"
-             mc:Ignorable="d" d:DesignHeight="700" d:DesignWidth="820">
+             mc:Ignorable="d" d:DesignHeight="700" d:DesignWidth="1000">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="28">
-        <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+    <!--
+        Teams has no management actions - only create and look up - so this is the simplest of the
+        three: overview first (that is what you reach for when a ticket names a team), creating on
+        the second tab. Selecting a row fills a detail card with the attributes the grid has no
+        room for, rather than the ten-column grid the page used to show.
+    -->
+    <TabControl Style="{StaticResource TabStrip}" Padding="0"
+                SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+        <TabControl.Resources>
+            <Style TargetType="TabItem" BasedOn="{StaticResource TabStripItem}" />
+        </TabControl.Resources>
 
-            <TextBlock Style="{StaticResource H2}" Text="Create Team" Margin="0,0,0,4" />
-            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                       Text="Creates a Microsoft Team the same way the legacy PowerShell tool did: enforced naming, owner licensing check, hidden from the address book, welcome message disabled, guest access and SharePoint sharing controlled by Internal/External, and an owner confirmation e-mail." />
+        <TabItem Header="Overview">
+            <Grid Margin="28,20,28,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
-                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Style="{StaticResource ModernTextBox}" Width="320"
+                                 AutomationProperties.Name="Filter teams"
+                                 Text="{Binding OverviewFilterText, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Content="_Refresh" Style="{StaticResource SecondaryButton}"
+                                Margin="{DynamicResource GapInline}"
+                                Command="{Binding RefreshTeamsOverviewCommand}"
+                                IsEnabled="{Binding IsOverviewBusy, Converter={StaticResource InverseBool}}" />
+                        <Button Content="_Export Excel" Style="{StaticResource GhostButton}"
+                                Margin="{DynamicResource GapInline}"
+                                Command="{Binding ExportTeamsToExcelCommand}" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource FieldHint}"
+                               Text="Filter by name, alias, address, owner or visibility. Read from the SQL cache, not live from M365 - kept current by the scheduled import." />
 
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Required - authorizes this creation, e.g. TASK0012345." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Location" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding Location, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="Middle segment of the enforced team name, e.g. HQ." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="{Binding PreviewName, StringFormat='Final team name: {0}'}"
-                               Visibility="{Binding PreviewName, Converter={StaticResource EmptyToCollapsed}}" />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Description" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                             AcceptsReturn="True" TextWrapping="Wrap" Height="60"
-                             Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Owner" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding OwnerIdentity, UpdateSourceTrigger=PropertyChanged}" />
-                    <!-- The format note is folded into the hint this field already had, rather than
-                         stacking a second muted line under the first. -->
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap"
-                               Text="SamAccountName, UPN or e-mail address. Must have a licensed mailbox. Becomes the sole owner of the new team - you are not added as a member." />
-
-                    <CheckBox Content="Public group" Margin="0,2,0,12"
-                              FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                              IsChecked="{Binding IsPublic}" />
-
-                    <CheckBox Content="Internal (disables guest access and locks down SharePoint site sharing)"
-                              Margin="0,2,0,16"
-                              FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                              IsChecked="{Binding IsInternal}" />
-
-                    <Button Style="{StaticResource PrimaryButton}" Content="Create Team"
-                            HorizontalAlignment="Left"
-                            Command="{Binding CreateTeamCommand}"
-                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,12,0,0"
+                                 Visibility="{Binding IsOverviewBusy, Converter={StaticResource BoolToVisible}}" />
                 </StackPanel>
-            </Border>
 
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,20,0,0">
-                <TextBlock Style="{StaticResource Muted}" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
-            </Border>
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="360" />
+                    </Grid.ColumnDefinitions>
 
-        </StackPanel>
+                    <Border Grid.Column="0" Style="{StaticResource Card}" Padding="0">
+                        <Grid>
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Teams.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="&#xE8BD;" FontFamily="Segoe MDL2 Assets" FontSize="28"
+                                           HorizontalAlignment="Center"
+                                           Foreground="{DynamicResource TextDisabledBrush}" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,12,0,0" TextAlignment="Center"
+                                           Text="No teams in the cache. Check the SQL connection in Settings, or run the scheduled import." />
+                            </StackPanel>
 
-        <!-- ============ Teams overview (read from SQL cache) ============ -->
-        <TextBlock Style="{StaticResource H2}" Text="Teams overview" Margin="0,32,0,4" />
-        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                   Text="Read directly from the SQL cache (dbo.Teams), never live from M365. Refreshed automatically after you create a team here; otherwise kept current by the scheduled Import-TeamsToSql.ps1 script." />
+                            <DataGrid ItemsSource="{Binding TeamsOverviewView}"
+                                      SelectedItem="{Binding SelectedTeam, Mode=TwoWay}"
+                                      AutomationProperties.Name="Teams">
+                                <DataGrid.Style>
+                                    <Style TargetType="DataGrid" BasedOn="{StaticResource ModernDataGrid}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Teams.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.Style>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Team" Width="2*" MinWidth="140" Binding="{Binding DisplayName}" />
+                                    <DataGridTextColumn Header="Address" Width="2*" MinWidth="160" Binding="{Binding PrimarySmtpAddress}" />
+                                    <DataGridTextColumn Header="Owner(s)" Width="*" MinWidth="110" Binding="{Binding Owners}" />
+                                    <DataGridTextColumn Header="Members" Width="76" Binding="{Binding MemberCount}" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
 
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-            <TextBox Style="{StaticResource ModernTextBox}" Width="320"
-                     Text="{Binding OverviewFilterText, UpdateSourceTrigger=PropertyChanged}" />
-            <Button Content="Refresh" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
-                    Command="{Binding RefreshTeamsOverviewCommand}"
-                    IsEnabled="{Binding IsOverviewBusy, Converter={StaticResource InverseBool}}" />
-            <Button Content="Export Excel" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
-                    Command="{Binding ExportTeamsToExcelCommand}" />
-        </StackPanel>
+                    <Border Grid.Column="2" Style="{StaticResource Card}"
+                            Visibility="{Binding SelectedTeam, Converter={StaticResource NotNullToCollapsed}}">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="&#xE8BD;" FontFamily="Segoe MDL2 Assets" FontSize="28"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource TextDisabledBrush}" />
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,12,0,0" TextAlignment="Center"
+                                       Text="Select a team to see its settings." />
+                        </StackPanel>
+                    </Border>
 
-        <!-- Below the row rather than under the box: the row is horizontal. -->
-        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                   Text="Filter by name, alias, address, owner or visibility." />
+                    <!-- Everything the old ten-column grid showed, where it is actually readable. -->
+                    <Border Grid.Column="2" Style="{StaticResource Card}"
+                            Visibility="{Binding SelectedTeam, Converter={StaticResource NullToCollapsed}}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource H2}" Text="{Binding SelectedTeam.DisplayName}" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,12"
+                                           Text="{Binding SelectedTeam.PrimarySmtpAddress}" />
 
-        <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,12"
-                     Visibility="{Binding IsOverviewBusy, Converter={StaticResource BoolToVisible}}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
 
-        <Border Style="{StaticResource Card}" Padding="0">
-            <DataGrid ItemsSource="{Binding TeamsOverviewView}"
-                      MaxHeight="500"
-                      AutoGenerateColumns="False" IsReadOnly="True"
-                      HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                      RowHeight="28" FontFamily="Segoe UI" FontSize="12"
-                      Background="Transparent" BorderThickness="0"
-                      VerticalScrollBarVisibility="Auto"
-                      SelectionMode="Extended" SelectionUnit="FullRow"
-                      ClipboardCopyMode="IncludeHeader">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Team" Width="220" Binding="{Binding DisplayName}" />
-                    <DataGridTextColumn Header="Alias" Width="140" Binding="{Binding Alias}" />
-                    <DataGridTextColumn Header="Address" Width="200" Binding="{Binding PrimarySmtpAddress}" />
-                    <DataGridTextColumn Header="Owner(s)" Width="180" Binding="{Binding Owners}" />
-                    <DataGridTextColumn Header="Visibility" Width="80" Binding="{Binding Visibility}" />
-                    <DataGridTextColumn Header="Members" Width="70" Binding="{Binding MemberCount}" />
-                    <DataGridCheckBoxColumn Header="Archived" Width="70" Binding="{Binding IsArchived}" />
-                    <DataGridCheckBoxColumn Header="Guests" Width="70" Binding="{Binding AllowToAddGuests}" />
-                    <DataGridCheckBoxColumn Header="Hidden" Width="70" Binding="{Binding HiddenFromAddressListsEnabled}" />
-                    <DataGridCheckBoxColumn Header="Welcome msg" Width="90" Binding="{Binding WelcomeMessageEnabled}" />
-                    <DataGridTextColumn Header="SharePoint site" Width="220" Binding="{Binding SharePointSiteUrl}" />
-                    <DataGridCheckBoxColumn Header="Deleted" Width="70" Binding="{Binding IsDeletedInM365}" />
-                    <DataGridTextColumn Header="Created" Width="130" Binding="{Binding CreatedDateTime}" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </Border>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Muted}" Text="Alias" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedTeam.Alias}" />
 
-        <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0" Text="{Binding OverviewStatusMessage}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Muted}" Text="Owner(s)" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedTeam.Owners}" />
 
-        <!-- ============ PowerShell console ============ -->
-        <controls:PowerShellConsole Margin="0,32,0,0" Transcript="{Binding Transcript}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource Muted}" Text="Visibility" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedTeam.Visibility}" />
 
-        </StackPanel>
-    </ScrollViewer>
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource Muted}" Text="Members" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedTeam.MemberCount}" />
+
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource Muted}" Text="Archived" />
+                                    <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedTeam.IsArchived}" />
+
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource Muted}" Text="Guests" />
+                                    <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedTeam.AllowToAddGuests}" />
+
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource Muted}" Text="Hidden" />
+                                    <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedTeam.HiddenFromAddressListsEnabled}" />
+
+                                    <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource Muted}" Text="Welcome msg" />
+                                    <TextBlock Grid.Row="7" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedTeam.WelcomeMessageEnabled}" />
+
+                                    <TextBlock Grid.Row="8" Grid.Column="0" Style="{StaticResource Muted}" Text="Created" />
+                                    <TextBlock Grid.Row="8" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedTeam.CreatedDateTime}" />
+                                </Grid>
+
+                                <Border Margin="0,12,0,0" Padding="8,3" HorizontalAlignment="Left"
+                                        CornerRadius="{DynamicResource RadiusPill}"
+                                        Background="{DynamicResource WarningSoftBrush}"
+                                        BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1"
+                                        Visibility="{Binding SelectedTeam.IsDeletedInM365, Converter={StaticResource BoolToVisible}}">
+                                    <TextBlock Text="Deleted in M365" FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource WarningBrush}" />
+                                </Border>
+
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,12,0,0"
+                                           Text="{Binding SelectedTeam.SharePointSiteUrl}" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+
+                <controls:AlertBox Grid.Row="2" Margin="0,12,0,0"
+                                   Text="{Binding OverviewStatusMessage}" Severity="{Binding OverviewStatusSeverity}" />
+
+            </Grid>
+        </TabItem>
+
+        <TabItem Header="Create team">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="28,20,28,32" MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left">
+
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
+                               Text="Creates a Microsoft Team the same way the legacy PowerShell tool did: enforced naming, owner licensing check, hidden from the address book, welcome message disabled, guest access and SharePoint sharing controlled by Internal/External, and an owner confirmation e-mail." />
+
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
+                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
+                            <TextBox AutomationProperties.Name="Ticket / task number" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="Required - authorizes this creation, e.g. TASK0012345." />
+
+                            <Grid Margin="{DynamicResource GapField}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="200" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Location" />
+                                    <TextBox AutomationProperties.Name="Location" Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding Location, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldHint}" Text="Middle segment, e.g. HQ" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Name" />
+                                    <TextBox AutomationProperties.Name="Name" Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Style="{StaticResource Inset}" Margin="0,0,0,16"
+                                    Visibility="{Binding PreviewName, Converter={StaticResource EmptyToCollapsed}}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Final team name" />
+                                    <TextBlock Style="{StaticResource Body}" Text="{Binding PreviewName}" />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Description" />
+                            <TextBox AutomationProperties.Name="Description" Style="{StaticResource ModernTextBoxMultiline}" Height="70"
+                                     Margin="{DynamicResource GapField}"
+                                     Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Owner" />
+                            <TextBox AutomationProperties.Name="Owner" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding OwnerIdentity, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="SamAccountName, UPN or e-mail address. Must have a licensed mailbox. Becomes the sole owner of the new team - you are not added as a member." />
+
+                            <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,12"
+                                      Content="Public group"
+                                      IsChecked="{Binding IsPublic}" />
+
+                            <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,20"
+                                      Content="Internal (disables guest access and locks down SharePoint site sharing)"
+                                      IsChecked="{Binding IsInternal}" />
+
+                            <Button Style="{StaticResource PrimaryButton}" Content="_Create team"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding CreateTeamCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <controls:AlertBox Margin="0,16,0,0"
+                                       Text="{Binding StatusMessage}" Severity="{Binding StatusSeverity}" />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
 </UserControl>
+

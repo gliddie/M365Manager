@@ -7,6 +7,7 @@ using M365Manager.Core.Notifications;
 using M365Manager.Core.Settings;
 using M365Manager.Data.Logging;
 using M365Manager.Data.Naming;
+using M365Manager.Services;
 using M365Manager.Data.NewHire;
 using M365Manager.Data.Rooms;
 
@@ -21,6 +22,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly IRoomSiteRepository _roomSites;
     private readonly INotificationMailService _mail;
     private readonly INewHireRepository _newHire;
+    private readonly IDialogService _dialogs;
 
     // --- SQL ---
     [ObservableProperty] private string _sqlServer = "";
@@ -107,7 +109,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public string SettingsFilePath => _settings.SettingsFilePath;
 
-    public SettingsViewModel(ISettingsService settings, ILogService log, IM365AuthService auth, ITeamNamingRepository naming, IRoomSiteRepository roomSites, INotificationMailService mail, INewHireRepository newHire)
+    public SettingsViewModel(ISettingsService settings, ILogService log, IM365AuthService auth, ITeamNamingRepository naming, IRoomSiteRepository roomSites, INotificationMailService mail, INewHireRepository newHire, IDialogService dialogs)
     {
         _settings = settings;
         _log = log;
@@ -116,6 +118,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _roomSites = roomSites;
         _mail = mail;
         _newHire = newHire;
+        _dialogs = dialogs;
 
         var s = _settings.Current;
         SqlServer = s.Sql.Server;
@@ -257,6 +260,16 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
+        // This used to delete straight away, with no confirmation of any kind. A site is reference
+        // data the room naming and policy lookups depend on, so losing one by a mis-click is worse
+        // than the click it costs to confirm.
+        if (!_dialogs.ConfirmDestructive(
+                $"Delete the site {SelectedRoomSite.SiteCode}?",
+                "Creating a room at this site stops working until the site is added back. Existing rooms are not touched.",
+                "Delete site",
+                $"Time zone {SelectedRoomSite.TimeZone}, region {SelectedRoomSite.Region}."))
+            return;
+
         try
         {
             await _roomSites.DeleteAsync(SelectedRoomSite.Id);
@@ -329,6 +342,15 @@ public sealed partial class SettingsViewModel : ObservableObject
             AcronymStatusMessage = "Select an entry to delete.";
             return;
         }
+
+        // Also deleted without asking until now. Removing a translation silently changes what the
+        // naming convention produces for every Team and shared mailbox created afterwards.
+        if (!_dialogs.ConfirmDestructive(
+                $"Delete the acronym {SelectedAcronym.Acronym}?",
+                "Names containing it stop being translated, so Teams and shared mailboxes created from now on get a different name than before.",
+                "Delete acronym",
+                $"{SelectedAcronym.Acronym} is currently translated to \"{SelectedAcronym.Translation}\"."))
+            return;
 
         try
         {

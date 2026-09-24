@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using M365Manager.Core.Logging;
+using M365Manager.Controls;
 using M365Manager.Data.Logging;
 
 namespace M365Manager.ViewModels;
@@ -25,6 +26,15 @@ public sealed partial class LogsViewModel : ObservableObject
     [ObservableProperty] private DateTime? _fromDate;
     [ObservableProperty] private DateTime? _toDate;
     [ObservableProperty] private int _maxResults = 1000;
+
+    // Status severity, so a failed query stops looking like a result count.
+    [ObservableProperty] private AlertSeverity _statusSeverity = AlertSeverity.Info;
+
+    private void Status(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        StatusSeverity = severity;
+        StatusMessage = text;
+    }
 
     public ObservableCollection<string> Users { get; } = new() { AnyValue };
     public ObservableCollection<string> Areas { get; } = new() { AnyValue };
@@ -117,13 +127,15 @@ public sealed partial class LogsViewModel : ObservableObject
             foreach (var item in items)
                 Entries.Add(item);
 
+            StatusSeverity = Entries.Count >= MaxResults ? AlertSeverity.Warning : AlertSeverity.Info;
+
             StatusMessage = Entries.Count >= MaxResults
                 ? $"{Entries.Count} entries (newest first) - limit reached, narrow the filter or raise the limit."
                 : $"{Entries.Count} entries (newest first).";
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Could not load logs: {ErrorText.Describe(ex)}";
+            Status($"Could not load logs: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -154,7 +166,7 @@ public sealed partial class LogsViewModel : ObservableObject
     {
         if (Entries.Count == 0)
         {
-            StatusMessage = "Nothing to export - the filtered list is empty.";
+            Status("Nothing to export - the filtered list is empty.", AlertSeverity.Error);
             return;
         }
 
@@ -169,11 +181,11 @@ public sealed partial class LogsViewModel : ObservableObject
         try
         {
             LogExportService.ExportToExcel(dialog.FileName, Entries.ToList());
-            StatusMessage = $"Exported {Entries.Count} entr{(Entries.Count == 1 ? "y" : "ies")} to {dialog.FileName}.";
+            Status($"Exported {Entries.Count} entr{(Entries.Count == 1 ? "y" : "ies")} to {dialog.FileName}.", AlertSeverity.Success);
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Export failed: {ErrorText.Describe(ex)}";
+            Status($"Export failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
     }
 }

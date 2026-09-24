@@ -13,6 +13,30 @@ public sealed class AppSettings
     public TeamsPolicySettings TeamsPolicies { get; set; } = new();
     public TraceSettings Trace { get; set; } = new();
     public NewHireSettings NewHire { get; set; } = new();
+    public UiSettings Ui { get; set; } = new();
+}
+
+/// <summary>
+/// Which colour theme the shell renders in.
+///
+/// Serialized by name, not by ordinal. Without this the value lands in settings.json as a bare
+/// 0/1/2, and - worse - a hand-edited "Dark" would throw on load. <see cref="SettingsService.Load"/>
+/// catches that and falls back to a fresh <see cref="AppSettings"/>, so one unreadable value would
+/// silently blank every other setting in memory.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum AppTheme
+{
+    /// <summary>Follow the Windows app-colour-mode setting, and track it while the app runs.</summary>
+    System,
+    Light,
+    Dark,
+}
+
+/// <summary>Presentation-only preferences. Nothing here affects what the app does to a tenant.</summary>
+public sealed class UiSettings
+{
+    public AppTheme Theme { get; set; } = AppTheme.System;
 }
 
 /// <summary>

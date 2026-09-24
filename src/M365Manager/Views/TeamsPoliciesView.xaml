@@ -5,70 +5,100 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:M365Manager.ViewModels"
              xmlns:controls="clr-namespace:M365Manager.Controls"
-             mc:Ignorable="d" d:DesignHeight="800" d:DesignWidth="900">
+             mc:Ignorable="d" d:DesignHeight="800" d:DesignWidth="1000">
 
+    <!--
+        One task, so no tabs: look a user up, see which policy group they hold per prefix, swap it.
+        The inline confirmation stays - unlike a delete, the thing worth seeing here is which group
+        the change takes away, and that reads better in place than in a modal.
+    -->
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="28" MaxWidth="820" HorizontalAlignment="Left">
+        <StackPanel Margin="28,20,28,32" MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left">
 
-            <TextBlock Style="{StaticResource H2}" Text="Teams meeting policies" Margin="0,0,0,4" />
-            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap"
+            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
                        Text="Shows which policy groups a user is a member of, and assigns a different one. Teams applies the policy - recording, transcription, Copilot - to whoever is a member of the group. Only groups whose name starts with a configured prefix are listed; everything else in the directory is ignored." />
 
             <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
                          Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
 
-            <!-- ============ Look up ============ -->
             <Border Style="{StaticResource Card}" Margin="0,0,0,16">
                 <StackPanel>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="User" />
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <StackPanel Orientation="Horizontal">
                         <TextBox Style="{StaticResource ModernTextBox}" Width="360"
-                                 Text="{Binding UserIdentity, UpdateSourceTrigger=PropertyChanged}" />
-                        <Button Style="{StaticResource PrimaryButton}" Content="Look up" Margin="10,0,0,0"
+                                 AutomationProperties.Name="User identity"
+                                 Text="{Binding UserIdentity, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter" Command="{Binding LookUpCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <Button Style="{StaticResource PrimaryButton}" Content="_Look up"
+                                Margin="{DynamicResource GapInline}"
                                 Command="{Binding LookUpCommand}"
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
                     </StackPanel>
-                    <!-- Below the row rather than under the box: the row is horizontal. -->
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="SamAccountName, UPN or e-mail address." />
+                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                               Text="SamAccountName, UPN or e-mail address. Press Enter to look up." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Width="360" HorizontalAlignment="Left"
-                             Margin="0,0,0,4"
+                    <TextBox AutomationProperties.Name="Ticket / task number" Style="{StaticResource ModernTextBox}" Width="360" HorizontalAlignment="Left"
                              Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}"
+                    <TextBlock Style="{StaticResource FieldHint}"
                                Text="Required to change an assignment; recorded in the log." />
                 </StackPanel>
             </Border>
 
-            <TextBlock Style="{StaticResource H2}" FontSize="15" Margin="0,0,0,10"
+            <!-- Nothing looked up yet -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16"
+                    Visibility="{Binding HasUser, Converter={StaticResource BoolToCollapsed}}">
+                <StackPanel Margin="0,20">
+                    <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="28"
+                               HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextDisabledBrush}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,12,0,0" TextAlignment="Center"
+                               Text="Look a user up to see which meeting policy groups they hold." />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Style="{StaticResource H2}" Margin="0,0,0,12"
                        Text="{Binding UserSummary}"
                        Visibility="{Binding UserSummary, Converter={StaticResource EmptyToCollapsed}}" />
 
-            <!-- ============ One card per configured prefix ============ -->
+            <!-- One card per configured prefix -->
             <ItemsControl ItemsSource="{Binding Categories}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:PolicyCategoryViewModel}">
-                        <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+                        <Border Style="{StaticResource Card}" Margin="0,0,0,12">
                             <StackPanel>
-                                <TextBlock Style="{StaticResource H2}" FontSize="15" Margin="0,0,0,8"
+                                <TextBlock Style="{StaticResource H3}" Margin="0,0,0,8"
                                            Text="{Binding Prefix}" />
 
-                                <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4" TextWrapping="Wrap"
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
                                            Text="{Binding CurrentText, StringFormat='Currently assigned: {0}'}" />
 
-                                <TextBlock Margin="0,0,0,10" TextWrapping="Wrap"
-                                           FontFamily="Segoe UI" FontSize="12" Foreground="#B45309"
-                                           Visibility="{Binding HasConflict, Converter={StaticResource BoolToVisible}}"
-                                           Text="This user is in more than one group under this prefix. Assigning one below removes the others." />
+                                <!--
+                                    Exclusivity is per prefix, not global. The wording has to say so:
+                                    an admin looking at a user with a dozen POL.* groups needs to know
+                                    that only the ones under THIS prefix are in scope, or they will not
+                                    dare press the button.
+                                -->
+                                <controls:AlertBox Margin="0,0,0,12" Severity="Warning"
+                                                   Visibility="{Binding HasConflict, Converter={StaticResource BoolToVisible}}"
+                                                   Text="{Binding ConflictText}" />
+
+                                <!-- Standing reassurance, shown whether or not there is a conflict. -->
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,12"
+                                           Text="{Binding ScopeHint}" />
 
                                 <TextBlock Style="{StaticResource FieldLabel}" Text="Assign" />
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                    <ComboBox Width="420" ItemsSource="{Binding AvailableGroups}"
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <ComboBox Style="{StaticResource ModernComboBox}" Width="420"
+                                              ItemsSource="{Binding AvailableGroups}"
                                               SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
                                               DisplayMemberPath="DisplayName"
-                                              FontFamily="Segoe UI" FontSize="13" />
-                                    <Button Style="{StaticResource SecondaryButtonSmall}" Content="Clear" Margin="8,0,0,0"
+                                              AutomationProperties.Name="Policy group to assign" />
+                                    <Button Style="{StaticResource GhostButtonSmall}" Content="C_lear"
+                                            Margin="{DynamicResource GapInline}" VerticalAlignment="Center"
                                             Command="{Binding DataContext.ClearSelectionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                             CommandParameter="{Binding}"
                                             ToolTip="Empties the picker - Apply then removes the user from this category without assigning another group" />
@@ -76,27 +106,25 @@
 
                                 <StackPanel Orientation="Horizontal"
                                             Visibility="{Binding HasPendingConfirmation, Converter={StaticResource BoolToCollapsed}}">
-                                    <Button Style="{StaticResource PrimaryButton}" Content="Apply"
+                                    <Button Style="{StaticResource PrimaryButton}" Content="_Apply"
                                             Command="{Binding DataContext.PrepareCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                             CommandParameter="{Binding}" />
-                                    <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="10,0,0,0"
+                                    <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0,0,0"
                                                Text="Leave the box empty to remove the user from this category." />
                                 </StackPanel>
 
-                                <!-- Confirmation step: the removal of the previous group is the part
+                                <!-- Confirmation: the removal of the previous group is the part
                                      worth seeing before it happens. -->
-                                <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1" CornerRadius="6" Padding="12"
+                                <Border Style="{StaticResource Inset}"
                                         Visibility="{Binding HasPendingConfirmation, Converter={StaticResource BoolToVisible}}">
                                     <StackPanel>
-                                        <TextBlock TextWrapping="Wrap" FontFamily="Segoe UI" FontSize="13"
-                                                   Foreground="{StaticResource TextBrush}"
-                                                   Text="{Binding PendingConfirmation}" />
-                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                            <Button Style="{StaticResource PrimaryButton}" Content="Confirm"
+                                        <TextBlock Style="{StaticResource Body}" Text="{Binding PendingConfirmation}" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                            <Button Style="{StaticResource PrimaryButton}" Content="_Confirm"
                                                     Command="{Binding DataContext.ConfirmCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}" />
-                                            <Button Style="{StaticResource SecondaryButton}" Content="Cancel" Margin="10,0,0,0"
+                                            <Button Style="{StaticResource GhostButton}" Content="_Cancel"
+                                                    Margin="{DynamicResource GapInline}"
                                                     Command="{Binding DataContext.CancelPendingCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}" />
                                         </StackPanel>
@@ -108,15 +136,10 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <!-- ============ Status ============ -->
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,6,0,0">
-                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Text="{Binding StatusMessage}" />
-            </Border>
-
-            <!-- ============ Console ============ -->
-            <controls:PowerShellConsole Margin="0,32,0,0" Transcript="{Binding Transcript}" />
+            <controls:AlertBox Margin="0,4,0,0"
+                               Text="{Binding StatusMessage}" Severity="{Binding StatusSeverity}" />
 
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+

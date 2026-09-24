@@ -3,14 +3,18 @@ using System.ComponentModel;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using M365Manager.Controls;
 using M365Manager.Core.PowerShell;
 using M365Manager.Core.Settings;
 using M365Manager.Core.Trace;
 
 namespace M365Manager.ViewModels;
 
-public sealed partial class TraceViewModel : ObservableObject
+public sealed partial class TraceViewModel : ObservableObject, ITabbedPage
 {
+    /// <summary>Which tab the view shows; set by the shell when a Home tile navigates here.</summary>
+    [ObservableProperty] private int _selectedTabIndex;
+
     private readonly ITraceGuestService _guests;
     private readonly ISettingsService _settings;
 
@@ -28,6 +32,22 @@ public sealed partial class TraceViewModel : ObservableObject
     [ObservableProperty] private string _filterText = "";
     [ObservableProperty] private bool _isOverviewBusy;
     [ObservableProperty] private string _overviewStatusMessage = "";
+
+    // Status severity, so a failed invitation stops looking like a successful one.
+    [ObservableProperty] private AlertSeverity _statusSeverity = AlertSeverity.Info;
+    [ObservableProperty] private AlertSeverity _overviewStatusSeverity = AlertSeverity.Info;
+
+    private void Status(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        StatusSeverity = severity;
+        StatusMessage = text;
+    }
+
+    private void OverviewStatus(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        OverviewStatusSeverity = severity;
+        OverviewStatusMessage = text;
+    }
 
     public ObservableCollection<TraceGuestRow> Guests { get; } = new();
     public ICollectionView GuestsView { get; }
@@ -87,12 +107,12 @@ public sealed partial class TraceViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(DisplayName))
         {
-            StatusMessage = "Enter the guest's display name.";
+            Status("Enter the guest's display name.", AlertSeverity.Error);
             return;
         }
         if (string.IsNullOrWhiteSpace(Email) || !Email.Contains('@'))
         {
-            StatusMessage = "Enter a valid e-mail address.";
+            Status("Enter a valid e-mail address.", AlertSeverity.Error);
             return;
         }
 
@@ -113,6 +133,7 @@ public sealed partial class TraceViewModel : ObservableObject
 
             if (result.Succeeded)
             {
+                StatusSeverity = result.Warning is { Length: > 0 } ? AlertSeverity.Warning : AlertSeverity.Success;
                 StatusMessage = result.Warning is { Length: > 0 }
                     ? $"{result.DisplayName} invited - but note: {result.Warning}"
                     : $"{result.DisplayName} <{result.Email}> invited and stamped with company name '{CompanyName}'.";
@@ -125,12 +146,12 @@ public sealed partial class TraceViewModel : ObservableObject
             }
             else
             {
-                StatusMessage = $"Invitation failed: {result.ErrorMessage}";
+                Status($"Invitation failed: {result.ErrorMessage}", AlertSeverity.Error);
             }
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Invitation failed: {ErrorText.Describe(ex)}";
+            Status($"Invitation failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -150,13 +171,15 @@ public sealed partial class TraceViewModel : ObservableObject
             foreach (var row in rows)
                 Guests.Add(row);
 
+            OverviewStatusSeverity = Guests.Count == 0 ? AlertSeverity.Info : AlertSeverity.Success;
+
             OverviewStatusMessage = Guests.Count == 0
                 ? $"No guest accounts found with company name '{CompanyName}'."
                 : $"{Guests.Count} guest account(s) with company name '{CompanyName}'.";
         }
         catch (Exception ex)
         {
-            OverviewStatusMessage = $"Could not load guest accounts: {ErrorText.Describe(ex)}";
+            OverviewStatus($"Could not load guest accounts: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -172,7 +195,7 @@ public sealed partial class TraceViewModel : ObservableObject
         try
         {
             System.Windows.Clipboard.SetText(LastRedeemUrl);
-            StatusMessage = "Redemption link copied to the clipboard.";
+            Status("Redemption link copied to the clipboard.", AlertSeverity.Success);
         }
         catch
         {
@@ -186,7 +209,7 @@ public sealed partial class TraceViewModel : ObservableObject
         var filtered = GuestsView.Cast<TraceGuestRow>().ToList();
         if (filtered.Count == 0)
         {
-            OverviewStatusMessage = "Nothing to export - the (filtered) list is empty.";
+            OverviewStatus("Nothing to export - the (filtered) list is empty.", AlertSeverity.Error);
             return;
         }
 
@@ -201,11 +224,11 @@ public sealed partial class TraceViewModel : ObservableObject
         try
         {
             TraceGuestExportService.ExportToExcel(dialog.FileName, filtered);
-            OverviewStatusMessage = $"Exported {filtered.Count} guest(s) to {dialog.FileName}.";
+            OverviewStatus($"Exported {filtered.Count} guest(s) to {dialog.FileName}.", AlertSeverity.Success);
         }
         catch (Exception ex)
         {
-            OverviewStatusMessage = $"Export failed: {ErrorText.Describe(ex)}";
+            OverviewStatus($"Export failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
     }
 }

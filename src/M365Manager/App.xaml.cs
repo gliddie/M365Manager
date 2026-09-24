@@ -1,5 +1,6 @@
 using System.Windows;
 using M365Manager.Core.DependencyInjection;
+using M365Manager.Services;
 using M365Manager.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,6 +17,11 @@ public partial class App : Application
             .ConfigureServices((_, services) =>
             {
                 services.AddM365ManagerCore();
+
+                // Shell services
+                services.AddSingleton<IThemeService, ThemeService>();
+                services.AddSingleton<IDialogService, DialogService>();
+                services.AddSingleton<INavigationService, NavigationService>();
 
                 // ViewModels
                 services.AddSingleton<MainViewModel>();
@@ -40,6 +46,9 @@ public partial class App : Application
     {
         base.OnStartup(e);
         await _host.StartAsync();
+
+        // Before the window is shown, so it never paints in the wrong theme first.
+        _host.Services.GetRequiredService<IThemeService>().Initialize();
 
         var window = _host.Services.GetRequiredService<MainWindow>();
         var mainViewModel = _host.Services.GetRequiredService<MainViewModel>();

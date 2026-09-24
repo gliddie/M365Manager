@@ -4,131 +4,168 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:M365Manager.Controls"
-             mc:Ignorable="d" d:DesignHeight="800" d:DesignWidth="900">
+             mc:Ignorable="d" d:DesignHeight="700" d:DesignWidth="1000">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="28">
-        <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+    <!--
+        The rarely used page, so it gets the same two-tab shape as the others rather than anything
+        of its own: the guest list first (that is what you check), inviting on the second tab.
+    -->
+    <TabControl Style="{StaticResource TabStrip}" Padding="0"
+                SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+        <TabControl.Resources>
+            <Style TargetType="TabItem" BasedOn="{StaticResource TabStripItem}" />
+        </TabControl.Resources>
 
-            <TextBlock Style="{StaticResource H2}" Text="Invite Trace guest account" Margin="0,0,0,4" />
-            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                       Text="Invites a customer as a guest to Entra so they can sign in to Trace. Microsoft sends the invitation e-mail with the text configured under Settings; the new guest is then stamped with the company name so it can be found again." />
+        <TabItem Header="Guests">
+            <Grid Margin="28,20,28,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,16">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource Muted}"
-                               Text="{Binding CompanyName, StringFormat='Company name stamped on new guests:  {0}'}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0"
-                               Text="{Binding RedirectUrl, StringFormat='Invitation redirects to:  {0}'}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0"
-                               Text="Both are configured under Settings > Trace application." />
-                </StackPanel>
-            </Border>
-
-            <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
-                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
-
-            <Border Style="{StaticResource Card}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Guest name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="The name the guest is invited under, e.g. Ralf Terjung." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="E-mail address" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="The customer's own address - this is where the invitation is sent." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number (optional)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                               Text="Recorded in the log when given. Leave empty if the request didn't come from a ticket." />
-
-                    <Button Style="{StaticResource PrimaryButton}" Content="Invite guest"
-                            HorizontalAlignment="Left"
-                            Command="{Binding InviteCommand}"
-                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                </StackPanel>
-            </Border>
-
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,16,0,0">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource Muted}" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
-
-                    <StackPanel Margin="0,10,0,0"
-                                Visibility="{Binding LastRedeemUrl, Converter={StaticResource EmptyToCollapsed}}">
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Redemption link" />
-                        <TextBox Style="{StaticResource ModernTextBox}" IsReadOnly="True"
-                                 Text="{Binding LastRedeemUrl, Mode=OneWay}" />
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <Button Content="Copy link" Style="{StaticResource SecondaryButtonSmall}"
-                                    Command="{Binding CopyRedeemUrlCommand}" />
-                            <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="10,0,0,0"
-                                       Text="Send this to the guest if the invitation e-mail doesn't arrive." />
-                        </StackPanel>
+                <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Style="{StaticResource ModernTextBox}" Width="320"
+                                 AutomationProperties.Name="Filter guests"
+                                 Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Content="_Refresh" Style="{StaticResource SecondaryButton}"
+                                Margin="{DynamicResource GapInline}"
+                                Command="{Binding RefreshGuestsCommand}"
+                                IsEnabled="{Binding IsOverviewBusy, Converter={StaticResource InverseBool}}" />
+                        <Button Content="_Export Excel" Style="{StaticResource GhostButton}"
+                                Margin="{DynamicResource GapInline}"
+                                Command="{Binding ExportToExcelCommand}" />
                     </StackPanel>
+                    <TextBlock Style="{StaticResource FieldHint}"
+                               Text="Read live from Entra, filtered to guests stamped with the configured company name." />
+
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,12,0,0"
+                                 Visibility="{Binding IsOverviewBusy, Converter={StaticResource BoolToVisible}}" />
                 </StackPanel>
-            </Border>
 
-        </StackPanel>
+                <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0">
+                    <Grid>
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Guests.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <TextBlock Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="28"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource TextDisabledBrush}" />
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,12,0,0" TextAlignment="Center"
+                                       Text="No Trace guests found. Invite one on the next tab, or check the company name under Settings." />
+                        </StackPanel>
 
-        <!-- ============ Guest overview ============ -->
-        <TextBlock Style="{StaticResource H2}" Text="Trace guest accounts" Margin="0,32,0,4" />
-        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                   Text="Read live from Entra - every guest carrying the configured company name. No SQL cache and no scheduled import here, so the list is always current." />
+                        <DataGrid ItemsSource="{Binding GuestsView}"
+                                  SelectionMode="Extended"
+                                  AutomationProperties.Name="Trace guest accounts">
+                            <DataGrid.Style>
+                                <Style TargetType="DataGrid" BasedOn="{StaticResource ModernDataGrid}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Guests.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.Style>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Width="2*" MinWidth="140" Binding="{Binding DisplayName}" />
+                                <DataGridTextColumn Header="E-mail" Width="2*" MinWidth="180" Binding="{Binding Mail}" />
+                                <DataGridTextColumn Header="Status" Width="130" Binding="{Binding StatusLabel}" />
+                                <DataGridTextColumn Header="Company" Width="120" Binding="{Binding CompanyName}" />
+                                <DataGridCheckBoxColumn Header="Enabled" Width="68" Binding="{Binding AccountEnabled}" />
+                                <DataGridTextColumn Header="Created (UTC)" Width="124"
+                                                    Binding="{Binding CreatedUtc, StringFormat='yyyy-MM-dd HH:mm'}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+                </Border>
 
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-            <TextBox Style="{StaticResource ModernTextBox}" Width="320"
-                     Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" />
-            <Button Content="Refresh" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
-                    Command="{Binding RefreshGuestsCommand}"
-                    IsEnabled="{Binding IsOverviewBusy, Converter={StaticResource InverseBool}}" />
-            <Button Content="Export Excel" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0"
-                    Command="{Binding ExportToExcelCommand}" />
-        </StackPanel>
+                <controls:AlertBox Grid.Row="2" Margin="0,12,0,0"
+                                   Text="{Binding OverviewStatusMessage}" Severity="{Binding OverviewStatusSeverity}" />
 
-        <!-- Below the row rather than under the box: the row is horizontal, so a hint placed
-             inside it would sit beside the box instead of under it. -->
-        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                   Text="Filter by name, e-mail or status." />
+            </Grid>
+        </TabItem>
 
-        <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,12"
-                     Visibility="{Binding IsOverviewBusy, Converter={StaticResource BoolToVisible}}" />
+        <TabItem Header="Invite guest">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="28,20,28,32" MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left">
 
-        <Border Style="{StaticResource Card}" Padding="0">
-            <DataGrid ItemsSource="{Binding GuestsView}"
-                      MaxHeight="460"
-                      AutoGenerateColumns="False" IsReadOnly="True"
-                      HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                      RowHeight="28" FontFamily="Segoe UI" FontSize="12"
-                      Background="Transparent" BorderThickness="0"
-                      VerticalScrollBarVisibility="Auto"
-                      SelectionMode="Extended" SelectionUnit="FullRow"
-                      ClipboardCopyMode="IncludeHeader">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Name" Width="200" Binding="{Binding DisplayName}" />
-                    <DataGridTextColumn Header="E-mail" Width="240" Binding="{Binding Mail}" />
-                    <DataGridTextColumn Header="Status" Width="140" Binding="{Binding StatusLabel}" />
-                    <DataGridTextColumn Header="Company" Width="130" Binding="{Binding CompanyName}" />
-                    <DataGridCheckBoxColumn Header="Enabled" Width="70" Binding="{Binding AccountEnabled}" />
-                    <DataGridTextColumn Header="Created (UTC)" Width="130"
-                                        Binding="{Binding CreatedUtc, StringFormat='yyyy-MM-dd HH:mm'}" />
-                    <DataGridTextColumn Header="User principal name" Width="*" Binding="{Binding UserPrincipalName}" />
-                </DataGrid.Columns>
-            </DataGrid>
-        </Border>
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
+                               Text="Invites a customer as a guest to Entra so they can sign in to Trace. Microsoft sends the invitation e-mail with the text configured under Settings; the new guest is then stamped with the company name so it can be found again." />
 
-        <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0" Text="{Binding OverviewStatusMessage}" />
+                    <Border Style="{StaticResource Inset}" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Muted}"
+                                       Text="{Binding CompanyName, StringFormat='Company name stamped on new guests:  {0}'}" />
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0"
+                                       Text="{Binding RedirectUrl, StringFormat='Invitation redirects to:  {0}'}" />
+                            <TextBlock Style="{StaticResource FieldHint}"
+                                       Text="Both are configured under Settings &gt; Trace application." />
+                        </StackPanel>
+                    </Border>
 
-        <!-- ============ Console ============ -->
-        <controls:PowerShellConsole Margin="0,32,0,0" Transcript="{Binding Transcript}" />
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
+                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
 
-        </StackPanel>
-    </ScrollViewer>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Guest name" />
+                            <TextBox AutomationProperties.Name="Guest name" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="The name the guest is invited under." />
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="E-mail address" />
+                            <TextBox AutomationProperties.Name="E-mail address" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding Email, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="The customer's own address - this is where the invitation is sent." />
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number (optional)" />
+                            <TextBox AutomationProperties.Name="Ticket / task number (optional)" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,20"
+                                       Text="Recorded in the log when given. Leave empty if the request didn't come from a ticket." />
+
+                            <Button Style="{StaticResource PrimaryButton}" Content="_Invite guest"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding InviteCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <controls:AlertBox Margin="0,16,0,0"
+                                       Text="{Binding StatusMessage}" Severity="{Binding StatusSeverity}" />
+
+                    <!-- The fallback when Microsoft's invitation mail does not arrive. -->
+                    <Border Style="{StaticResource Card}" Margin="0,12,0,0"
+                            Visibility="{Binding LastRedeemUrl, Converter={StaticResource EmptyToCollapsed}}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Redemption link" />
+                            <TextBox Style="{StaticResource ModernTextBox}" IsReadOnly="True"
+                                     AutomationProperties.Name="Redemption link"
+                                     Text="{Binding LastRedeemUrl, Mode=OneWay}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <Button Content="Copy _link" Style="{StaticResource SecondaryButtonSmall}"
+                                        Command="{Binding CopyRedeemUrlCommand}" />
+                                <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0,0,0"
+                                           Text="Send this to the guest if the invitation e-mail doesn't arrive." />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
 </UserControl>
+

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using M365Manager.Core.ActiveDirectory;
 using M365Manager.Core.NewHire;
+using M365Manager.Controls;
 using M365Manager.Core.PowerShell;
 using M365Manager.Core.Settings;
 using M365Manager.Data.NewHire;
@@ -84,6 +85,15 @@ public sealed partial class NewHireViewModel : ObservableObject
     [ObservableProperty] private bool _resultSucceeded;
     [ObservableProperty] private string _teamsState = "";
 
+    // Status severity, so a failed lookup stops looking like a successful one.
+    [ObservableProperty] private AlertSeverity _statusSeverity = AlertSeverity.Info;
+
+    private void Status(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        StatusSeverity = severity;
+        StatusMessage = text;
+    }
+
     public ObservableCollection<NewHireStepViewModel> ResultSteps { get; } = new();
 
     private AdUser? _user;
@@ -101,6 +111,13 @@ public sealed partial class NewHireViewModel : ObservableObject
     public bool IsStep3 => Step == 3;
     public bool IsStep4 => Step == 4;
 
+    // "Already behind us", so the stepper can show a step as done rather than only marking the
+    // current one. Three states - done / current / upcoming - are what make a stepper readable as
+    // progress instead of as four buttons.
+    public bool IsStep1Done => Step > 1;
+    public bool IsStep2Done => Step > 2;
+    public bool IsStep3Done => Step > 3;
+
     /// <summary>True once step 1 found an employee who may actually be enabled.</summary>
     public bool CanContinueFromEmployee => _user is not null && SelectedLocation is not null && Blocker.Length == 0;
 
@@ -113,6 +130,10 @@ public sealed partial class NewHireViewModel : ObservableObject
         OnPropertyChanged(nameof(IsStep2));
         OnPropertyChanged(nameof(IsStep3));
         OnPropertyChanged(nameof(IsStep4));
+
+        OnPropertyChanged(nameof(IsStep1Done));
+        OnPropertyChanged(nameof(IsStep2Done));
+        OnPropertyChanged(nameof(IsStep3Done));
     }
 
     partial void OnBlockerChanged(string value)
@@ -149,7 +170,7 @@ public sealed partial class NewHireViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Could not load the site list: {ErrorText.Describe(ex)}";
+            Status($"Could not load the site list: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
     }
 
@@ -160,7 +181,7 @@ public sealed partial class NewHireViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(Identity))
         {
-            StatusMessage = "Enter a SamAccountName, UPN or e-mail address.";
+            Status("Enter a SamAccountName, UPN or e-mail address.", AlertSeverity.Error);
             return;
         }
 
@@ -182,7 +203,7 @@ public sealed partial class NewHireViewModel : ObservableObject
             if (!lookup.Succeeded || lookup.User is null)
             {
                 _user = null;
-                StatusMessage = lookup.ErrorMessage ?? "Lookup failed.";
+                Status(lookup.ErrorMessage ?? "Lookup failed.", AlertSeverity.Error);
                 OnPropertyChanged(nameof(CanContinueFromEmployee));
                 return;
             }
@@ -208,7 +229,7 @@ public sealed partial class NewHireViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Lookup failed: {ErrorText.Describe(ex)}";
+            Status($"Lookup failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -224,7 +245,7 @@ public sealed partial class NewHireViewModel : ObservableObject
 
         if (string.IsNullOrWhiteSpace(TaskNumber))
         {
-            StatusMessage = "Enter the ticket/task number authorizing this change.";
+            Status("Enter the ticket/task number authorizing this change.", AlertSeverity.Error);
             return;
         }
 
@@ -261,7 +282,7 @@ public sealed partial class NewHireViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Could not load number blocks: {ErrorText.Describe(ex)}";
+            Status($"Could not load number blocks: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -274,7 +295,7 @@ public sealed partial class NewHireViewModel : ObservableObject
     {
         if (SelectedRange is null)
         {
-            StatusMessage = "Select a number block first.";
+            Status("Select a number block first.", AlertSeverity.Error);
             return;
         }
 
@@ -293,18 +314,18 @@ public sealed partial class NewHireViewModel : ObservableObject
 
             if (FreeDids.Count == 0)
             {
-                StatusMessage = "That block is fully allocated. Pick a different one.";
+                Status("That block is fully allocated. Pick a different one.", AlertSeverity.Error);
                 return;
             }
 
             // Picked at random rather than lowest-first, as the legacy tool did: consecutive numbers
             // handed out in sequence make a whole team trivially guessable from one of them.
             SelectedDid = FreeDids[Random.Shared.Next(FreeDids.Count)];
-            StatusMessage = $"{FreeDids.Count} number(s) free. {SelectedDid.E164} is proposed - change it if you like.";
+            Status($"{FreeDids.Count} number(s) free. {SelectedDid.E164} is proposed - change it if you like.", AlertSeverity.Success);
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Number search failed: {ErrorText.Describe(ex)}";
+            Status($"Number search failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -322,7 +343,7 @@ public sealed partial class NewHireViewModel : ObservableObject
     {
         if (_user is null || SelectedLocation is null || SelectedDid is null)
         {
-            StatusMessage = "Pick a number before continuing.";
+            Status("Pick a number before continuing.", AlertSeverity.Error);
             return;
         }
 
@@ -386,26 +407,26 @@ public sealed partial class NewHireViewModel : ObservableObject
             if (!result.Succeeded)
             {
                 ResultHeadline = $"{_user.DisplayName} could not be enabled: {result.ErrorMessage}";
-                StatusMessage = "The run failed. The steps below show how far it got.";
+                Status("The run failed. The steps below show how far it got.", AlertSeverity.Error);
             }
             else if (result.NumberPendingSync)
             {
                 ResultHeadline = $"{_user.DisplayName} has been given +{SelectedDid.Did} in Active Directory. "
                                  + "Teams would not take the number directly because it is managed on-premises, "
                                  + "so it arrives with the next Entra Connect sync.";
-                StatusMessage = "Done - the number reaches Teams via directory sync.";
+                Status("Done - the number reaches Teams via directory sync.", AlertSeverity.Success);
             }
             else if (result.HasFailedSteps)
             {
                 ResultHeadline = $"{_user.DisplayName} is enabled on +{SelectedDid.Did}, "
                                  + "but some steps failed - check them below.";
-                StatusMessage = "Finished with warnings.";
+                Status("Finished with warnings.", AlertSeverity.Warning);
             }
             else
             {
                 ResultHeadline = $"{_user.DisplayName} is enabled on +{SelectedDid.Did}"
                                  + (result.EmployeeNotified ? " and has been notified." : ".");
-                StatusMessage = "Done.";
+                Status("Done.", AlertSeverity.Success);
             }
 
             TeamsState = BuildTeamsState(result, $"tel:+{SelectedDid.Did}");
@@ -414,7 +435,7 @@ public sealed partial class NewHireViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = $"The run failed: {ErrorText.Describe(ex)}";
+            Status($"The run failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -479,6 +500,6 @@ public sealed partial class NewHireViewModel : ObservableObject
         ResultHeadline = "";
         TeamsState = "";
         Step = 1;
-        StatusMessage = "Enter an employee and click Look up.";
+        Status("Enter an employee and click Look up.", AlertSeverity.Error);
     }
 }

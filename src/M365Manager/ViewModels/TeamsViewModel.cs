@@ -3,13 +3,17 @@ using System.ComponentModel;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using M365Manager.Controls;
 using M365Manager.Core.PowerShell;
 using M365Manager.Core.Teams;
 
 namespace M365Manager.ViewModels;
 
-public sealed partial class TeamsViewModel : ObservableObject
+public sealed partial class TeamsViewModel : ObservableObject, ITabbedPage
 {
+    /// <summary>Which tab the view shows; set by the shell when a Home tile navigates here.</summary>
+    [ObservableProperty] private int _selectedTabIndex;
+
     private readonly ITeamsService _teams;
     private readonly ITeamNamingService _naming;
 
@@ -23,7 +27,7 @@ public sealed partial class TeamsViewModel : ObservableObject
 
     [ObservableProperty] private string _previewName = "";
     [ObservableProperty] private bool _isBusy;
-    [ObservableProperty] private string _statusMessage = "Fill in the fields and click Create Team.";
+    [ObservableProperty] private string _statusMessage = "Fill in the fields and click Create team.";
 
     /// <summary>Guards against an older preview-name lookup overwriting a newer one.</summary>
     private int _previewRequestVersion;
@@ -32,6 +36,28 @@ public sealed partial class TeamsViewModel : ObservableObject
     [ObservableProperty] private string _overviewFilterText = "";
     [ObservableProperty] private bool _isOverviewBusy;
     [ObservableProperty] private string _overviewStatusMessage = "";
+
+    // Status severity, so a failure stops looking like a success. Set explicitly at each outcome.
+    [ObservableProperty] private AlertSeverity _statusSeverity = AlertSeverity.Info;
+    [ObservableProperty] private AlertSeverity _overviewStatusSeverity = AlertSeverity.Info;
+
+    private void Status(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        StatusSeverity = severity;
+        StatusMessage = text;
+    }
+
+    private void OverviewStatus(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        OverviewStatusSeverity = severity;
+        OverviewStatusMessage = text;
+    }
+
+    /// <summary>
+    /// Row picked in the overview grid. Read-only: Teams has no management actions, so this only
+    /// drives the detail card, which carries the columns the grid no longer has room for.
+    /// </summary>
+    [ObservableProperty] private TeamOverviewRow? _selectedTeam;
 
     public ObservableCollection<TeamOverviewRow> Teams { get; } = new();
 
@@ -85,11 +111,11 @@ public sealed partial class TeamsViewModel : ObservableObject
             foreach (var row in rows)
                 Teams.Add(row);
 
-            OverviewStatusMessage = $"{Teams.Count} team(s) loaded.";
+            OverviewStatus($"{Teams.Count} team(s) loaded.", Teams.Count > 0 ? AlertSeverity.Success : AlertSeverity.Info);
         }
         catch (Exception ex)
         {
-            OverviewStatusMessage = $"Could not load teams: {ex.Message}";
+            OverviewStatus($"Could not load teams: {ex.Message}", AlertSeverity.Error);
         }
         finally
         {
@@ -103,7 +129,7 @@ public sealed partial class TeamsViewModel : ObservableObject
         var filtered = TeamsOverviewView.Cast<TeamOverviewRow>().ToList();
         if (filtered.Count == 0)
         {
-            OverviewStatusMessage = "Nothing to export - the (filtered) list is empty.";
+            OverviewStatus("Nothing to export - the (filtered) list is empty.", AlertSeverity.Error);
             return;
         }
 
@@ -118,11 +144,11 @@ public sealed partial class TeamsViewModel : ObservableObject
         try
         {
             TeamsExportService.ExportToExcel(dialog.FileName, filtered);
-            OverviewStatusMessage = $"Exported {filtered.Count} team(s) to {dialog.FileName}.";
+            OverviewStatus($"Exported {filtered.Count} team(s) to {dialog.FileName}.", AlertSeverity.Success);
         }
         catch (Exception ex)
         {
-            OverviewStatusMessage = $"Export failed: {ex.Message}";
+            OverviewStatus($"Export failed: {ex.Message}", AlertSeverity.Error);
         }
     }
 
@@ -158,7 +184,7 @@ public sealed partial class TeamsViewModel : ObservableObject
     {
         if (!ValidateInput(out var error))
         {
-            StatusMessage = error;
+            Status(error, AlertSeverity.Error);
             return;
         }
 
@@ -179,6 +205,7 @@ public sealed partial class TeamsViewModel : ObservableObject
         try
         {
             var result = await _teams.CreateTeamAsync(request, msg => StatusMessage = msg);
+            StatusSeverity = result.Succeeded ? AlertSeverity.Success : AlertSeverity.Error;
             StatusMessage = result.Succeeded
                 ? $"Team '{result.DisplayName}' created successfully."
                 : $"Team creation failed: {result.ErrorMessage}";
@@ -191,7 +218,7 @@ public sealed partial class TeamsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Team creation failed: {ex.Message}";
+            Status($"Team creation failed: {ex.Message}", AlertSeverity.Error);
         }
         finally
         {

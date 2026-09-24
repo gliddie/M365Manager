@@ -5,57 +5,59 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignHeight="320" d:DesignWidth="800">
 
+    <!--
+        The console keeps the classic PowerShell host look - dark blue ground, light grey text - in
+        both themes, because that is what it is imitating. The values still come from the Console*
+        tokens rather than being written here, so there is one place to change them.
+
+        The heading the control used to carry is gone: the shell's drawer already says what this is.
+    -->
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Style="{StaticResource H2}" FontSize="15" Margin="0,0,0,4"
-                   Text="PowerShell" />
-        <TextBlock Grid.Row="1" Style="{StaticResource Muted}" Margin="0,0,0,10"
-                   Text="Every Exchange command this page runs, with its output and any errors - exactly as PowerShell would print it. Sign-in is excluded." />
+        <Border Grid.Row="0" Grid.RowSpan="2"
+                CornerRadius="{DynamicResource RadiusControl}"
+                Background="{DynamicResource ConsoleBackBrush}"
+                BorderBrush="{DynamicResource ConsoleBackAltBrush}" BorderThickness="1" />
 
-        <!-- Console. Colours match the classic PowerShell host: dark blue background,
-             light grey text, yellow for warnings, red for errors. -->
-        <Border Grid.Row="2" CornerRadius="6" Background="#012456" BorderBrush="#0A3A80" BorderThickness="1">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
+        <RichTextBox x:Name="Console" Grid.Row="0"
+                     Background="Transparent"
+                     Foreground="{DynamicResource ConsoleTextBrush}"
+                     BorderThickness="0" Padding="12,12,12,8"
+                     FontFamily="{DynamicResource FontFamilyMono}" FontSize="12.5"
+                     IsReadOnly="True" IsDocumentEnabled="False"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Auto"
+                     SelectionBrush="{DynamicResource ConsoleAccentBrush}"
+                     MinHeight="120"
+                     AutomationProperties.Name="PowerShell transcript">
+            <RichTextBox.Resources>
+                <!-- Paragraphs default to a margin that would double-space the console. -->
+                <Style TargetType="Paragraph">
+                    <Setter Property="Margin" Value="0" />
+                </Style>
+            </RichTextBox.Resources>
+        </RichTextBox>
 
-                <RichTextBox x:Name="Console" Grid.Row="0"
-                             Background="Transparent" Foreground="#EEEEEE"
-                             BorderThickness="0" Padding="12,10,12,10"
-                             FontFamily="Consolas, Courier New" FontSize="12.5"
-                             IsReadOnly="True" IsDocumentEnabled="False"
-                             VerticalScrollBarVisibility="Auto"
-                             HorizontalScrollBarVisibility="Auto"
-                             SelectionBrush="#3A6EA5"
-                             MinHeight="180">
-                    <RichTextBox.Resources>
-                        <!-- Paragraphs default to a margin that would double-space the console. -->
-                        <Style TargetType="Paragraph">
-                            <Setter Property="Margin" Value="0" />
-                        </Style>
-                    </RichTextBox.Resources>
-                </RichTextBox>
-
-                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10,0,10,10">
-                    <Button x:Name="CopyButton" Content="Copy all" Click="CopyButton_Click"
-                            Style="{StaticResource SecondaryButtonSmall}"
-                            ToolTip="Copies the whole transcript to the clipboard" />
-                    <Button x:Name="ClearButton" Content="Clear" Click="ClearButton_Click" Margin="8,0,0,0"
-                            Style="{StaticResource SecondaryButtonSmall}" />
-                    <CheckBox x:Name="AutoScrollBox" Content="Auto-scroll" IsChecked="True"
-                              Margin="12,0,0,0" VerticalAlignment="Center"
-                              FontFamily="Segoe UI" FontSize="12" Foreground="#BBCCEE" />
-                    <TextBlock x:Name="StatusText" Margin="12,0,0,0" VerticalAlignment="Center"
-                               FontFamily="Segoe UI" FontSize="12" Foreground="#BBCCEE" />
-                </StackPanel>
-            </Grid>
-        </Border>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="12,0,12,12">
+            <Button x:Name="CopyButton" Content="Copy all" Click="CopyButton_Click"
+                    Style="{StaticResource SecondaryButtonSmall}"
+                    ToolTip="Copies the whole transcript to the clipboard" />
+            <Button x:Name="ClearButton" Content="Clear" Click="ClearButton_Click"
+                    Margin="{DynamicResource GapInline}"
+                    Style="{StaticResource SecondaryButtonSmall}" />
+            <CheckBox x:Name="AutoScrollBox" Content="Auto-scroll" IsChecked="True"
+                      Margin="16,0,0,0" VerticalAlignment="Center"
+                      FontFamily="{DynamicResource FontFamilyUi}"
+                      FontSize="{DynamicResource FontSmall}"
+                      Foreground="{DynamicResource ConsoleMutedBrush}" />
+            <TextBlock x:Name="StatusText" Margin="16,0,0,0" VerticalAlignment="Center"
+                       FontFamily="{DynamicResource FontFamilyUi}"
+                       FontSize="{DynamicResource FontSmall}"
+                       Foreground="{DynamicResource ConsoleMutedBrush}" />
+        </StackPanel>
     </Grid>
 </UserControl>

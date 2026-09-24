@@ -3,118 +3,216 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignHeight="600" d:DesignWidth="1000">
+             xmlns:controls="clr-namespace:M365Manager.Controls"
+             mc:Ignorable="d" d:DesignHeight="700" d:DesignWidth="1100">
 
-    <Grid Margin="28">
+    <!--
+        One task - find entries - so no tabs. The filter collapses once a result is on screen:
+        reading the log means looking at rows, and nine filter controls above them ate a third of
+        the page every time.
+    -->
+    <Grid Margin="28,20,28,20">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ============ Filter ============ -->
-        <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,14">
-            <StackPanel>
-                <!-- Row 1: free text + task -->
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                    <!-- Each filter sits in its own vertical panel, so a hint can go under the box
-                         without landing beside it the way it would in the horizontal row. -->
-                    <StackPanel Margin="0,0,12,0">
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Search" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="300"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" Width="300"
-                                   TextWrapping="Wrap"
-                                   Text="Matches message, target, action or event code." />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,12,0">
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Task #" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="150"
-                                 Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0" Width="150"
-                                   TextWrapping="Wrap"
-                                   Text="Partial number is enough." />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,12,0">
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="From (UTC)" />
-                        <DatePicker Width="130" SelectedDate="{Binding FromDate}" FontFamily="Segoe UI" FontSize="13" />
-                    </StackPanel>
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="To (UTC)" />
-                        <DatePicker Width="130" SelectedDate="{Binding ToDate}" FontFamily="Segoe UI" FontSize="13" />
-                    </StackPanel>
-                </StackPanel>
+        <Expander Grid.Row="0" IsExpanded="True" Margin="0,0,0,12"
+                  Foreground="{DynamicResource TextBrush}"
+                  FontFamily="{DynamicResource FontFamilyUi}" FontSize="13">
+            <Expander.Header>
+                <TextBlock Text="Filter" Style="{StaticResource H3}" />
+            </Expander.Header>
 
-                <!-- Row 2: drop-downs -->
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                    <StackPanel Margin="0,0,12,0">
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="User" />
-                        <ComboBox Width="230" ItemsSource="{Binding Users}" SelectedItem="{Binding SelectedUser}" />
+            <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Search" />
+                            <TextBox Style="{StaticResource ModernTextBox}" Width="300"
+                                     AutomationProperties.Name="Search log entries"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
+                                <TextBox.InputBindings>
+                                    <KeyBinding Key="Enter" Command="{Binding RefreshCommand}" />
+                                </TextBox.InputBindings>
+                            </TextBox>
+                            <TextBlock Style="{StaticResource FieldHint}" Width="300"
+                                       Text="Matches message, target, action or event code." />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Task #" />
+                            <TextBox AutomationProperties.Name="Task #" Style="{StaticResource ModernTextBox}" Width="150"
+                                     Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Width="150"
+                                       Text="Partial number is enough." />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="From (UTC)" />
+                            <DatePicker AutomationProperties.Name="From (UTC)" Width="140" SelectedDate="{Binding FromDate}"
+                                        FontFamily="{DynamicResource FontFamilyUi}" FontSize="13" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="To (UTC)" />
+                            <DatePicker AutomationProperties.Name="To (UTC)" Width="140" SelectedDate="{Binding ToDate}"
+                                        FontFamily="{DynamicResource FontFamilyUi}" FontSize="13" />
+                        </StackPanel>
                     </StackPanel>
-                    <StackPanel Margin="0,0,12,0">
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Area" />
-                        <ComboBox Width="150" ItemsSource="{Binding Areas}" SelectedItem="{Binding SelectedArea}" />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,12,0">
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Action" />
-                        <ComboBox Width="180" ItemsSource="{Binding Actions}" SelectedItem="{Binding SelectedAction}" />
-                    </StackPanel>
-                    <StackPanel Margin="0,0,12,0">
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Severity" />
-                        <ComboBox Width="110" ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}" />
-                    </StackPanel>
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Max rows" />
-                        <ComboBox Width="90" ItemsSource="{Binding ResultLimits}" SelectedItem="{Binding MaxResults}" />
-                    </StackPanel>
-                </StackPanel>
 
-                <!-- Row 3: actions -->
-                <StackPanel Orientation="Horizontal">
-                    <Button Style="{StaticResource PrimaryButton}" Content="Apply filter"
-                            Command="{Binding RefreshCommand}"
-                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                    <Button Style="{StaticResource SecondaryButton}" Content="Clear" Margin="10,0,0,0"
-                            Command="{Binding ClearFilterCommand}"
-                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                    <Button Style="{StaticResource SecondaryButton}" Content="Export Excel" Margin="10,0,0,0"
-                            Command="{Binding ExportToExcelCommand}" />
-                    <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14,0,0,0"
-                               Text="{Binding StatusMessage}" />
-                </StackPanel>
-            </StackPanel>
-        </Border>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="User" />
+                            <ComboBox AutomationProperties.Name="User" Style="{StaticResource ModernComboBox}" Width="230"
+                                      ItemsSource="{Binding Users}" SelectedItem="{Binding SelectedUser}" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Area" />
+                            <ComboBox AutomationProperties.Name="Area" Style="{StaticResource ModernComboBox}" Width="150"
+                                      ItemsSource="{Binding Areas}" SelectedItem="{Binding SelectedArea}" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Action" />
+                            <ComboBox AutomationProperties.Name="Action" Style="{StaticResource ModernComboBox}" Width="180"
+                                      ItemsSource="{Binding Actions}" SelectedItem="{Binding SelectedAction}" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Severity" />
+                            <ComboBox AutomationProperties.Name="Severity" Style="{StaticResource ModernComboBox}" Width="120"
+                                      ItemsSource="{Binding Severities}" SelectedItem="{Binding SelectedSeverity}" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Max rows" />
+                            <ComboBox AutomationProperties.Name="Max rows" Style="{StaticResource ModernComboBox}" Width="100"
+                                      ItemsSource="{Binding ResultLimits}" SelectedItem="{Binding MaxResults}" />
+                        </StackPanel>
+                    </StackPanel>
 
-        <ProgressBar Grid.Row="1" Style="{StaticResource BusyBar}" Margin="0,0,0,14"
+                    <StackPanel Orientation="Horizontal">
+                        <Button Style="{StaticResource PrimaryButton}" Content="_Apply filter"
+                                IsDefault="True"
+                                Command="{Binding RefreshCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                        <Button Style="{StaticResource GhostButton}" Content="C_lear"
+                                Margin="{DynamicResource GapInline}"
+                                Command="{Binding ClearFilterCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                        <Button Style="{StaticResource GhostButton}" Content="_Export Excel"
+                                Margin="{DynamicResource GapInline}"
+                                Command="{Binding ExportToExcelCommand}" />
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,12,0,0"
+                               Text="Filtering runs in SQL Server, so a date range reaches entries well beyond the rows currently shown. Export Excel writes exactly the filtered result." />
+                </StackPanel>
+            </Border>
+        </Expander>
+
+        <ProgressBar Grid.Row="1" Style="{StaticResource BusyBar}" Margin="0,0,0,12"
                      Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
 
-        <!-- ============ Grid ============ -->
-        <Border Grid.Row="3" Style="{StaticResource Card}" Padding="0">
-            <DataGrid ItemsSource="{Binding Entries}" AutoGenerateColumns="False"
-                      IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                      RowHeight="30" FontFamily="Segoe UI" FontSize="12"
-                      Background="Transparent" BorderThickness="0"
-                      SelectionMode="Extended" SelectionUnit="FullRow"
-                      ClipboardCopyMode="IncludeHeader"
-                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Time (UTC)" Width="140"
-                                        Binding="{Binding TimestampUtc, StringFormat='yyyy-MM-dd HH:mm:ss'}" />
-                    <DataGridTextColumn Header="Severity" Width="80" Binding="{Binding Severity}" />
-                    <DataGridTextColumn Header="Code" Width="60" Binding="{Binding EventCode}" />
-                    <DataGridTextColumn Header="Area" Width="110" Binding="{Binding Area}" />
-                    <DataGridTextColumn Header="Action" Width="140" Binding="{Binding Action}" />
-                    <DataGridTextColumn Header="Target" Width="160" Binding="{Binding TargetObject}" />
-                    <DataGridTextColumn Header="Task#" Width="90" Binding="{Binding TaskNumber}" />
-                    <DataGridTextColumn Header="User" Width="180" Binding="{Binding UserUpn}" />
-                    <DataGridTextColumn Header="Message" Width="*" Binding="{Binding Message}" />
-                </DataGrid.Columns>
-            </DataGrid>
+        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0">
+            <Grid>
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Entries.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <TextBlock Text="&#xE7C3;" FontFamily="Segoe MDL2 Assets" FontSize="28"
+                               HorizontalAlignment="Center"
+                               Foreground="{DynamicResource TextDisabledBrush}" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,12,0,0" TextAlignment="Center"
+                               Text="No log entries match the filter. Widen the date range, or check the SQL connection in Settings." />
+                </StackPanel>
+
+                <DataGrid ItemsSource="{Binding Entries}"
+                          SelectionMode="Extended"
+                          AutomationProperties.Name="Log entries">
+                    <DataGrid.Style>
+                        <Style TargetType="DataGrid" BasedOn="{StaticResource ModernDataGrid}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Entries.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.Style>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Time (UTC)" Width="140"
+                                            Binding="{Binding TimestampUtc, StringFormat='yyyy-MM-dd HH:mm:ss'}" />
+
+                        <!-- A coloured pill, not plain text: spotting the failures is the reason
+                             anyone opens this page, and a column of identical grey words does not
+                             let you do that at a glance. -->
+                        <DataGridTemplateColumn Header="Severity" Width="88">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Padding="8,2" HorizontalAlignment="Left"
+                                            CornerRadius="{DynamicResource RadiusPill}"
+                                            BorderThickness="1">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{DynamicResource InfoSoftBrush}" />
+                                                <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Severity}" Value="Success">
+                                                        <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Severity}" Value="Warning">
+                                                        <Setter Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Severity}" Value="Error">
+                                                        <Setter Property="Background" Value="{DynamicResource DangerSoftBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding Severity}" FontSize="10" FontWeight="SemiBold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Severity}" Value="Success">
+                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Severity}" Value="Warning">
+                                                            <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Severity}" Value="Error">
+                                                            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTextColumn Header="Code" Width="62" Binding="{Binding EventCode}" />
+                        <DataGridTextColumn Header="Area" Width="112" Binding="{Binding Area}" />
+                        <DataGridTextColumn Header="Action" Width="142" Binding="{Binding Action}" />
+                        <DataGridTextColumn Header="Target" Width="160" Binding="{Binding TargetObject}" />
+                        <DataGridTextColumn Header="Task#" Width="92" Binding="{Binding TaskNumber}" />
+                        <DataGridTextColumn Header="User" Width="180" Binding="{Binding UserUpn}" />
+                        <DataGridTextColumn Header="Message" Width="*" MinWidth="200" Binding="{Binding Message}" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
         </Border>
 
-        <TextBlock Grid.Row="4" Style="{StaticResource Muted}" Margin="0,12,0,0"
-                   Text="Filtering runs in SQL Server, so a date range reaches entries well beyond the rows currently shown. Export Excel writes exactly the filtered result." />
+        <controls:AlertBox Grid.Row="3" Margin="0,12,0,0"
+                           Text="{Binding StatusMessage}" Severity="{Binding StatusSeverity}" />
     </Grid>
 </UserControl>
+

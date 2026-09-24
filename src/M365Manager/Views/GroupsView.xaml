@@ -4,646 +4,637 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:controls="clr-namespace:M365Manager.Controls"
-             mc:Ignorable="d" d:DesignHeight="600" d:DesignWidth="900">
+             mc:Ignorable="d" d:DesignHeight="700" d:DesignWidth="1000">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-    <Grid Margin="28">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />  <!-- 0: create -->
-            <RowDefinition Height="Auto" />  <!-- 1: connect -->
-            <RowDefinition Height="Auto" />  <!-- 2: busy -->
-            <RowDefinition Height="Auto" />  <!-- 3: search -->
-            <RowDefinition Height="Auto" />  <!-- 4: results + members -->
-            <RowDefinition Height="Auto" />  <!-- 5: manage -->
-            <RowDefinition Height="Auto" />  <!-- 6: status -->
-            <RowDefinition Height="Auto" />  <!-- 7: console -->
-        </Grid.RowDefinitions>
+    <!--
+        Two tasks, two tabs. This page used to stack create, search, members and six management
+        blocks into one scroll column, so "Remove group" sat in the same visual rank as "Owners"
+        and the create form hid inside a collapsed expander below the search box.
 
-        <!-- ============ Create group ============ -->
-        <Expander Grid.Row="0" Margin="0,0,0,18" IsExpanded="False"
-                  Foreground="{StaticResource TextBrush}" FontFamily="Segoe UI" FontSize="14">
-            <Expander.Header>
-                <TextBlock Text="Create group" FontFamily="Segoe UI" FontSize="15"
-                           FontWeight="SemiBold" Foreground="{StaticResource TextBrush}" />
-            </Expander.Header>
+        Now: find-and-manage is the default (that is the ticket workflow - a ticket names a group),
+        creating is the other tab, and the management actions are sub-tabs on the selected group so
+        only one is on screen at a time.
+    -->
+    <TabControl Style="{StaticResource TabStrip}" Padding="0"
+                SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+        <TabControl.Resources>
+            <Style TargetType="TabItem" BasedOn="{StaticResource TabStripItem}" />
+        </TabControl.Resources>
 
-            <StackPanel MaxWidth="760" HorizontalAlignment="Left" Margin="0,12,0,0">
-                <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,14"
-                           Text="Creates a distribution list, a mail-enabled security group, or a dynamic distribution group. The name follows the dot convention (LST.EMEA.Some Team); the derived name and address are shown below and can be corrected before creating." />
-
-                <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,14"
-                             Visibility="{Binding IsCreateBusy, Converter={StaticResource BoolToVisible}}" />
-
-                <Border Style="{StaticResource Card}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                                 Text="{Binding CreateTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
-
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                                 Text="{Binding CreateRequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                                   Text="SamAccountName, UPN or e-mail address. Gets the confirmation e-mail naming the group, its address and its owners. Leave empty to send no mail." />
-
-                        <CheckBox Content="Dynamic distribution group (membership from a filter instead of a member list)"
-                                  Margin="0,0,0,12" FontFamily="Segoe UI" FontSize="13"
-                                  Foreground="{StaticResource TextBrush}"
-                                  IsChecked="{Binding CreateIsDynamic}" />
-
-                        <StackPanel Visibility="{Binding IsStaticCreate, Converter={StaticResource BoolToVisible}}">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Type" />
-                            <ComboBox Margin="0,0,0,12" Width="200" HorizontalAlignment="Left"
-                                      ItemsSource="{Binding GroupKinds}" SelectedItem="{Binding CreateKind}" />
-                        </StackPanel>
-
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Group name" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                                 Text="{Binding CreateRawName, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                                   Text="Prefix, location, then the name - e.g. &quot;LST.EMEA.Some Team Name&quot;." />
-
-                        <TextBlock Style="{StaticResource FieldLabel}" Text="Address domain" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4" Width="260"
-                                 HorizontalAlignment="Left"
-                                 Text="{Binding CreateDomain, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                                   Text="e.g. ul.com - or ul.org for not-for-profit groups." />
-
-                        <StackPanel Visibility="{Binding IsStaticCreate, Converter={StaticResource BoolToVisible}}">
-                            <CheckBox Content="Temporary group (inserts TMP into the name)" Margin="0,0,0,8"
-                                      FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                                      IsChecked="{Binding CreateIsTemporary}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12"
-                                        Visibility="{Binding CreateIsTemporary, Converter={StaticResource BoolToVisible}}">
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="Remove on"
-                                           VerticalAlignment="Center" Margin="0,0,10,0" />
-                                <DatePicker SelectedDate="{Binding CreateRemoveOn}" Width="140"
-                                            FontFamily="Segoe UI" FontSize="13" />
-                            </StackPanel>
-
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Owner(s)" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                                     Text="{Binding CreateOwners, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                                       Text="Comma-separated SamAccountName, UPN or e-mail." />
-
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Members" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                                     AcceptsReturn="True" TextWrapping="Wrap" Height="60"
-                                     VerticalScrollBarVisibility="Auto"
-                                     Text="{Binding CreateMembers, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                                       Text="Comma- or line-separated. Other lists can be referenced by name (LST.*, DST.*, DSG.*)." />
-
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Authorized senders" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                                     Text="{Binding CreateAuthorizedSenders, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                                       Text="Leave empty to let anyone send to the group." />
-
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Additional aliases" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                                     Text="{Binding CreateAdditionalAliases, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                                       Text="Extra SMTP addresses, comma-separated." />
-
-                            <CheckBox Content="Allow use by external senders" Margin="0,0,0,12"
-                                      FontFamily="Segoe UI" FontSize="13" Foreground="{StaticResource TextBrush}"
-                                      IsChecked="{Binding CreateAllowExternalSenders}" />
-
-                            <Expander Header="Advanced" Foreground="{StaticResource TextBrush}" Margin="0,0,0,12">
-                                <StackPanel Margin="0,8,0,0">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Remove character from the name" />
-                                    <TextBox Style="{StaticResource ModernTextBox}" Width="60" HorizontalAlignment="Left"
-                                             Text="{Binding CreateRemoveCharacter, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" TextWrapping="Wrap"
-                                               Text="A single character, replaced with a space in the third name segment." />
-                                </StackPanel>
-                            </Expander>
-                        </StackPanel>
-
-                        <!-- Dynamic-only: the recipient filter -->
-                        <StackPanel Visibility="{Binding CreateIsDynamic, Converter={StaticResource BoolToVisible}}">
-                            <TextBlock Style="{StaticResource H2}" FontSize="14" Text="Membership filter" Margin="0,4,0,8" />
-                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                                       Text="Pre-filled with the values the old script used. Leave a condition empty to omit it - an empty one would match only recipients whose attribute is literally blank." />
-
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Included recipients" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12" Width="220" HorizontalAlignment="Left"
-                                     Text="{Binding DynamicIncludedRecipients, UpdateSourceTrigger=PropertyChanged}" />
-
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                <StackPanel Margin="0,0,12,0">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Company" />
-                                    <TextBox Style="{StaticResource ModernTextBox}" Width="130"
-                                             Text="{Binding DynamicCompany, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                                <StackPanel Margin="0,0,12,0">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Attribute 1" />
-                                    <TextBox Style="{StaticResource ModernTextBox}" Width="110"
-                                             Text="{Binding DynamicCustomAttribute1, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                                <StackPanel Margin="0,0,12,0">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Attribute 2" />
-                                    <TextBox Style="{StaticResource ModernTextBox}" Width="80"
-                                             Text="{Binding DynamicCustomAttribute2, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                                <StackPanel Margin="0,0,12,0">
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Attribute 3" />
-                                    <TextBox Style="{StaticResource ModernTextBox}" Width="110"
-                                             Text="{Binding DynamicCustomAttribute3, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                                <StackPanel>
-                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Attribute 8" />
-                                    <TextBox Style="{StaticResource ModernTextBox}" Width="110"
-                                             Text="{Binding DynamicCustomAttribute8, UpdateSourceTrigger=PropertyChanged}" />
-                                </StackPanel>
-                            </StackPanel>
-
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="MailTip" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                                     Text="{Binding DynamicMailTip, UpdateSourceTrigger=PropertyChanged}" />
-
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Notes" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
-                                     AcceptsReturn="True" TextWrapping="Wrap" Height="50"
-                                     Text="{Binding DynamicNotes, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
-
-                        <!-- Editable preview -->
-                        <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,4,0,14">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="Final name" />
-                                <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,10"
-                                         Text="{Binding PreviewName, UpdateSourceTrigger=PropertyChanged}" />
-
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="Final address" />
-                                <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,10"
-                                         Text="{Binding PreviewAddress, UpdateSourceTrigger=PropertyChanged}" />
-
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center"
-                                               Text="Derived from the fields above. Edit them and they stop updating." />
-                                    <Button Content="Reset" Style="{StaticResource SecondaryButtonSmall}" Margin="10,0,0,0"
-                                            Command="{Binding ResetPreviewCommand}" />
-                                </StackPanel>
-
-                                <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" FontFamily="Segoe UI" FontSize="12"
-                                           Foreground="#C0392B" Text="{Binding PreviewProblems}"
-                                           Visibility="{Binding PreviewProblems, Converter={StaticResource EmptyToCollapsed}}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Button Style="{StaticResource PrimaryButton}" Content="Create" HorizontalAlignment="Left"
-                                Command="{Binding CreateGroupCommand}"
-                                IsEnabled="{Binding IsCreateBusy, Converter={StaticResource InverseBool}}" />
-                    </StackPanel>
-                </Border>
-
-                <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,14,0,0">
-                    <TextBlock Style="{StaticResource Muted}" Text="{Binding CreateStatusMessage}" TextWrapping="Wrap" />
-                </Border>
-            </StackPanel>
-        </Expander>
-
-        <!-- Manual connect, only while Exchange is not connected. The app connects every service at
-             startup, so this is the fallback for when that failed - hiding it the rest of the time
-             keeps the page from inviting a reconnect that isn't needed. Collapsing the whole panel
-             (not just the button) also drops its bottom margin. -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,14"
-                    Visibility="{Binding IsConnected, Converter={StaticResource BoolToCollapsed}}">
-            <Button Style="{StaticResource SecondaryButton}" Content="Connect to Exchange"
-                    Command="{Binding ConnectCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-        </StackPanel>
-
-        <ProgressBar Grid.Row="2" Style="{StaticResource BusyBar}" Margin="0,0,0,14"
-                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
-
-        <StackPanel Grid.Row="3" Margin="0,0,0,16">
-            <!-- Device-code sign-in banner (shown only while a code is pending) -->
-            <Border Margin="0,0,0,12" CornerRadius="8" Padding="18,14"
-                    Background="{StaticResource UlRedSoftBrush}" BorderBrush="{StaticResource UlRedBrush}"
-                    BorderThickness="1"
-                    Visibility="{Binding DeviceCodeMessage, Converter={StaticResource EmptyToCollapsed}}">
-                <StackPanel>
-                    <TextBlock Text="Sign-in required" FontFamily="Segoe UI" FontSize="13"
-                               FontWeight="SemiBold" Foreground="{StaticResource UlRedDarkBrush}" Margin="0,0,0,6" />
-
-                    <!-- The code + copy button -->
-                    <StackPanel Orientation="Horizontal" Margin="0,2,0,8"
-                                Visibility="{Binding DeviceCode, Converter={StaticResource EmptyToCollapsed}}">
-                        <Border Background="White" BorderBrush="{StaticResource UlRedBrush}" BorderThickness="1"
-                                CornerRadius="6" Padding="14,6" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding DeviceCode}" FontFamily="Consolas" FontSize="22"
-                                       FontWeight="Bold" Foreground="{StaticResource UlRedDarkBrush}" />
-                        </Border>
-                        <Button Content="Copy code" Style="{StaticResource SecondaryButtonSmall}"
-                                Margin="12,0,0,0" VerticalAlignment="Center"
-                                Command="{Binding CopyCodeCommand}" />
-                    </StackPanel>
-
-                    <TextBlock Text="{Binding DeviceCodeMessage}" FontFamily="Segoe UI" FontSize="13"
-                               Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
-                    <TextBlock Text="A browser opens automatically. Paste the code, then sign in with your admin account."
-                               Style="{StaticResource Muted}" Margin="0,8,0,0" />
-                </StackPanel>
-            </Border>
-
-            <StackPanel Orientation="Horizontal">
-                <TextBox Style="{StaticResource ModernTextBox}" Width="320"
-                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
-                    <TextBox.InputBindings>
-                        <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
-                    </TextBox.InputBindings>
-                </TextBox>
-                <Button Style="{StaticResource PrimaryButton}" Content="Search" Margin="10,0,0,0"
-                        Command="{Binding SearchCommand}"
-                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                <Button Style="{StaticResource SecondaryButton}" Content="Clear" Margin="10,0,0,0"
-                        Command="{Binding ClearResultsCommand}" />
-            </StackPanel>
-
-            <!-- Below the row rather than under the box: the row is horizontal. -->
-            <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0" TextWrapping="Wrap"
-                       Text="Group name, alias or e-mail address. Press Enter to search." />
-        </StackPanel>
-
-        <!-- Results + details. Fixed height: the page scrolls as a whole now, so this block must
-             not try to grow into space it no longer has. -->
-        <Grid Grid.Row="4" Height="520">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="340" />
-                <ColumnDefinition Width="18" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <!-- Results list -->
-            <Border Grid.Column="0" Style="{StaticResource Card}" Padding="0">
-                <ListBox ItemsSource="{Binding SearchResults}"
-                         SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
-                         BorderThickness="0" Background="Transparent"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsDeletedInM365}" Value="True">
-                                    <Setter Property="Background" Value="{StaticResource UlRedSoftBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Margin="6,6">
-                                <TextBlock Text="{Binding DisplayName}" FontFamily="Segoe UI"
-                                           FontSize="13" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding PrimarySmtpAddress}" FontFamily="Segoe UI"
-                                           FontSize="11" Foreground="{StaticResource TextMutedBrush}"
-                                           TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding StatusText}" FontFamily="Segoe UI"
-                                           FontSize="10" FontWeight="SemiBold"
-                                           Foreground="{StaticResource UlRedBrush}"
-                                           TextTrimming="CharacterEllipsis" />
-                                <Border Margin="0,4,0,0" Padding="6,2" CornerRadius="8"
-                                        HorizontalAlignment="Left"
-                                        Background="{StaticResource UlRedSoftBrush}"
-                                        BorderBrush="{StaticResource UlRedBrush}"
-                                        BorderThickness="1"
-                                        Visibility="{Binding StatusText, Converter={StaticResource EmptyToCollapsed}}">
-                                    <TextBlock Text="Deleted in M365" FontFamily="Segoe UI"
-                                               FontSize="10" FontWeight="SemiBold"
-                                               Foreground="{StaticResource UlRedDarkBrush}" />
-                                </Border>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Border>
-
-            <!-- Details + members -->
-            <Grid Grid.Column="2">
+        <!-- ================================================================
+             Find & manage
+             ================================================================ -->
+        <TabItem Header="Find &amp; manage">
+            <Grid Margin="28,20,28,0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,16"
-                        Visibility="{Binding SelectedGroup, Converter={StaticResource NullToCollapsed}}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource H2}" Text="{Binding SelectedGroup.DisplayName}" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,4"
-                                   Text="{Binding SelectedGroup.PrimarySmtpAddress}" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,6"
-                                   Text="{Binding SelectedGroup.StatusText}" Foreground="{StaticResource UlRedBrush}" FontWeight="SemiBold" />
-                        <Border Margin="0,0,0,12" Padding="7,4" CornerRadius="8"
-                                HorizontalAlignment="Left"
-                                Background="{StaticResource UlRedSoftBrush}"
-                                BorderBrush="{StaticResource UlRedBrush}"
-                                BorderThickness="1"
-                                Visibility="{Binding SelectedGroup.StatusText, Converter={StaticResource EmptyToCollapsed}}">
-                            <TextBlock Text="Deleted in M365" FontFamily="Segoe UI"
-                                       FontSize="10" FontWeight="SemiBold"
-                                       Foreground="{StaticResource UlRedDarkBrush}" />
-                        </Border>
+                <!-- Connect fallback. The app connects everything at startup, so this only shows
+                     when that failed. -->
+                <Button Grid.Row="0" Style="{StaticResource SecondaryButton}" Content="Co_nnect to Exchange"
+                        HorizontalAlignment="Left" Margin="0,0,0,16"
+                        Command="{Binding ConnectCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"
+                        Visibility="{Binding IsConnected, Converter={StaticResource BoolToCollapsed}}" />
 
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="130" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
+                <StackPanel Grid.Row="1" Margin="0,0,0,16">
+                    <!-- Device-code sign-in -->
+                    <Border Margin="0,0,0,16" CornerRadius="{DynamicResource RadiusControl}" Padding="16,14"
+                            Background="{DynamicResource BrandSoftBrush}"
+                            BorderBrush="{DynamicResource BrandTextBrush}" BorderThickness="1"
+                            Visibility="{Binding DeviceCodeMessage, Converter={StaticResource EmptyToCollapsed}}">
+                        <StackPanel>
+                            <TextBlock Text="Sign-in required" Style="{StaticResource H3}"
+                                       Foreground="{DynamicResource BrandTextBrush}" Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12"
+                                        Visibility="{Binding DeviceCode, Converter={StaticResource EmptyToCollapsed}}">
+                                <Border Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BrandTextBrush}" BorderThickness="1"
+                                        CornerRadius="{DynamicResource RadiusControl}" Padding="14,6">
+                                    <TextBlock Text="{Binding DeviceCode}" FontFamily="{DynamicResource FontFamilyMono}"
+                                               FontSize="22" FontWeight="Bold"
+                                               Foreground="{DynamicResource BrandTextBrush}" />
+                                </Border>
+                                <Button Content="Copy code" Style="{StaticResource SecondaryButtonSmall}"
+                                        Margin="{DynamicResource GapInline}" VerticalAlignment="Center"
+                                        Command="{Binding CopyCodeCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding DeviceCodeMessage}" Style="{StaticResource Muted}" />
+                        </StackPanel>
+                    </Border>
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Muted}" Text="Type" />
-                            <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedGroup.GroupTypeLabel}" />
-
-                            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Muted}" Text="Alias" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedGroup.Alias}" />
-
-                            <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource Muted}" Text="Owner(s)" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding OwnersText}" />
-
-                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource Muted}" Text="Notes" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedGroup.Notes}" />
-                        </Grid>
+                    <!-- Search is the primary action of this tab. -->
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Style="{StaticResource ModernTextBox}" Width="360"
+                                 AutomationProperties.Name="Search groups"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <Button Style="{StaticResource PrimaryButton}" Content="_Search"
+                                Margin="{DynamicResource GapInline}" IsDefault="True"
+                                Command="{Binding SearchCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                        <Button Style="{StaticResource GhostButton}" Content="C_lear"
+                                Margin="{DynamicResource GapInline}"
+                                Command="{Binding ClearResultsCommand}" />
                     </StackPanel>
-                </Border>
+                    <TextBlock Style="{StaticResource FieldHint}"
+                               Text="Group name, alias or e-mail address. Press Enter to search." />
 
-                <Border Grid.Row="1" Style="{StaticResource Card}" Padding="0"
-                        Visibility="{Binding SelectedGroup, Converter={StaticResource NullToCollapsed}}">
-                    <Grid>
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,12,0,0"
+                                 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                </StackPanel>
+
+                <!-- Results | detail -->
+                <Grid Grid.Row="2" Margin="0,0,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="320" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Style="{StaticResource Card}" Padding="0">
+                        <Grid>
+                            <!-- Empty state, so a search that found nothing says so. -->
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SearchResults.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="26"
+                                           HorizontalAlignment="Center"
+                                           Foreground="{DynamicResource TextDisabledBrush}" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,12,0,0"
+                                           TextAlignment="Center"
+                                           Text="No groups yet. Search above to find one." />
+                            </StackPanel>
+
+                            <ListBox ItemsSource="{Binding SearchResults}"
+                                     SelectedItem="{Binding SelectedGroup, Mode=TwoWay}"
+                                     BorderThickness="0" Background="Transparent"
+                                     AutomationProperties.Name="Search results"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="Padding" Value="10,8" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding DisplayName}" Style="{StaticResource Body}"
+                                                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding PrimarySmtpAddress}" Style="{StaticResource Muted}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <Border Margin="0,4,0,0" Padding="8,2"
+                                                    CornerRadius="{DynamicResource RadiusPill}"
+                                                    HorizontalAlignment="Left"
+                                                    Background="{DynamicResource WarningSoftBrush}"
+                                                    BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1"
+                                                    Visibility="{Binding StatusText, Converter={StaticResource EmptyToCollapsed}}">
+                                                <TextBlock Text="Deleted in M365" FontSize="10" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource WarningBrush}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+
+                    <!-- Nothing selected -->
+                    <Border Grid.Column="2" Style="{StaticResource Card}"
+                            Visibility="{Binding SelectedGroup, Converter={StaticResource NotNullToCollapsed}}">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="30"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource TextDisabledBrush}" />
+                            <TextBlock Style="{StaticResource Muted}" Margin="0,12,0,0" TextAlignment="Center"
+                                       Text="Select a group on the left to see its members and manage it." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Selected group -->
+                    <Grid Grid.Column="2"
+                          Visibility="{Binding SelectedGroup, Converter={StaticResource NullToCollapsed}}">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <!-- ServiceNow task number - required before any add/remove -->
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="14,12,14,0">
-                            <TextBlock Text="ServiceNow task#" Style="{StaticResource FieldLabel}"
-                                       Margin="0,0,10,0" VerticalAlignment="Center" />
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="160"
-                                     Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
-                        </StackPanel>
+                        <!-- Identity header -->
+                        <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource H2}" Text="{Binding SelectedGroup.DisplayName}" />
+                                    <Border Margin="12,2,0,0" Padding="8,2" VerticalAlignment="Center"
+                                            CornerRadius="{DynamicResource RadiusPill}"
+                                            Background="{DynamicResource SurfaceAltBrush}"
+                                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                        <TextBlock Text="{Binding SelectedGroup.GroupTypeLabel}"
+                                                   FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                    </Border>
+                                    <Border Margin="6,2,0,0" Padding="8,2" VerticalAlignment="Center"
+                                            CornerRadius="{DynamicResource RadiusPill}"
+                                            Background="{DynamicResource WarningSoftBrush}"
+                                            BorderBrush="{DynamicResource WarningBrush}" BorderThickness="1"
+                                            Visibility="{Binding SelectedGroup.StatusText, Converter={StaticResource EmptyToCollapsed}}">
+                                        <TextBlock Text="Deleted in M365" FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource WarningBrush}" />
+                                    </Border>
+                                </StackPanel>
 
-                        <!-- Member actions -->
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="14,10,14,0">
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="230"
-                                     Text="{Binding NewMemberAddress, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button Content="Add member" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"
-                                    Command="{Binding AddMemberCommand}"
-                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                            <Button Content="Remove selected" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
-                                    Command="{Binding RemoveMemberCommand}"
-                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                            <Button Content="Sync" Style="{StaticResource SecondaryButtonSmall}" Margin="20,0,0,0"
-                                    ToolTip="Re-fetch direct members live from Exchange and refresh the cache"
-                                    Command="{Binding SyncMembersCommand}"
-                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                            <Button Content="Export Excel" Style="{StaticResource SecondaryButtonSmall}" Margin="8,0,0,0"
-                                    Command="{Binding ExportToExcelCommand}"
-                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                            <Button Content="Export CSV" Style="{StaticResource SecondaryButtonSmall}" Margin="6,0,0,0"
-                                    Command="{Binding ExportToCsvCommand}"
-                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                        </StackPanel>
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0"
+                                           Text="{Binding SelectedGroup.PrimarySmtpAddress}" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
+                                           Text="{Binding OwnersText, StringFormat='Owners: {0}'}" />
+                            </StackPanel>
+                        </Border>
 
-                        <!-- How-to hint -->
-                        <TextBlock Grid.Row="2" Style="{StaticResource Muted}" Margin="14,6,14,0" TextWrapping="Wrap"
-                                   Text="To add several members at once, separate SamAccountNames or email addresses with commas (e.g. jdoe, asmith). To remove several, Ctrl+click or Shift+click multiple rows below, then click 'Remove selected'." />
+                        <!-- Ticket + requester apply to every action below -->
+                        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="200" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
+                                    <TextBox Style="{StaticResource ModernTextBox}"
+                                             AutomationProperties.Name="Ticket or task number"
+                                             Text="{Binding ManageTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
+                                    <TextBox Style="{StaticResource ModernTextBox}"
+                                             AutomationProperties.Name="Requester"
+                                             Text="{Binding ManageRequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldHint}"
+                                               Text="Gets the confirmation e-mail. Leave empty to send none." />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
 
-                        <!-- Member filter -->
-                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="14,10,14,0">
-                            <TextBox Style="{StaticResource ModernTextBox}" Width="280"
-                                     Text="{Binding MemberFilterText, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Text="Filters the list below by name, address, UPN, type or path" Style="{StaticResource Muted}"
-                                       Margin="10,0,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
+                        <!-- One management task at a time -->
+                        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0">
+                            <TabControl Style="{StaticResource TabStrip}" Margin="16,4,16,12">
+                                <TabControl.Resources>
+                                    <Style TargetType="TabItem" BasedOn="{StaticResource TabStripItem}" />
+                                </TabControl.Resources>
 
-                        <DataGrid Grid.Row="4" x:Name="MembersDataGrid" Margin="0,10,0,0" ItemsSource="{Binding MembersView}"
-                                  SelectedItem="{Binding SelectedMember, Mode=TwoWay}"
-                                  SelectionChanged="MembersDataGrid_SelectionChanged"
-                                  AutoGenerateColumns="False" IsReadOnly="True"
-                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                                  RowHeight="28" FontFamily="Segoe UI" FontSize="12"
-                                  Background="Transparent" BorderThickness="0"
-                                  VerticalScrollBarVisibility="Auto"
-                                  SelectionMode="Extended" SelectionUnit="FullRow"
-                                  ClipboardCopyMode="IncludeHeader">
-                            <DataGrid.RowStyle>
-                                <Style TargetType="DataGridRow">
-                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsNested}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </DataGrid.RowStyle>
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Member" Width="*" Binding="{Binding DisplayName}" />
-                                <DataGridTextColumn Header="Address" Width="200" Binding="{Binding PrimarySmtpAddress}" />
-                                <DataGridTextColumn Header="UPN" Width="200" Binding="{Binding UserPrincipalName}" />
-                                <DataGridTextColumn Header="Type" Width="120" Binding="{Binding RecipientType}" />
-                                <DataGridCheckBoxColumn Header="Nested" Width="70" Binding="{Binding IsNested}" />
-                                <DataGridTextColumn Header="Path" Width="220" Binding="{Binding Path}" />
-                            </DataGrid.Columns>
-                        </DataGrid>
+                                <!-- Members -->
+                                <TabItem Header="Members">
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                                            <TextBox Style="{StaticResource ModernTextBox}" Width="240"
+                                                     AutomationProperties.Name="New member"
+                                                     Text="{Binding NewMemberAddress, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Button Content="_Add member" Style="{StaticResource PrimaryButton}"
+                                                    Margin="{DynamicResource GapInline}"
+                                                    Command="{Binding AddMemberCommand}"
+                                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                                            <Button Content="Re_move selected" Style="{StaticResource DangerButton}"
+                                                    Margin="{DynamicResource GapInline}"
+                                                    Command="{Binding RemoveMemberCommand}"
+                                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                                            <Button Content="S_ync" Style="{StaticResource GhostButtonSmall}"
+                                                    Margin="16,0,0,0" VerticalAlignment="Center"
+                                                    ToolTip="Re-fetch direct members live from Exchange and refresh the cache"
+                                                    Command="{Binding SyncMembersCommand}"
+                                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                                            <Button Content="_Excel" Style="{StaticResource GhostButtonSmall}"
+                                                    Margin="{DynamicResource GapInline}" VerticalAlignment="Center"
+                                                    Command="{Binding ExportToExcelCommand}" />
+                                            <Button Content="CS_V" Style="{StaticResource GhostButtonSmall}"
+                                                    Margin="{DynamicResource GapInline}" VerticalAlignment="Center"
+                                                    Command="{Binding ExportToCsvCommand}" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Row="1" Margin="0,0,0,12">
+                                            <TextBox Style="{StaticResource ModernTextBox}" Width="280"
+                                                     HorizontalAlignment="Left"
+                                                     AutomationProperties.Name="Filter members"
+                                                     Text="{Binding MemberFilterText, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Style="{StaticResource FieldHint}"
+                                                       Text="Filters by name, address, UPN, type or path. Add several members at once by separating them with commas; Ctrl+click rows to remove several." />
+                                        </StackPanel>
+
+                                        <DataGrid Grid.Row="2" x:Name="MembersDataGrid"
+                                                  Style="{StaticResource ModernDataGrid}"
+                                                  ItemsSource="{Binding MembersView}"
+                                                  SelectedItem="{Binding SelectedMember, Mode=TwoWay}"
+                                                  SelectionChanged="MembersDataGrid_SelectionChanged"
+                                                  SelectionMode="Extended" MinHeight="180"
+                                                  AutomationProperties.Name="Group members">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Member" Width="*" Binding="{Binding DisplayName}" />
+                                                <DataGridTextColumn Header="Address" Width="200" Binding="{Binding PrimarySmtpAddress}" />
+                                                <DataGridTextColumn Header="Type" Width="120" Binding="{Binding RecipientType}" />
+                                                <DataGridCheckBoxColumn Header="Nested" Width="70" Binding="{Binding IsNested}" />
+                                                <DataGridTextColumn Header="Path" Width="180" Binding="{Binding Path}" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Grid>
+                                </TabItem>
+
+                                <!-- Owners & senders -->
+                                <TabItem Header="Owners &amp; senders">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <StackPanel MaxWidth="620" HorizontalAlignment="Left">
+                                            <TextBlock Style="{StaticResource H3}" Text="Owners" Margin="0,0,0,8" />
+                                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                                                       Text="{Binding OwnersText, StringFormat='Current: {0}'}" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                <ComboBox AutomationProperties.Name="Owner change mode" Style="{StaticResource ModernComboBox}" Width="120"
+                                                          ItemsSource="{Binding ChangeModes}" SelectedItem="{Binding OwnerChangeMode}" />
+                                                <TextBox AutomationProperties.Name="Owner identities" Style="{StaticResource ModernTextBox}" Width="380"
+                                                         Margin="{DynamicResource GapInline}"
+                                                         Text="{Binding OwnerIdentities, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,12"
+                                                       Text="Comma-separated SamAccountName, UPN or e-mail address." />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
+                                                <Button Style="{StaticResource PrimaryButton}" Content="App_ly owner change"
+                                                        Command="{Binding ChangeOwnersCommand}"
+                                                        IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                                                <Button Style="{StaticResource GhostButton}" Content="Refresh _MailTip"
+                                                        Margin="{DynamicResource GapInline}"
+                                                        ToolTip="Rebuilds the MailTip from the current owners. Repairs one that still shows raw directory values."
+                                                        Command="{Binding RefreshMailTipCommand}"
+                                                        IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                                            </StackPanel>
+
+                                            <Border Style="{StaticResource Separator}" Margin="0,0,0,20" />
+
+                                            <TextBlock Style="{StaticResource H3}" Text="Authorized senders" Margin="0,0,0,8" />
+                                            <Border Style="{StaticResource Inset}" Padding="12" Margin="0,0,0,12">
+                                                <ScrollViewer MaxHeight="80" VerticalScrollBarVisibility="Auto">
+                                                    <TextBlock Style="{StaticResource Muted}" Text="{Binding CurrentAuthorizedSenders}" />
+                                                </ScrollViewer>
+                                            </Border>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                                <ComboBox AutomationProperties.Name="Sender change mode" Style="{StaticResource ModernComboBox}" Width="120"
+                                                          ItemsSource="{Binding ChangeModes}" SelectedItem="{Binding SenderChangeMode}" />
+                                                <TextBox AutomationProperties.Name="Authorized sender identities" Style="{StaticResource ModernTextBox}" Width="380"
+                                                         Margin="{DynamicResource GapInline}"
+                                                         Text="{Binding SenderIdentities, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <Button Style="{StaticResource SecondaryButton}" Content="App_ly sender change"
+                                                    HorizontalAlignment="Left" Margin="0,0,0,16"
+                                                    Command="{Binding ChangeAuthorizedSendersCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <!-- Addresses -->
+                                <TabItem Header="Addresses">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <StackPanel MaxWidth="620" HorizontalAlignment="Left">
+                                            <TextBlock Style="{StaticResource H3}" Text="E-mail aliases" Margin="0,0,0,8" />
+                                            <Border Style="{StaticResource Inset}" Padding="12" Margin="0,0,0,12">
+                                                <ScrollViewer MaxHeight="80" VerticalScrollBarVisibility="Auto">
+                                                    <TextBlock Style="{StaticResource Muted}" Text="{Binding CurrentAliases}" />
+                                                </ScrollViewer>
+                                            </Border>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                <ComboBox AutomationProperties.Name="Alias change mode" Style="{StaticResource ModernComboBox}" Width="120"
+                                                          ItemsSource="{Binding ChangeModes}" SelectedItem="{Binding AliasChangeMode}" />
+                                                <TextBox AutomationProperties.Name="Alias addresses" Style="{StaticResource ModernTextBox}" Width="380"
+                                                         Margin="{DynamicResource GapInline}"
+                                                         Text="{Binding AliasIdentities, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,12"
+                                                       Text="Full SMTP addresses, comma-separated. Replace is rejected here - it would drop the primary address." />
+                                            <Button Style="{StaticResource SecondaryButton}" Content="App_ly alias change"
+                                                    HorizontalAlignment="Left" Margin="0,0,0,24"
+                                                    Command="{Binding ChangeAliasesCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+
+                                            <Border Style="{StaticResource Separator}" Margin="0,0,0,20" />
+
+                                            <TextBlock Style="{StaticResource H3}" Text="Rename" Margin="0,0,0,8" />
+                                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                                                       Text="The previous address is kept as an alias, so mail sent to it keeps arriving." />
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="New name" />
+                                            <TextBox AutomationProperties.Name="New name" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                                     Text="{Binding RenameNewName, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="New primary address" />
+                                            <TextBox AutomationProperties.Name="New primary address" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                                     Text="{Binding RenameNewAddress, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Button Style="{StaticResource SecondaryButton}" Content="_Rename group"
+                                                    HorizontalAlignment="Left" Margin="0,0,0,16"
+                                                    Command="{Binding RenameGroupCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <!-- Danger zone -->
+                                <TabItem Header="Danger zone">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <StackPanel MaxWidth="620" HorizontalAlignment="Left">
+                                            <TextBlock Style="{StaticResource H3}" Text="Replace membership" Margin="0,0,0,8" />
+                                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                                                       Text="Sets the membership to exactly this list. Everyone not named here is removed. The previous membership is written to the log first." />
+                                            <TextBox AutomationProperties.Name="Replacement member list" Style="{StaticResource ModernTextBoxMultiline}" Height="80"
+                                                     Margin="0,0,0,12"
+                                                     Text="{Binding ReplaceMembersText, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Button Style="{StaticResource DangerButton}" Content="Re_place membership"
+                                                    HorizontalAlignment="Left" Margin="0,0,0,24"
+                                                    Command="{Binding ReplaceMembersCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+
+                                            <Border Style="{StaticResource Separator}" Margin="0,0,0,20" />
+
+                                            <TextBlock Style="{StaticResource H3}" Text="Delete group" Margin="0,0,0,8" />
+                                            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                                                       Text="Members, owners, aliases and settings are written to the log before anything is deleted. The right cmdlet is picked from the group's type. You are asked to confirm." />
+                                            <Button Style="{StaticResource DangerButton}" Content="_Delete group"
+                                                    HorizontalAlignment="Left" Margin="0,0,0,16"
+                                                    Command="{Binding RemoveGroupCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+                            </TabControl>
+                        </Border>
                     </Grid>
-                </Border>
+                </Grid>
+
+                <!-- Outcome, right where the work happens -->
+                <StackPanel Grid.Row="3" Margin="0,0,0,16">
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,12"
+                                 Visibility="{Binding IsManageBusy, Converter={StaticResource BoolToVisible}}" />
+                    <controls:AlertBox Text="{Binding ManageStatusMessage}" Severity="{Binding ManageStatusSeverity}"
+                                       Margin="0,0,0,12" />
+                    <controls:AlertBox Text="{Binding StatusMessage}" Severity="{Binding StatusSeverity}" />
+
+                </StackPanel>
             </Grid>
-        </Grid>
+        </TabItem>
 
-        <!-- ============ Manage the selected group ============ -->
-        <StackPanel Grid.Row="5" MaxWidth="760" HorizontalAlignment="Left" Margin="0,24,0,0"
-                    Visibility="{Binding SelectedGroup, Converter={StaticResource NullToCollapsed}}">
+        <!-- ================================================================
+             Create group
+             ================================================================ -->
+        <TabItem Header="Create group">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="28,20,28,32" MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left">
 
-            <TextBlock Style="{StaticResource H2}" Margin="0,0,0,4"
-                       Text="{Binding SelectedGroup.DisplayName, StringFormat='Manage: {0}'}" />
-            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,14"
-                       Text="Owners, authorized senders, aliases, membership, rename and removal. Every action is recorded in the log with the ticket number below." />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
+                               Text="Creates a distribution list, a mail-enabled security group, or a dynamic distribution group. The name follows the dot convention (LST.EMEA.Some Team); the derived name and address are shown below and can be corrected before creating." />
 
-            <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,14"
-                         Visibility="{Binding IsManageBusy, Converter={StaticResource BoolToVisible}}" />
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
+                                 Visibility="{Binding IsCreateBusy, Converter={StaticResource BoolToVisible}}" />
 
-            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding ManageTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
-                               Text="Required for every action in this section." />
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <Grid Margin="{DynamicResource GapField}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
+                                    <TextBox AutomationProperties.Name="Ticket / task number" Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding CreateTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
+                                    <TextBox AutomationProperties.Name="Requester (optional)" Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding CreateRequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldHint}"
+                                               Text="Gets the confirmation e-mail. Leave empty to send none." />
+                                </StackPanel>
+                            </Grid>
 
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,4"
-                             Text="{Binding ManageRequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
-                               Text="SamAccountName, UPN or e-mail address. Gets the confirmation e-mail for an owner change, a membership replacement, an authorized-sender change, a rename or a removal. Alias changes send no mail. Leave empty to send none at all." />
-                </StackPanel>
-            </Border>
+                            <CheckBox Style="{StaticResource ModernCheckBox}" Margin="{DynamicResource GapField}"
+                                      Content="Dynamic distribution group (membership from a filter instead of a member list)"
+                                      IsChecked="{Binding CreateIsDynamic}" />
 
-            <!-- Owners -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" FontSize="15" Text="Owners" Margin="0,0,0,8" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,10"
-                               Text="{Binding OwnersText, StringFormat='Current: {0}'}" TextWrapping="Wrap" />
+                            <StackPanel Visibility="{Binding IsStaticCreate, Converter={StaticResource BoolToVisible}}">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Type" />
+                                <ComboBox AutomationProperties.Name="Type" Style="{StaticResource ModernComboBox}" Margin="{DynamicResource GapField}"
+                                          Width="200" HorizontalAlignment="Left"
+                                          ItemsSource="{Binding GroupKinds}" SelectedItem="{Binding CreateKind}" />
+                            </StackPanel>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <ComboBox Width="120" ItemsSource="{Binding ChangeModes}" SelectedItem="{Binding OwnerChangeMode}" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="400" Margin="10,0,0,0"
-                                 Text="{Binding OwnerIdentities, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,-4,0,10" TextWrapping="Wrap"
-                               Text="Comma-separated SamAccountName, UPN or e-mail address." />
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Group name" />
+                            <TextBox AutomationProperties.Name="Group name" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding CreateRawName, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="Prefix, location, then the name - e.g. &quot;LST.EMEA.Some Team Name&quot;." />
 
-                    <StackPanel Orientation="Horizontal">
-                        <Button Style="{StaticResource PrimaryButton}" Content="Apply"
-                                Command="{Binding ChangeOwnersCommand}"
-                                IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
-                        <Button Style="{StaticResource SecondaryButton}" Content="Refresh MailTip" Margin="10,0,0,0"
-                                Command="{Binding RefreshMailTipCommand}"
-                                IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}"
-                                ToolTip="Rebuilds the group's MailTip from its current owners, without changing anything else" />
-                    </StackPanel>
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0" TextWrapping="Wrap"
-                               Text="The MailTip is rewritten automatically on every owner change. Use 'Refresh MailTip' to repair one that still shows raw directory values instead of names." />
-                </StackPanel>
-            </Border>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Address domain" />
+                            <TextBox AutomationProperties.Name="Address domain" Style="{StaticResource ModernTextBox}" Width="260" HorizontalAlignment="Left"
+                                     Text="{Binding CreateDomain, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="e.g. ul.com - or ul.org for not-for-profit groups." />
 
-            <!-- Authorized senders -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" FontSize="15" Text="Authorized senders" Margin="0,0,0,8" />
-                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
-                        <ScrollViewer MaxHeight="90" VerticalScrollBarVisibility="Auto">
-                            <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Text="{Binding CurrentAuthorizedSenders}" />
-                        </ScrollViewer>
+                            <!-- Static-only fields -->
+                            <StackPanel Visibility="{Binding IsStaticCreate, Converter={StaticResource BoolToVisible}}">
+                                <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,8"
+                                          Content="Temporary group (inserts TMP into the name)"
+                                          IsChecked="{Binding CreateIsTemporary}" />
+                                <StackPanel Orientation="Horizontal" Margin="{DynamicResource GapField}"
+                                            Visibility="{Binding CreateIsTemporary, Converter={StaticResource BoolToVisible}}">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Remove on"
+                                               VerticalAlignment="Center" Margin="0,0,12,0" />
+                                    <DatePicker AutomationProperties.Name="Remove on" SelectedDate="{Binding CreateRemoveOn}" Width="150"
+                                                FontFamily="{DynamicResource FontFamilyUi}" FontSize="13" />
+                                </StackPanel>
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Owner(s)" />
+                                <TextBox AutomationProperties.Name="Owner(s)" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding CreateOwners, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Comma-separated SamAccountName, UPN or e-mail." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Members" />
+                                <TextBox AutomationProperties.Name="Members" Style="{StaticResource ModernTextBoxMultiline}" Height="70"
+                                         Text="{Binding CreateMembers, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Comma- or line-separated. Other lists can be referenced by name (LST.*, DST.*, DSG.*)." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Authorized senders" />
+                                <TextBox AutomationProperties.Name="Authorized senders" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding CreateAuthorizedSenders, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Leave empty to let anyone send to the group." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Additional aliases" />
+                                <TextBox AutomationProperties.Name="Additional aliases" Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding CreateAdditionalAliases, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                           Text="Extra SMTP addresses, comma-separated." />
+
+                                <CheckBox Style="{StaticResource ModernCheckBox}" Margin="{DynamicResource GapField}"
+                                          Content="Allow use by external senders"
+                                          IsChecked="{Binding CreateAllowExternalSenders}" />
+
+                                <Expander Header="Advanced" Foreground="{DynamicResource TextBrush}"
+                                          Margin="{DynamicResource GapField}">
+                                    <StackPanel Margin="0,12,0,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Remove character from the name" />
+                                        <TextBox AutomationProperties.Name="Remove character from the name" Style="{StaticResource ModernTextBox}" Width="60" HorizontalAlignment="Left"
+                                                 Text="{Binding CreateRemoveCharacter, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Style="{StaticResource FieldHint}"
+                                                   Text="A single character, replaced with a space in the third name segment." />
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+
+                            <!-- Dynamic-only: the recipient filter -->
+                            <StackPanel Visibility="{Binding CreateIsDynamic, Converter={StaticResource BoolToVisible}}">
+                                <TextBlock Style="{StaticResource H3}" Text="Membership filter" Margin="0,4,0,8" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                                           Text="Pre-filled with the values the old script used. Leave a condition empty to omit it - an empty one would match only recipients whose attribute is literally blank." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Included recipients" />
+                                <TextBox AutomationProperties.Name="Included recipients" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                         Width="220" HorizontalAlignment="Left"
+                                         Text="{Binding DynamicIncludedRecipients, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <StackPanel Orientation="Horizontal" Margin="{DynamicResource GapField}">
+                                    <StackPanel Margin="0,0,12,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Company" />
+                                        <TextBox AutomationProperties.Name="Company" Style="{StaticResource ModernTextBox}" Width="130"
+                                                 Text="{Binding DynamicCompany, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,12,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Attribute 1" />
+                                        <TextBox AutomationProperties.Name="Attribute 1" Style="{StaticResource ModernTextBox}" Width="110"
+                                                 Text="{Binding DynamicCustomAttribute1, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,12,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Attribute 2" />
+                                        <TextBox AutomationProperties.Name="Attribute 2" Style="{StaticResource ModernTextBox}" Width="80"
+                                                 Text="{Binding DynamicCustomAttribute2, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,12,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Attribute 3" />
+                                        <TextBox AutomationProperties.Name="Attribute 3" Style="{StaticResource ModernTextBox}" Width="110"
+                                                 Text="{Binding DynamicCustomAttribute3, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Attribute 8" />
+                                        <TextBox AutomationProperties.Name="Attribute 8" Style="{StaticResource ModernTextBox}" Width="110"
+                                                 Text="{Binding DynamicCustomAttribute8, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="MailTip" />
+                                <TextBox AutomationProperties.Name="MailTip" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                         Text="{Binding DynamicMailTip, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Notes" />
+                                <TextBox AutomationProperties.Name="Notes" Style="{StaticResource ModernTextBoxMultiline}" Height="60"
+                                         Margin="{DynamicResource GapField}"
+                                         Text="{Binding DynamicNotes, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+
+                            <!-- Editable preview -->
+                            <Border Style="{StaticResource Inset}" Margin="0,4,0,16">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Final name" />
+                                    <TextBox AutomationProperties.Name="Final name" Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
+                                             Text="{Binding PreviewName, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Final address" />
+                                    <TextBox AutomationProperties.Name="Final address" Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
+                                             Text="{Binding PreviewAddress, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center"
+                                                   Text="Derived from the fields above. Edit them and they stop updating." />
+                                        <Button Content="Re_set" Style="{StaticResource GhostButtonSmall}"
+                                                Margin="{DynamicResource GapInline}"
+                                                Command="{Binding ResetPreviewCommand}" />
+                                    </StackPanel>
+
+                                    <TextBlock Margin="0,12,0,0" Style="{StaticResource Muted}"
+                                               Foreground="{DynamicResource DangerBrush}"
+                                               Text="{Binding PreviewProblems}"
+                                               Visibility="{Binding PreviewProblems, Converter={StaticResource EmptyToCollapsed}}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Button Style="{StaticResource PrimaryButton}" Content="_Create group"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding CreateGroupCommand}"
+                                    IsEnabled="{Binding IsCreateBusy, Converter={StaticResource InverseBool}}" />
+                        </StackPanel>
                     </Border>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <ComboBox Width="120" ItemsSource="{Binding ChangeModes}" SelectedItem="{Binding SenderChangeMode}" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="400" Margin="10,0,0,0"
-                                 Text="{Binding SenderIdentities, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
-
-                    <Button Style="{StaticResource PrimaryButton}" Content="Apply" HorizontalAlignment="Left"
-                            Command="{Binding ChangeAuthorizedSendersCommand}"
-                            IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                    <controls:AlertBox Margin="0,16,0,0"
+                                       Text="{Binding CreateStatusMessage}" Severity="{Binding CreateStatusSeverity}" />
                 </StackPanel>
-            </Border>
-
-            <!-- Aliases -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" FontSize="15" Text="E-mail aliases" Margin="0,0,0,8" />
-                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,10">
-                        <ScrollViewer MaxHeight="90" VerticalScrollBarVisibility="Auto">
-                            <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Text="{Binding CurrentAliases}" />
-                        </ScrollViewer>
-                    </Border>
-
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                        <ComboBox Width="120" ItemsSource="{Binding ChangeModes}" SelectedItem="{Binding AliasChangeMode}" />
-                        <TextBox Style="{StaticResource ModernTextBox}" Width="400" Margin="10,0,0,0"
-                                 Text="{Binding AliasIdentities, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,10" TextWrapping="Wrap"
-                               Text="Full SMTP addresses, comma-separated. Replace is rejected here - it would drop the primary address." />
-
-                    <Button Style="{StaticResource PrimaryButton}" Content="Apply" HorizontalAlignment="Left"
-                            Command="{Binding ChangeAliasesCommand}"
-                            IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
-                </StackPanel>
-            </Border>
-
-            <!-- Replace membership -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" FontSize="15" Text="Replace membership" Margin="0,0,0,8" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,10" TextWrapping="Wrap"
-                               Text="Sets the membership to exactly this list, given as comma- or line-separated identities. The previous members are written to the log first." />
-
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,10"
-                             AcceptsReturn="True" TextWrapping="Wrap" Height="70"
-                             VerticalScrollBarVisibility="Auto"
-                             Text="{Binding ReplaceMembersText, UpdateSourceTrigger=PropertyChanged}" />
-
-                    <CheckBox Content="Yes, replace the entire membership" Margin="0,0,0,10"
-                              FontFamily="Segoe UI" FontSize="13" Foreground="#C0392B"
-                              IsChecked="{Binding ReplaceMembersConfirmed}" />
-
-                    <Button Style="{StaticResource SecondaryButton}" Content="Replace" HorizontalAlignment="Left"
-                            Command="{Binding ReplaceMembersCommand}"
-                            IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
-                </StackPanel>
-            </Border>
-
-            <!-- Rename -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" FontSize="15" Text="Rename" Margin="0,0,0,8" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,10"
-                               Text="The previous address is kept as an alias, so mail sent to it keeps arriving." />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="New name" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,10"
-                             Text="{Binding RenameNewName, UpdateSourceTrigger=PropertyChanged}" />
-
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="New primary address" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Margin="0,0,0,10"
-                             Text="{Binding RenameNewAddress, UpdateSourceTrigger=PropertyChanged}" />
-
-                    <Button Style="{StaticResource SecondaryButton}" Content="Rename" HorizontalAlignment="Left"
-                            Command="{Binding RenameGroupCommand}"
-                            IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
-                </StackPanel>
-            </Border>
-
-            <!-- Remove -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,14">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" FontSize="15" Text="Remove" Margin="0,0,0,8" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,10"
-                               Text="Members, owners, aliases and settings are written to the log before anything is deleted. The right cmdlet is picked from the group's type." />
-
-                    <CheckBox Content="Yes, delete this group - this cannot be undone here" Margin="0,0,0,10"
-                              FontFamily="Segoe UI" FontSize="13" Foreground="#C0392B"
-                              IsChecked="{Binding RemoveConfirmed}" />
-
-                    <Button Style="{StaticResource SecondaryButton}" Content="Remove group" HorizontalAlignment="Left"
-                            Command="{Binding RemoveGroupCommand}"
-                            IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
-                </StackPanel>
-            </Border>
-
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Padding="14">
-                <TextBlock Style="{StaticResource Muted}" Text="{Binding ManageStatusMessage}" TextWrapping="Wrap" />
-            </Border>
-        </StackPanel>
-
-        <!-- Status -->
-        <TextBlock Grid.Row="6" Style="{StaticResource Muted}" Margin="0,12,0,0"
-                   Text="{Binding StatusMessage}" />
-
-        <!-- PowerShell console -->
-        <controls:PowerShellConsole Grid.Row="7" Margin="0,20,0,0" MaxHeight="300"
-                                    Transcript="{Binding Transcript}" />
-    </Grid>
-    </ScrollViewer>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
 </UserControl>
+
+

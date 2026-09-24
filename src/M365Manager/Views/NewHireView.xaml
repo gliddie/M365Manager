@@ -5,208 +5,334 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:M365Manager.ViewModels"
              xmlns:controls="clr-namespace:M365Manager.Controls"
-             mc:Ignorable="d" d:DesignHeight="900" d:DesignWidth="900">
+             mc:Ignorable="d" d:DesignHeight="800" d:DesignWidth="1000">
 
+    <!--
+        This page was always a wizard in the view model - Step 1..4 with forward-only navigation -
+        but it looked like a stack of cards, so the four flat pills at the top read as tabs rather
+        than as progress. The stepper now has three states per step (done / current / upcoming),
+        which is what turns it into progress you can actually place yourself in.
+
+        No tabs here, deliberately: the steps are ordered and gated, and a tab strip would invite
+        jumping to step 3 before an employee has been looked up.
+    -->
     <UserControl.Resources>
-        <!-- Base look of a pill in the step rail. Each pill then adds one trigger on its own IsStepN
-             flag, which is all that distinguishes the active one. -->
-        <Style x:Key="StepPill" TargetType="Border">
-            <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="Padding" Value="14,6" />
-            <Setter Property="Margin" Value="0,0,8,0" />
-            <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        <!-- One step in the rail: a numbered disc plus a label. The three states differ only in
+             colour and weight, driven by the IsStepNDone / IsStepN pair. -->
+        <Style x:Key="StepDisc" TargetType="Border">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="CornerRadius" Value="13" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
         </Style>
 
-        <Style x:Key="StepText" TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="Segoe UI" />
+        <Style x:Key="StepNumber" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource FontFamilyUi}" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
-        <!-- Label/value pairs on the review card. -->
+        <Style x:Key="StepLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource FontFamilyUi}" />
+            <Setter Property="FontSize" Value="{DynamicResource FontSmall}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="9,0,0,0" />
+        </Style>
+
+        <Style x:Key="StepConnector" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Margin" Value="14,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource BorderStrongBrush}" />
+        </Style>
+
         <Style x:Key="ReviewLabel" TargetType="TextBlock" BasedOn="{StaticResource FieldLabel}">
             <Setter Property="Margin" Value="0,0,16,8" />
             <Setter Property="MinWidth" Value="130" />
         </Style>
-        <Style x:Key="ReviewValue" TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="Segoe UI" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
+
+        <Style x:Key="ReviewValue" TargetType="TextBlock" BasedOn="{StaticResource Body}">
             <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="28" MaxWidth="880" HorizontalAlignment="Left">
+        <StackPanel Margin="28,20,28,32" MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left">
 
-            <TextBlock Style="{StaticResource H2}" Text="New hire" Margin="0,0,0,4" />
-            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap"
+            <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,20"
                        Text="Enables a new employee for Teams telephony: finds their account and site, hands out a free number from the site's DID ranges, writes it to on-premises AD so the Entra Connect sync agrees with Teams, then grants the site's voice policies." />
 
-            <!-- ============ Step rail ============ -->
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
+            <!-- Stepper -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
                 <Border>
                     <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource StepPill}">
+                        <Style TargetType="Border" BasedOn="{StaticResource StepDisc}">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsStep1}" Value="True">
-                                    <Setter Property="Background" Value="{StaticResource UlRedSoftBrush}" />
-                                    <Setter Property="BorderBrush" Value="{StaticResource UlRedBrush}" />
+                                    <Setter Property="Background" Value="{DynamicResource BrandBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsStep1Done}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <TextBlock Style="{StaticResource StepText}" Text="1  Employee" />
+                    <TextBlock Text="1">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource StepNumber}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsStep1}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource OnBrandBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsStep1Done}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Border>
+                <TextBlock Text="Employee">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource StepLabel}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsStep1}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <Border Style="{StaticResource StepConnector}" />
 
                 <Border>
                     <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource StepPill}">
+                        <Style TargetType="Border" BasedOn="{StaticResource StepDisc}">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsStep2}" Value="True">
-                                    <Setter Property="Background" Value="{StaticResource UlRedSoftBrush}" />
-                                    <Setter Property="BorderBrush" Value="{StaticResource UlRedBrush}" />
+                                    <Setter Property="Background" Value="{DynamicResource BrandBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsStep2Done}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <TextBlock Style="{StaticResource StepText}" Text="2  Number" />
+                    <TextBlock Text="2">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource StepNumber}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsStep2}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource OnBrandBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsStep2Done}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Border>
+                <TextBlock Text="Number">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource StepLabel}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsStep2}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <Border Style="{StaticResource StepConnector}" />
 
                 <Border>
                     <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource StepPill}">
+                        <Style TargetType="Border" BasedOn="{StaticResource StepDisc}">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsStep3}" Value="True">
-                                    <Setter Property="Background" Value="{StaticResource UlRedSoftBrush}" />
-                                    <Setter Property="BorderBrush" Value="{StaticResource UlRedBrush}" />
+                                    <Setter Property="Background" Value="{DynamicResource BrandBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsStep3Done}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource SuccessSoftBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <TextBlock Style="{StaticResource StepText}" Text="3  Review" />
+                    <TextBlock Text="3">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource StepNumber}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsStep3}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource OnBrandBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsStep3Done}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Border>
+                <TextBlock Text="Review">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource StepLabel}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsStep3}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <Border Style="{StaticResource StepConnector}" />
 
                 <Border>
                     <Border.Style>
-                        <Style TargetType="Border" BasedOn="{StaticResource StepPill}">
+                        <Style TargetType="Border" BasedOn="{StaticResource StepDisc}">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsStep4}" Value="True">
-                                    <Setter Property="Background" Value="{StaticResource UlRedSoftBrush}" />
-                                    <Setter Property="BorderBrush" Value="{StaticResource UlRedBrush}" />
+                                    <Setter Property="Background" Value="{DynamicResource BrandBrush}" />
+                                    <Setter Property="BorderBrush" Value="{DynamicResource BrandBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <TextBlock Style="{StaticResource StepText}" Text="4  Result" />
+                    <TextBlock Text="4">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource StepNumber}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsStep4}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource OnBrandBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Border>
+                <TextBlock Text="Result">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource StepLabel}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsStep4}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
 
             <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16"
                          Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
 
-            <!-- ============ Step 1: employee ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,16"
+            <!-- Step 1: employee -->
+            <Border Style="{StaticResource Card}"
                     Visibility="{Binding IsStep1, Converter={StaticResource BoolToVisible}}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" FontSize="15" Text="Who is being enabled?" Margin="0,0,0,12" />
+                    <TextBlock Style="{StaticResource H2}" Text="Who is being enabled?" Margin="0,0,0,16" />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Employee" />
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <StackPanel Orientation="Horizontal">
                         <TextBox Style="{StaticResource ModernTextBox}" Width="320"
-                                 Text="{Binding Identity, UpdateSourceTrigger=PropertyChanged}" />
-                        <Button Style="{StaticResource PrimaryButton}" Content="Look up" Margin="10,0,0,0"
+                                 AutomationProperties.Name="Employee identity"
+                                 Text="{Binding Identity, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter" Command="{Binding LookUpCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <Button Style="{StaticResource PrimaryButton}" Content="_Look up"
+                                Margin="{DynamicResource GapInline}"
                                 Command="{Binding LookUpCommand}"
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
                     </StackPanel>
-                    <!-- Below the row rather than under the box: the row is horizontal. -->
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
-                               Text="SamAccountName, UPN or e-mail address." />
+                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                               Text="SamAccountName, UPN or e-mail address. Press Enter to look up." />
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
-                    <TextBox Style="{StaticResource ModernTextBox}" Width="320" HorizontalAlignment="Left"
-                             Margin="0,0,0,4"
+                    <TextBox AutomationProperties.Name="Ticket / task number" Style="{StaticResource ModernTextBox}" Width="320" HorizontalAlignment="Left"
                              Text="{Binding TaskNumber, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
+                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
                                Text="Required. Recorded in the audit log and in the telephony database's run log." />
 
                     <!-- Only meaningful once an account has been found. -->
                     <StackPanel Visibility="{Binding EmployeeSummary, Converter={StaticResource EmptyToCollapsed}}">
-                        <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                                BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
+                        <Border Style="{StaticResource Inset}" Margin="0,0,0,16">
                             <StackPanel>
-                                <TextBlock FontFamily="Segoe UI" FontSize="14" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"
-                                           Text="{Binding EmployeeSummary}" />
+                                <TextBlock Style="{StaticResource H3}" Text="{Binding EmployeeSummary}" />
                                 <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0"
                                            Text="{Binding LicenceSummary}" />
                             </StackPanel>
                         </Border>
 
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Site" />
-                        <ComboBox Width="420" HorizontalAlignment="Left" Margin="0,0,0,4"
+                        <ComboBox Style="{StaticResource ModernComboBox}" Width="420" HorizontalAlignment="Left"
                                   ItemsSource="{Binding Locations}"
                                   SelectedItem="{Binding SelectedLocation, Mode=TwoWay}"
                                   DisplayMemberPath="Name"
-                                  FontFamily="Segoe UI" FontSize="13" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,14" TextWrapping="Wrap"
+                                  AutomationProperties.Name="Site" />
+                        <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
                                    Text="Taken from the employee's AD office. Change it if that attribute is empty or wrong - the site decides which numbers are on offer and which voice policies get granted." />
 
                         <!-- A blocker stops the run; a warning does not. -->
-                        <Border Background="#FEF2F2" BorderBrush="{StaticResource ErrorBrush}"
-                                BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,12"
-                                Visibility="{Binding HasBlocker, Converter={StaticResource BoolToVisible}}">
-                            <TextBlock FontFamily="Segoe UI" FontSize="13" TextWrapping="Wrap"
-                                       Foreground="{StaticResource ErrorBrush}" Text="{Binding Blocker}" />
-                        </Border>
+                        <controls:AlertBox Margin="0,0,0,12"
+                                           Text="{Binding Blocker}" Severity="Error" />
+                        <controls:AlertBox Margin="0,0,0,12"
+                                           Text="{Binding Warnings}" Severity="Warning" />
 
-                        <Border Background="#FFFBEB" BorderBrush="#F59E0B"
-                                BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,12"
-                                Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVisible}}">
-                            <TextBlock FontFamily="Segoe UI" FontSize="13" TextWrapping="Wrap"
-                                       Foreground="#B45309" Text="{Binding Warnings}" />
-                        </Border>
-
-                        <Button Style="{StaticResource PrimaryButton}" Content="Continue" HorizontalAlignment="Left"
+                        <Button Style="{StaticResource PrimaryButton}" Content="_Continue"
+                                HorizontalAlignment="Left"
                                 Command="{Binding GoToNumberCommand}"
                                 IsEnabled="{Binding CanContinueFromEmployee}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- ============ Step 2: number ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,16"
+            <!-- Step 2: number -->
+            <Border Style="{StaticResource Card}"
                     Visibility="{Binding IsStep2, Converter={StaticResource BoolToVisible}}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" FontSize="15" Text="Pick a number" Margin="0,0,0,4" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                    <TextBlock Style="{StaticResource H2}" Text="Pick a number" Margin="0,0,0,8" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
                                Text="Blocks are listed least-used first. Searching a block lists the numbers not already assigned to an endpoint or explicitly blocked, and proposes one at random." />
 
-                    <DataGrid ItemsSource="{Binding DidRanges}"
-                              SelectedItem="{Binding SelectedRange, Mode=TwoWay}"
-                              MaxHeight="200" Margin="0,0,0,12"
-                              AutoGenerateColumns="False" IsReadOnly="True"
-                              HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                              RowHeight="28" FontFamily="Segoe UI" FontSize="12"
-                              Background="Transparent" BorderThickness="1"
-                              BorderBrush="{StaticResource BorderBrush}"
-                              SelectionMode="Single"
-                              VerticalScrollBarVisibility="Auto"
-                              CanUserAddRows="False" CanUserDeleteRows="False">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="From" Width="140" Binding="{Binding DidStart}" />
-                            <DataGridTextColumn Header="To" Width="140" Binding="{Binding DidEnd}" />
-                            <DataGridTextColumn Header="Used %" Width="70" Binding="{Binding Utilization}" />
-                            <DataGridTextColumn Header="Notes" Width="*" Binding="{Binding Notes}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,16">
+                        <DataGrid Style="{StaticResource ModernDataGrid}"
+                                  ItemsSource="{Binding DidRanges}"
+                                  SelectedItem="{Binding SelectedRange, Mode=TwoWay}"
+                                  MaxHeight="200"
+                                  AutomationProperties.Name="DID ranges">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="From" Width="150" Binding="{Binding DidStart}" />
+                                <DataGridTextColumn Header="To" Width="150" Binding="{Binding DidEnd}" />
+                                <DataGridTextColumn Header="Used %" Width="76" Binding="{Binding Utilization}" />
+                                <DataGridTextColumn Header="Notes" Width="*" Binding="{Binding Notes}" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <Button Style="{StaticResource PrimaryButton}" Content="Search free numbers"
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                        <Button Style="{StaticResource SecondaryButton}" Content="_Search free numbers"
                                 Command="{Binding FindFreeNumbersCommand}"
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
                         <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12,0,0,0"
@@ -214,140 +340,149 @@
                     </StackPanel>
 
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Number" />
-                    <ComboBox Width="240" HorizontalAlignment="Left" Margin="0,0,0,16"
+                    <ComboBox Style="{StaticResource ModernComboBox}" Width="240" HorizontalAlignment="Left"
+                              Margin="{DynamicResource GapField}"
                               ItemsSource="{Binding FreeDids}"
                               SelectedItem="{Binding SelectedDid, Mode=TwoWay}"
-                              FontFamily="Segoe UI" FontSize="13" />
+                              AutomationProperties.Name="Number" />
 
                     <StackPanel Orientation="Horizontal">
-                        <Button Style="{StaticResource PrimaryButton}" Content="Continue"
+                        <Button Style="{StaticResource PrimaryButton}" Content="_Continue"
                                 Command="{Binding GoToReviewCommand}" />
-                        <Button Style="{StaticResource SecondaryButton}" Content="Back" Margin="10,0,0,0"
+                        <Button Style="{StaticResource GhostButton}" Content="_Back"
+                                Margin="{DynamicResource GapInline}"
                                 Command="{Binding BackCommand}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- ============ Step 3: review ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,16"
+            <!-- Step 3: review -->
+            <Border Style="{StaticResource Card}"
                     Visibility="{Binding IsStep3, Converter={StaticResource BoolToVisible}}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" FontSize="15" Text="Review" Margin="0,0,0,4" />
-                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,14" TextWrapping="Wrap"
-                               Text="Nothing has been changed yet. Applying writes to Active Directory, Teams and the telephony database, and mails the employee." />
+                    <TextBlock Style="{StaticResource H2}" Text="Review" Margin="0,0,0,8" />
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
+                               Text="Nothing has been changed yet." />
 
-                    <Grid Margin="0,0,0,14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
+                    <Border Style="{StaticResource Inset}" Margin="0,0,0,16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Employee" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewName}" />
+                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Employee" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewName}" />
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Account" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewAccount}" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Account" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewAccount}" />
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Site" />
-                        <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewOffice}" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Site" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewOffice}" />
 
-                        <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Number" />
-                        <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource ReviewValue}"
-                                   FontWeight="SemiBold" Text="{Binding ReviewNumber}" />
+                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Number" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource ReviewValue}"
+                                       FontWeight="SemiBold" Text="{Binding ReviewNumber}" />
 
-                        <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="SIP address" />
-                        <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewSipAddress}" />
+                            <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="SIP address" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewSipAddress}" />
 
-                        <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Policies" />
-                        <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewPolicies}" />
+                            <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Policies" />
+                            <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewPolicies}" />
 
-                        <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Directory" />
-                        <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewAdStep}" />
-                    </Grid>
+                            <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Directory" />
+                            <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewAdStep}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- This is the one screen in the app that writes to on-premises AD, and the
+                         write is what the whole flow hinges on. Said plainly, right above the
+                         button, rather than left to the paragraph at the top of the page. -->
+                    <controls:AlertBox Margin="0,0,0,16" Severity="Warning"
+                                       Text="Applying writes to Active Directory, Teams and the telephony database, and mails the employee. The directory write cannot be rolled back from here." />
 
                     <StackPanel Orientation="Horizontal">
-                        <Button Style="{StaticResource PrimaryButton}" Content="Enable for telephony"
+                        <Button Style="{StaticResource PrimaryButton}" Content="_Enable for telephony"
                                 Command="{Binding ConfigureCommand}"
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
-                        <Button Style="{StaticResource SecondaryButton}" Content="Back" Margin="10,0,0,0"
+                        <Button Style="{StaticResource GhostButton}" Content="_Back"
+                                Margin="{DynamicResource GapInline}"
                                 Command="{Binding BackCommand}"
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- ============ Step 4: result ============ -->
-            <Border Style="{StaticResource Card}" Margin="0,0,0,16"
+            <!-- Step 4: result -->
+            <Border Style="{StaticResource Card}"
                     Visibility="{Binding IsStep4, Converter={StaticResource BoolToVisible}}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" FontSize="15" Text="Result" Margin="0,0,0,10" />
+                    <TextBlock Style="{StaticResource H2}" Text="Result" Margin="0,0,0,12" />
 
-                    <TextBlock FontFamily="Segoe UI" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,12"
-                               Foreground="{StaticResource TextBrush}" Text="{Binding ResultHeadline}" />
+                    <TextBlock Style="{StaticResource Body}" Margin="0,0,0,16"
+                               Text="{Binding ResultHeadline}" />
 
-                    <ItemsControl ItemsSource="{Binding ResultSteps}" Margin="0,0,0,14">
+                    <ItemsControl ItemsSource="{Binding ResultSteps}" Margin="0,0,0,16">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:NewHireStepViewModel}">
-                                <Grid Margin="0,0,0,5">
+                                <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="60" />
-                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="22" />
+                                        <ColumnDefinition Width="190" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
 
-                                    <TextBlock Grid.Column="0" FontFamily="Segoe UI" FontSize="11" FontWeight="SemiBold"
-                                               Text="{Binding Icon}">
+                                    <!-- Glyph, not the words OK/FAILED: shape reads faster than
+                                         text in a list, and it survives colour-blindness. -->
+                                    <TextBlock Grid.Column="0" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                               VerticalAlignment="Top" Margin="0,1,0,0">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+                                                <Setter Property="Text" Value="&#xEA39;" />
+                                                <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding Succeeded}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                                        <Setter Property="Text" Value="&#xE930;" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
 
-                                    <TextBlock Grid.Column="1" FontFamily="Segoe UI" FontSize="12"
-                                               Foreground="{StaticResource TextBrush}" TextWrapping="Wrap"
-                                               Text="{Binding Name}" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource Body}"
+                                               FontSize="{DynamicResource FontSmall}" Text="{Binding Name}" />
 
-                                    <TextBlock Grid.Column="2" Style="{StaticResource Muted}" TextWrapping="Wrap"
-                                               Text="{Binding Summary}" />
+                                    <TextBlock Grid.Column="2" Style="{StaticResource Muted}" Text="{Binding Summary}" />
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,14">
-                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Text="{Binding TeamsState}" />
+                    <Border Style="{StaticResource Inset}" Margin="0,0,0,16"
+                            Visibility="{Binding TeamsState, Converter={StaticResource EmptyToCollapsed}}">
+                        <TextBlock Style="{StaticResource Muted}" Text="{Binding TeamsState}" />
                     </Border>
 
-                    <Button Style="{StaticResource PrimaryButton}" Content="Next hire" HorizontalAlignment="Left"
+                    <Button Style="{StaticResource PrimaryButton}" Content="_Next hire"
+                            HorizontalAlignment="Left"
                             Command="{Binding StartOverCommand}" />
                 </StackPanel>
             </Border>
 
-            <!-- ============ Status ============ -->
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,6,0,0">
-                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Text="{Binding StatusMessage}" />
-            </Border>
-
-            <!-- ============ Console ============ -->
-            <controls:PowerShellConsole Margin="0,32,0,0" Transcript="{Binding Transcript}" />
+            <controls:AlertBox Margin="0,16,0,0"
+                               Text="{Binding StatusMessage}" Severity="{Binding StatusSeverity}" />
 
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+

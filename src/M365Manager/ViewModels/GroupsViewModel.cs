@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using M365Manager.Controls;
 using M365Manager.Core.Exchange;
 using M365Manager.Core.Groups;
 using M365Manager.Core.M365;
@@ -14,12 +15,16 @@ using M365Manager.Services;
 
 namespace M365Manager.ViewModels;
 
-public sealed partial class GroupsViewModel : ObservableObject
+public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
 {
+    /// <summary>Which tab the view shows; set by the shell when a Home tile navigates here.</summary>
+    [ObservableProperty] private int _selectedTabIndex;
+
     private readonly IExchangeService _exchange;
     private readonly IGroupAdminService _groupAdmin;
     private readonly IGroupNamingService _naming;
     private readonly ISettingsService _settings;
+    private readonly IDialogService _dialogs;
     private readonly ILogService _log;
     private readonly IM365AuthService _auth;
 
@@ -127,12 +132,39 @@ public sealed partial class GroupsViewModel : ObservableObject
     [ObservableProperty] private string _currentAliases = "";
 
     [ObservableProperty] private string _replaceMembersText = "";
-    [ObservableProperty] private bool _replaceMembersConfirmed;
 
     [ObservableProperty] private string _renameNewName = "";
     [ObservableProperty] private string _renameNewAddress = "";
 
-    [ObservableProperty] private bool _removeConfirmed;
+    // ================= Status severity =================
+    //
+    // The three status lines used to render as identical grey text, so a failure looked exactly
+    // like a success. Severity is set explicitly at each outcome rather than guessed from the
+    // wording - "Removed 0 members" is a success, "Could not find" is not, and no substring rule
+    // gets that right for long.
+
+    [ObservableProperty] private AlertSeverity _statusSeverity = AlertSeverity.Info;
+    [ObservableProperty] private AlertSeverity _createStatusSeverity = AlertSeverity.Info;
+    [ObservableProperty] private AlertSeverity _manageStatusSeverity = AlertSeverity.Info;
+
+    private void Status(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        StatusSeverity = severity;
+        StatusMessage = text;
+    }
+
+    private void CreateStatus(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        CreateStatusSeverity = severity;
+        CreateStatusMessage = text;
+    }
+
+    private void ManageStatus(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        ManageStatusSeverity = severity;
+        ManageStatusMessage = text;
+    }
+
 
     public GroupsViewModel(
         IExchangeService exchange,
@@ -141,7 +173,8 @@ public sealed partial class GroupsViewModel : ObservableObject
         IPowerShellTranscript transcript,
         IGroupAdminService groupAdmin,
         IGroupNamingService naming,
-        ISettingsService settings)
+        ISettingsService settings,
+        IDialogService dialogs)
     {
         _exchange = exchange;
         _log = log;
@@ -149,6 +182,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         _groupAdmin = groupAdmin;
         _naming = naming;
         _settings = settings;
+        _dialogs = dialogs;
         Transcript = transcript;
 
         MembersView = CollectionViewSource.GetDefaultView(Members);
@@ -189,7 +223,7 @@ public sealed partial class GroupsViewModel : ObservableObject
     {
         IsConnected = _exchange.IsConnected;
         if (IsConnected)
-            StatusMessage = "Connected to Exchange Online. Enter a name and search.";
+            Status("Connected to Exchange Online. Enter a name and search.", AlertSeverity.Error);
     }
 
     [RelayCommand]
@@ -223,14 +257,14 @@ public sealed partial class GroupsViewModel : ObservableObject
             IsConnected = _exchange.IsConnected;
             DeviceCodeMessage = "";
             DeviceCode = "";
-            StatusMessage = "Connected to Exchange Online. Enter a name and search.";
+            Status("Connected to Exchange Online. Enter a name and search.", AlertSeverity.Error);
             await SafeLogAsync("Connect", null, Severity.Success, "Connected to Exchange Online.");
         }
         catch (Exception ex)
         {
             DeviceCodeMessage = "";
             DeviceCode = "";
-            StatusMessage = $"Connection failed: {ex.Message}";
+            Status($"Connection failed: {ex.Message}", AlertSeverity.Error);
             await SafeLogAsync("Connect", null, Severity.Error, $"Exchange connect failed: {ex.Message}");
         }
         finally
@@ -275,12 +309,12 @@ public sealed partial class GroupsViewModel : ObservableObject
     {
         if (!IsConnected)
         {
-            StatusMessage = "Please connect to Exchange Online first.";
+            Status("Please connect to Exchange Online first.", AlertSeverity.Error);
             return;
         }
         if (string.IsNullOrWhiteSpace(SearchText))
         {
-            StatusMessage = "Enter a group name, alias or address to search.";
+            Status("Enter a group name, alias or address to search.", AlertSeverity.Error);
             return;
         }
 
@@ -300,12 +334,12 @@ public sealed partial class GroupsViewModel : ObservableObject
             foreach (var g in groups)
                 SearchResults.Add(g);
 
-            StatusMessage = $"{SearchResults.Count} group(s) found.";
+            Status($"{SearchResults.Count} group(s) found.", AlertSeverity.Success);
             await SafeLogAsync("Search", SearchText, Severity.Info, $"Group search '{SearchText}' returned {SearchResults.Count}.");
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Search failed: {ex.Message}";
+            Status($"Search failed: {ex.Message}", AlertSeverity.Error);
             await SafeLogAsync("Search", SearchText, Severity.Error, $"Group search failed: {ex.Message}");
         }
         finally
@@ -353,13 +387,13 @@ public sealed partial class GroupsViewModel : ObservableObject
             foreach (var m in members)
                 Members.Add(m);
 
-            StatusMessage = $"{group.DisplayName}: {Members.Count} member(s).";
+            Status($"{group.DisplayName}: {Members.Count} member(s).", AlertSeverity.Success);
             await SafeLogAsync("ViewMembers", group.PrimarySmtpAddress, Severity.Info,
                 $"Viewed {Members.Count} members of {group.DisplayName}.");
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Could not load members: {ex.Message}";
+            Status($"Could not load members: {ex.Message}", AlertSeverity.Error);
         }
         finally
         {
@@ -372,7 +406,7 @@ public sealed partial class GroupsViewModel : ObservableObject
     {
         if (SelectedGroup is null)
         {
-            StatusMessage = "Select a group first.";
+            Status("Select a group first.", AlertSeverity.Error);
             return;
         }
 
@@ -381,7 +415,7 @@ public sealed partial class GroupsViewModel : ObservableObject
             .ToList();
         if (identities.Count == 0)
         {
-            StatusMessage = "Enter a SamAccountName, email or UPN to add (comma-separate for multiple).";
+            Status("Enter a SamAccountName, email or UPN to add (comma-separate for multiple).", AlertSeverity.Error);
             return;
         }
         if (!TryRequireTaskNumber(out var task))
@@ -408,11 +442,11 @@ public sealed partial class GroupsViewModel : ObservableObject
 
             NewMemberAddress = "";
             await LoadMembersAsync(group);
-            StatusMessage = SummarizeOutcome(results, "Added", group.DisplayName, "to");
+            Status(SummarizeOutcome(results, "Added", group.DisplayName, "to"), AlertSeverity.Success);
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Add failed: {ex.Message}";
+            Status($"Add failed: {ex.Message}", AlertSeverity.Error);
             await SafeLogAsync("AddMember", group.PrimarySmtpAddress, Severity.Error, $"Add to {group.DisplayName} failed: {ex.Message}", task);
         }
         finally
@@ -426,7 +460,7 @@ public sealed partial class GroupsViewModel : ObservableObject
     {
         if (SelectedGroup is null)
         {
-            StatusMessage = "Select a group first.";
+            Status("Select a group first.", AlertSeverity.Error);
             return;
         }
 
@@ -435,7 +469,7 @@ public sealed partial class GroupsViewModel : ObservableObject
             : SelectedMember is not null ? new[] { SelectedMember } : Array.Empty<GroupMemberInfo>();
         if (members.Count == 0)
         {
-            StatusMessage = "Select one or more members to remove (click a row, or Ctrl/Shift-click for multiple).";
+            Status("Select one or more members to remove (click a row, or Ctrl/Shift-click for multiple).", AlertSeverity.Error);
             return;
         }
         if (!TryRequireTaskNumber(out var task))
@@ -443,13 +477,12 @@ public sealed partial class GroupsViewModel : ObservableObject
 
         var names = members.Select(m => m.DisplayName).ToList();
         var namesText = names.Count <= 10 ? string.Join(", ", names) : $"{string.Join(", ", names.Take(10))}, and {names.Count - 10} more";
-        var confirm = System.Windows.MessageBox.Show(
-            $"Remove {members.Count} member(s) from {SelectedGroup.DisplayName}?\n\n{namesText}",
-            "Confirm removal",
-            System.Windows.MessageBoxButton.YesNo,
-            System.Windows.MessageBoxImage.Warning);
 
-        if (confirm != System.Windows.MessageBoxResult.Yes)
+        if (!_dialogs.ConfirmDestructive(
+                $"Remove {members.Count} member(s) from {SelectedGroup.DisplayName}?",
+                "They lose access to anything delivered through this group. You can add them back afterwards.",
+                members.Count == 1 ? "Remove member" : $"Remove {members.Count} members",
+                namesText))
             return;
 
         var group = SelectedGroup;
@@ -471,11 +504,11 @@ public sealed partial class GroupsViewModel : ObservableObject
             }
 
             await LoadMembersAsync(group);
-            StatusMessage = SummarizeOutcome(results, "Removed", group.DisplayName, "from");
+            Status(SummarizeOutcome(results, "Removed", group.DisplayName, "from"), AlertSeverity.Success);
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Remove failed: {ex.Message}";
+            Status($"Remove failed: {ex.Message}", AlertSeverity.Error);
             await SafeLogAsync("RemoveMember", group.PrimarySmtpAddress, Severity.Error, $"Remove from {group.DisplayName} failed: {ex.Message}", task);
         }
         finally
@@ -490,7 +523,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         if (task.Length > 0)
             return true;
 
-        StatusMessage = "Enter the ServiceNow task number authorizing this change before continuing.";
+        Status("Enter the ServiceNow task number authorizing this change before continuing.", AlertSeverity.Error);
         return false;
     }
 
@@ -508,7 +541,7 @@ public sealed partial class GroupsViewModel : ObservableObject
     {
         if (SelectedGroup is null)
         {
-            StatusMessage = "Select a group first.";
+            Status("Select a group first.", AlertSeverity.Error);
             return;
         }
 
@@ -523,13 +556,13 @@ public sealed partial class GroupsViewModel : ObservableObject
             foreach (var m in members)
                 Members.Add(m);
 
-            StatusMessage = $"{group.DisplayName}: {Members.Count} direct member(s) synced.";
+            Status($"{group.DisplayName}: {Members.Count} direct member(s) synced.", AlertSeverity.Success);
             await SafeLogAsync("SyncMembers", group.PrimarySmtpAddress, Severity.Success,
                 $"Synced {Members.Count} direct members of {group.DisplayName} from Exchange.");
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Sync failed: {ex.Message}";
+            Status($"Sync failed: {ex.Message}", AlertSeverity.Error);
             await SafeLogAsync("SyncMembers", group.PrimarySmtpAddress, Severity.Error,
                 $"Sync members of {group.DisplayName} failed: {ex.Message}");
         }
@@ -544,7 +577,7 @@ public sealed partial class GroupsViewModel : ObservableObject
     {
         if (SelectedGroup is null)
         {
-            StatusMessage = "Select a group first.";
+            Status("Select a group first.", AlertSeverity.Error);
             return;
         }
 
@@ -559,11 +592,11 @@ public sealed partial class GroupsViewModel : ObservableObject
         try
         {
             GroupExportService.ExportToExcel(dialog.FileName, SelectedGroup, Members.ToList());
-            StatusMessage = $"Exported to {dialog.FileName}.";
+            Status($"Exported to {dialog.FileName}.", AlertSeverity.Success);
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Export failed: {ex.Message}";
+            Status($"Export failed: {ex.Message}", AlertSeverity.Error);
         }
     }
 
@@ -572,7 +605,7 @@ public sealed partial class GroupsViewModel : ObservableObject
     {
         if (SelectedGroup is null)
         {
-            StatusMessage = "Select a group first.";
+            Status("Select a group first.", AlertSeverity.Error);
             return;
         }
 
@@ -587,11 +620,11 @@ public sealed partial class GroupsViewModel : ObservableObject
         try
         {
             GroupExportService.ExportToCsv(dialog.FileName, SelectedGroup, Members.ToList());
-            StatusMessage = $"Exported to {dialog.FileName}.";
+            Status($"Exported to {dialog.FileName}.", AlertSeverity.Success);
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Export failed: {ex.Message}";
+            Status($"Export failed: {ex.Message}", AlertSeverity.Error);
         }
     }
 
@@ -705,7 +738,7 @@ public sealed partial class GroupsViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(CreateTaskNumber))
         {
-            CreateStatusMessage = "Enter the ticket/task number authorizing this creation.";
+            CreateStatus("Enter the ticket/task number authorizing this creation.", AlertSeverity.Error);
             return;
         }
 
@@ -719,7 +752,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            CreateStatusMessage = $"Creation failed: {ErrorText.Describe(ex)}";
+            CreateStatus($"Creation failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -754,6 +787,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         var result = await _groupAdmin.CreateAsync(request, msg => CreateStatusMessage = msg);
         if (result.Succeeded)
         {
+            CreateStatusSeverity = result.Warning is { Length: > 0 } ? AlertSeverity.Warning : AlertSeverity.Success;
             CreateStatusMessage = result.Warning is { Length: > 0 }
                 ? $"'{result.DisplayName}' created - but note: {result.Warning}"
                 : $"'{result.DisplayName}' ({result.Address}) created.";
@@ -761,7 +795,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         }
         else
         {
-            CreateStatusMessage = $"Creation failed: {result.ErrorMessage}";
+            CreateStatus($"Creation failed: {result.ErrorMessage}", AlertSeverity.Error);
         }
     }
 
@@ -788,6 +822,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         Transcript.BeginOperation($"Create dynamic group: {request.DisplayName}");
 
         var result = await _groupAdmin.CreateDynamicAsync(request, msg => CreateStatusMessage = msg);
+        CreateStatusSeverity = result.Succeeded ? AlertSeverity.Success : AlertSeverity.Error;
         CreateStatusMessage = result.Succeeded
             ? $"'{result.DisplayName}' ({result.Address}) created."
               + (result.Warning is { Length: > 0 } w ? $" WARNING: {w}" : "")
@@ -826,8 +861,6 @@ public sealed partial class GroupsViewModel : ObservableObject
         CurrentAliases = "";
         RenameNewName = "";
         RenameNewAddress = "";
-        RemoveConfirmed = false;
-        ReplaceMembersConfirmed = false;
 
         if (group is null)
             return;
@@ -852,7 +885,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            ManageStatusMessage = $"Could not read group details: {ErrorText.Describe(ex)}";
+            ManageStatus($"Could not read group details: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
     }
 
@@ -882,11 +915,12 @@ public sealed partial class GroupsViewModel : ObservableObject
     {
         if (!result.Succeeded)
         {
-            ManageStatusMessage = $"Failed: {result.ErrorMessage}";
+            ManageStatus($"Failed: {result.ErrorMessage}", AlertSeverity.Error);
             return;
         }
 
         var failed = result.Results.Where(r => !r.Succeeded).ToList();
+        ManageStatusSeverity = failed.Count == 0 ? AlertSeverity.Success : AlertSeverity.Error;
         ManageStatusMessage = failed.Count == 0
             ? success
             : $"{success} {failed.Count} failed: {string.Join("; ", failed.Select(f => $"{f.Identity} ({f.Error})"))}";
@@ -913,7 +947,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            ManageStatusMessage = $"Owner change failed: {ErrorText.Describe(ex)}";
+            ManageStatus($"Owner change failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -942,7 +976,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            ManageStatusMessage = $"Authorized sender change failed: {ErrorText.Describe(ex)}";
+            ManageStatus($"Authorized sender change failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -971,7 +1005,7 @@ public sealed partial class GroupsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            ManageStatusMessage = $"Alias change failed: {ErrorText.Describe(ex)}";
+            ManageStatus($"Alias change failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -983,11 +1017,20 @@ public sealed partial class GroupsViewModel : ObservableObject
     private async Task ReplaceMembersAsync()
     {
         if (!ValidateManage(out var error)) { ManageStatusMessage = error; return; }
-        if (!ReplaceMembersConfirmed)
-        {
-            ManageStatusMessage = "Tick the confirmation box - this discards the current membership.";
+
+        // The inline "yes I am sure" checkbox this used to have sat in the same scroll column as
+        // every harmless action and could be ticked minutes before the button was pressed. A modal
+        // asks at the moment of the decision and names what is about to be discarded.
+        var incoming = ReplaceMembersText
+            .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Length;
+
+        if (!_dialogs.ConfirmDestructive(
+                $"Replace the entire membership of {SelectedGroup!.DisplayName}?",
+                $"Everyone currently in the group who is not in your list is removed. The group ends up with exactly the {incoming} identities you entered.",
+                "Replace membership",
+                "The previous membership is written to the log first, so it can be reconstructed."))
             return;
-        }
 
         IsManageBusy = true;
         ManageStatusMessage = "Replacing membership...";
@@ -1002,13 +1045,12 @@ public sealed partial class GroupsViewModel : ObservableObject
             if (result.Succeeded)
             {
                 ReplaceMembersText = "";
-                ReplaceMembersConfirmed = false;
                 await RefreshSelectedGroupAsync();
             }
         }
         catch (Exception ex)
         {
-            ManageStatusMessage = $"Replace failed: {ErrorText.Describe(ex)}";
+            ManageStatus($"Replace failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -1033,13 +1075,15 @@ public sealed partial class GroupsViewModel : ObservableObject
             var result = await _groupAdmin.RefreshMailTipAsync(
                 GroupIdentity(SelectedGroup!), ManageTaskNumber.Trim());
 
+            ManageStatusSeverity = result.Succeeded ? AlertSeverity.Success : AlertSeverity.Error;
+
             ManageStatusMessage = result.Succeeded
                 ? $"MailTip is now: {result.Info}"
                 : $"MailTip refresh failed: {result.ErrorMessage}";
         }
         catch (Exception ex)
         {
-            ManageStatusMessage = $"MailTip refresh failed: {ErrorText.Describe(ex)}";
+            ManageStatus($"MailTip refresh failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -1068,18 +1112,19 @@ public sealed partial class GroupsViewModel : ObservableObject
 
             if (result.Succeeded)
             {
+                ManageStatusSeverity = result.Warning is { Length: > 0 } ? AlertSeverity.Warning : AlertSeverity.Success;
                 ManageStatusMessage = $"Renamed to '{result.DisplayName}' ({result.Address}). The previous address is kept as an alias."
                     + (result.Warning is { Length: > 0 } w ? $" WARNING: {w}" : "");
                 await SearchAsync();
             }
             else
             {
-                ManageStatusMessage = $"Rename failed: {result.ErrorMessage}";
+                ManageStatus($"Rename failed: {result.ErrorMessage}", AlertSeverity.Error);
             }
         }
         catch (Exception ex)
         {
-            ManageStatusMessage = $"Rename failed: {ErrorText.Describe(ex)}";
+            ManageStatus($"Rename failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {
@@ -1091,11 +1136,14 @@ public sealed partial class GroupsViewModel : ObservableObject
     private async Task RemoveGroupAsync()
     {
         if (!ValidateManage(out var error)) { ManageStatusMessage = error; return; }
-        if (!RemoveConfirmed)
-        {
-            ManageStatusMessage = "Tick the confirmation box - deleting a group cannot be undone here.";
+
+        if (!_dialogs.ConfirmDestructive(
+                $"Delete {SelectedGroup!.DisplayName}?",
+                "The group and its membership are deleted from the tenant. This cannot be undone from here - "
+                + "restoring it means recreating the group and its members by hand.",
+                "Delete group",
+                $"{SelectedGroup.PrimarySmtpAddress} - members, owners, aliases and settings are written to the log before anything is deleted."))
             return;
-        }
 
         var name = SelectedGroup!.DisplayName;
         IsManageBusy = true;
@@ -1112,20 +1160,20 @@ public sealed partial class GroupsViewModel : ObservableObject
 
             if (result.Succeeded)
             {
+                ManageStatusSeverity = AlertSeverity.Success;
                 ManageStatusMessage = $"'{name}' removed as {result.RemovedAs}. A snapshot was written to the log."
                     + (result.Warning is { Length: > 0 } w ? $" WARNING: {w}" : "");
-                RemoveConfirmed = false;
                 SelectedGroup = null;
                 await SearchAsync();
             }
             else
             {
-                ManageStatusMessage = $"Removal failed: {result.ErrorMessage}";
+                ManageStatus($"Removal failed: {result.ErrorMessage}", AlertSeverity.Error);
             }
         }
         catch (Exception ex)
         {
-            ManageStatusMessage = $"Removal failed: {ErrorText.Describe(ex)}";
+            ManageStatus($"Removal failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {

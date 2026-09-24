@@ -198,20 +198,10 @@
                                     <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
                                         <StackPanel>
                                             <StackPanel Orientation="Horizontal" Margin="{DynamicResource GapField}">
-                                                <StackPanel Margin="0,0,16,0">
+                                                <StackPanel>
                                                     <TextBlock Style="{StaticResource FieldLabel}" Text="Capacity" />
                                                     <TextBox AutomationProperties.Name="Capacity" Style="{StaticResource ModernTextBox}" Width="90"
                                                              Text="{Binding EditCapacity, UpdateSourceTrigger=PropertyChanged}" />
-                                                </StackPanel>
-                                                <StackPanel Margin="0,0,16,0">
-                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Building" />
-                                                    <TextBox AutomationProperties.Name="Building" Style="{StaticResource ModernTextBox}" Width="130"
-                                                             Text="{Binding EditBuilding, UpdateSourceTrigger=PropertyChanged}" />
-                                                </StackPanel>
-                                                <StackPanel>
-                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Floor" />
-                                                    <TextBox AutomationProperties.Name="Floor" Style="{StaticResource ModernTextBox}" Width="80"
-                                                             Text="{Binding EditFloor, UpdateSourceTrigger=PropertyChanged}" />
                                                 </StackPanel>
                                             </StackPanel>
 
@@ -443,9 +433,6 @@
                                                Text="{Binding PreviewDisplayName, StringFormat='Display name:  {0}'}" />
                                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
                                                Text="{Binding PreviewAddress, StringFormat='Address:  {0}'}" />
-                                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
-                                               Text="{Binding PreviewOffice, StringFormat='Location:  {0}'}"
-                                               Visibility="{Binding PreviewOffice, Converter={StaticResource EmptyToCollapsed}}" />
                                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,4"
                                                Text="{Binding PreviewSiteInfo, StringFormat='Site:  {0}'}"
                                                Visibility="{Binding PreviewSiteInfo, Converter={StaticResource EmptyToCollapsed}}" />

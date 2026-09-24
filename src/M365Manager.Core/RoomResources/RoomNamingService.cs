@@ -109,22 +109,7 @@ public sealed class RoomNamingService : IRoomNamingService
             UsersGroup: usersGroup,
             DelegateGroupAddress: $"{delegateGroup}@{(groupDomain ?? "").Trim()}",
             UsersGroupAddress: usersGroup.Length > 0 ? $"{usersGroup}@{(groupDomain ?? "").Trim()}" : "",
-            Office: BuildOffice(building, floor),
             SiteCode: siteCode);
-    }
-
-    /// <summary>The Set-User -Office value, e.g. "Building 3, Floor 2" (RoomEquipNew.ps1:5-34).</summary>
-    public static string BuildOffice(string? building, string? floor)
-    {
-        var bldg = (building ?? "").Trim();
-        var flr = (floor ?? "").Trim();
-
-        var floorText = flr.Length == 0 ? "" : IsGroundFloor(flr) ? "Ground Floor" : $"Floor {flr}";
-
-        if (bldg.Length == 0)
-            return floorText;
-
-        return floorText.Length == 0 ? $"Building {bldg}" : $"Building {bldg}, {floorText}";
     }
 
     /// <summary>Legacy accepted both "0" (RoomEquipNew.ps1) and "Ground" (Build-MbxName) for the ground floor.</summary>

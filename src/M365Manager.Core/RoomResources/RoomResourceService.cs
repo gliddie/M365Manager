@@ -293,7 +293,12 @@ public sealed class RoomResourceService : IRoomResourceService
             if (!await WaitForMailboxAsync(names.Address, onProgress, ct))
                 return await FailCreateAsync(correlationId, request.TaskNumber, "Timed out waiting for the new mailbox to appear in Exchange Online.");
 
-            // 3. Quotas, office location, provenance stamp.
+            // 3. Quotas and provenance stamp.
+            //    No office location: the legacy RoomEquipNew.ps1 computed "Building x, Floor y" but
+            //    never wrote it, and that value isn't what this organization keeps in Office
+            //    fields (the site name goes there). Should it come back: Set-User asks for
+            //    confirmation, so it needs -Confirm:$false - without it the hosted runspace
+            //    failed with EXO's generic "A server side error has occurred".
             await _host.InvokeAsync(ps => ps
                 .AddCommand("Set-Mailbox")
                 .AddParameter("Identity", names.Address)
@@ -302,16 +307,6 @@ public sealed class RoomResourceService : IRoomResourceService
                 .AddParameter("ProhibitSendReceiveQuota", "1.0GB")
                 .AddParameter("CustomAttribute15", $"M365Manager {request.Kind} {DateTime.UtcNow:yyyy-MM-dd HH:mm} Per: {request.TaskNumber}")
                 .AddParameter("ErrorAction", "Stop"), ct: ct);
-
-            if (names.Office.Length > 0)
-            {
-                await _host.InvokeAsync(ps => ps
-                    .AddCommand("Set-User")
-                    .AddParameter("Identity", names.Address)
-                    .AddParameter("Office", names.Office)
-                    .AddParameter("ErrorAction", "Stop"), ct: ct);
-                await LogAsync(correlationId, "Create", "CFG", $"Office location set to '{names.Office}'", request.TaskNumber, Severity.Success);
-            }
 
             // 4. Room list (rooms only) - created on demand, then the room joins it.
             if (request.Kind == ResourceKind.Room)
@@ -695,19 +690,6 @@ public sealed class RoomResourceService : IRoomResourceService
                 readableChanges.Add($"The capacity is now {capacity} people.");
             }
 
-            var office = RoomNamingService.BuildOffice(request.Building, request.Floor);
-            if (office.Length > 0)
-            {
-                Progress(onProgress, "Updating location...");
-                await _host.InvokeAsync(ps => ps
-                    .AddCommand("Set-User")
-                    .AddParameter("Identity", address)
-                    .AddParameter("Office", office)
-                    .AddParameter("ErrorAction", "Stop"), ct: ct);
-                changes.Add($"office='{office}'");
-                readableChanges.Add($"The location is now {office}.");
-            }
-
             if (!string.IsNullOrWhiteSpace(request.TimeZone))
             {
                 Progress(onProgress, "Updating time zone...");
@@ -766,7 +748,7 @@ public sealed class RoomResourceService : IRoomResourceService
 
             await LogAsync(correlationId, "UpdateDetails", "DONE", "Room/resource detail change has completed", request.TaskNumber, Severity.Success);
 
-            await UpdateCacheDetailsAsync(address, request, office, ct);
+            await UpdateCacheDetailsAsync(address, request, ct);
 
             return new RoomResourceCreationResult
             {
@@ -1356,7 +1338,8 @@ public sealed class RoomResourceService : IRoomResourceService
                 int.TryParse(request.Capacity?.Trim(), out var cap) ? cap : DBNull.Value;
             cmd.Parameters.Add("@Building", SqlDbType.NVarChar, 128).Value = NullableParam(request.Building);
             cmd.Parameters.Add("@Floor", SqlDbType.NVarChar, 32).Value = NullableParam(request.Floor);
-            cmd.Parameters.Add("@Office", SqlDbType.NVarChar, 256).Value = NullableParam(names.Office);
+            // Creation doesn't set the Office field, so the cache mustn't claim a value either.
+            cmd.Parameters.Add("@Office", SqlDbType.NVarChar, 256).Value = DBNull.Value;
             cmd.Parameters.Add("@SiteCode", SqlDbType.NVarChar, 16).Value = NullableParam(names.SiteCode);
             cmd.Parameters.Add("@TimeZone", SqlDbType.NVarChar, 128).Value = NullableParam(timeZone);
             cmd.Parameters.Add("@RoomList", SqlDbType.NVarChar, 256).Value =
@@ -1376,7 +1359,7 @@ public sealed class RoomResourceService : IRoomResourceService
         }
     }
 
-    private async Task UpdateCacheDetailsAsync(string address, RoomDetailsUpdateRequest request, string office, CancellationToken ct)
+    private async Task UpdateCacheDetailsAsync(string address, RoomDetailsUpdateRequest request, CancellationToken ct)
     {
         var cs = _connectionStrings.GetConnectionString();
         if (string.IsNullOrWhiteSpace(cs))
@@ -1391,9 +1374,6 @@ public sealed class RoomResourceService : IRoomResourceService
             const string sql = """
                 UPDATE dbo.RoomResources SET
                     Capacity = COALESCE(@Capacity, Capacity),
-                    Building = COALESCE(@Building, Building),
-                    Floor = COALESCE(@Floor, Floor),
-                    Office = COALESCE(@Office, Office),
                     TimeZone = COALESCE(@TimeZone, TimeZone),
                     BookingPolicy = COALESCE(@BookingPolicy, BookingPolicy),
                     BookingWindowInDays = COALESCE(@Window, BookingWindowInDays),
@@ -1409,9 +1389,6 @@ public sealed class RoomResourceService : IRoomResourceService
             cmd.Parameters.Add("@Address", SqlDbType.NVarChar, 256).Value = address;
             cmd.Parameters.Add("@Capacity", SqlDbType.Int).Value =
                 int.TryParse(request.Capacity?.Trim(), out var cap) ? cap : DBNull.Value;
-            cmd.Parameters.Add("@Building", SqlDbType.NVarChar, 128).Value = NullableParam(request.Building);
-            cmd.Parameters.Add("@Floor", SqlDbType.NVarChar, 32).Value = NullableParam(request.Floor);
-            cmd.Parameters.Add("@Office", SqlDbType.NVarChar, 256).Value = NullableParam(office);
             cmd.Parameters.Add("@TimeZone", SqlDbType.NVarChar, 128).Value = NullableParam(request.TimeZone);
             cmd.Parameters.Add("@BookingPolicy", SqlDbType.NVarChar, 32).Value =
                 request.Preset is { } preset ? preset.ToString() : DBNull.Value;

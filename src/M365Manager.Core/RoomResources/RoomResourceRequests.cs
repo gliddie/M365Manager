@@ -131,9 +131,6 @@ public sealed class RoomDetailsUpdateRequest
     /// <summary>Rooms only. Empty leaves the current capacity untouched.</summary>
     public string Capacity { get; init; } = "";
 
-    public string Building { get; init; } = "";
-    public string Floor { get; init; } = "";
-
     /// <summary>Empty leaves the current time zone untouched.</summary>
     public string TimeZone { get; init; } = "";
 

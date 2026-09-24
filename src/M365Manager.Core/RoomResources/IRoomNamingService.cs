@@ -11,13 +11,11 @@ public sealed record RoomNames(
     string UsersGroup,
     string DelegateGroupAddress,
     string UsersGroupAddress,
-    string Office,
     string SiteCode);
 
 /// <summary>
 /// Builds room/equipment display names, addresses and the associated room-list, delegate and
-/// users group names, matching RoomResourceNewForm.ps1::Build-MbxName and RoomEquipNew.ps1's
-/// Office-string logic.
+/// users group names, matching RoomResourceNewForm.ps1::Build-MbxName.
 /// </summary>
 public interface IRoomNamingService
 {

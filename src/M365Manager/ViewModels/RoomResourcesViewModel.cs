@@ -49,7 +49,6 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
     [ObservableProperty] private string _previewRoomList = "";
     [ObservableProperty] private string _previewDelegateGroup = "";
     [ObservableProperty] private string _previewUsersGroup = "";
-    [ObservableProperty] private string _previewOffice = "";
     [ObservableProperty] private string _previewSiteInfo = "";
     [ObservableProperty] private string _previewProblems = "";
 
@@ -81,8 +80,6 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
     /// <summary>Requester for the manage panel's operations (edit / membership / remove).</summary>
     [ObservableProperty] private string _manageRequesterIdentity = "";
     [ObservableProperty] private string _editCapacity = "";
-    [ObservableProperty] private string _editBuilding = "";
-    [ObservableProperty] private string _editFloor = "";
     [ObservableProperty] private string _editTimeZone = "";
     [ObservableProperty] private bool _changeBookingPolicy;
     [ObservableProperty] private BookingPolicyPreset _editPreset = BookingPolicyPreset.Standard;
@@ -143,16 +140,17 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
     partial void OnMailboxDomainOverrideChanged(string value) => _ = RefreshPreviewAsync();
     partial void OnGroupDomainOverrideChanged(string value) => _ = RefreshPreviewAsync();
 
+    // A selection is one deliberate change, not a burst of keystrokes - no need to wait.
     partial void OnKindChanged(ResourceKind value)
     {
         OnPropertyChanged(nameof(IsRoom));
-        _ = RefreshPreviewAsync();
+        _ = RefreshPreviewAsync(debounce: false);
     }
 
     partial void OnAccessModelChanged(RoomAccessModel value)
     {
         OnPropertyChanged(nameof(IsRestricted));
-        _ = RefreshPreviewAsync();
+        _ = RefreshPreviewAsync(debounce: false);
     }
 
     partial void OnPresetChanged(BookingPolicyPreset value) => OnPropertyChanged(nameof(IsCustomPolicy));
@@ -182,7 +180,10 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
         MaximumConflictInstances: CustomAllowRecurring ? 3 : 0,
         ConflictPercentageAllowed: CustomAllowRecurring ? 20 : 0);
 
-    private async Task RefreshPreviewAsync()
+    /// <summary>Pause after the last keystroke before the preview asks Exchange anything.</summary>
+    private static readonly TimeSpan PreviewDebounce = TimeSpan.FromMilliseconds(500);
+
+    private async Task RefreshPreviewAsync(bool debounce = true)
     {
         var version = ++_previewRequestVersion;
 
@@ -194,13 +195,23 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
 
         try
         {
+            // The preview probes Exchange for the mailbox, room list and groups - several
+            // cmdlets per call. Without the pause, typing "FRK Cristian Test" ran them for every
+            // letter and filled the PowerShell console. A newer keystroke bumps the version and
+            // this call gives up before it has touched Exchange.
+            if (debounce)
+            {
+                await Task.Delay(PreviewDebounce);
+                if (version != _previewRequestVersion)
+                    return;
+            }
+
             var preview = await _rooms.PreviewAsync(BuildRequest());
             if (version != _previewRequestVersion)
                 return;
 
             PreviewDisplayName = preview.Names.DisplayName;
             PreviewAddress = preview.Names.Address;
-            PreviewOffice = preview.Names.Office;
             PreviewRoomList = Kind == ResourceKind.Room
                 ? Decorate(preview.Names.RoomListName, preview.RoomListExists)
                 : "";
@@ -242,7 +253,6 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
         PreviewRoomList = "";
         PreviewDelegateGroup = "";
         PreviewUsersGroup = "";
-        PreviewOffice = "";
         PreviewSiteInfo = "";
         PreviewProblems = "";
     }
@@ -269,7 +279,9 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
         try
         {
             var result = await _rooms.CreateAsync(BuildRequest(), msg => StatusMessage = msg);
-            StatusSeverity = result.Succeeded ? AlertSeverity.Success : AlertSeverity.Error;
+            StatusSeverity = !result.Succeeded ? AlertSeverity.Error
+                : result.WarningMessage is null ? AlertSeverity.Success
+                : AlertSeverity.Warning;
             StatusMessage = result.Succeeded
                 ? $"'{result.DisplayName}' ({result.PrimarySmtpAddress}) created successfully."
                   + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}")
@@ -391,8 +403,6 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
             return;
 
         EditCapacity = value.Capacity?.ToString() ?? "";
-        EditBuilding = value.Building;
-        EditFloor = value.Floor;
         EditTimeZone = value.TimeZone;
         ChangeBookingPolicy = false;
         if (Enum.TryParse<BookingPolicyPreset>(value.BookingPolicy, out var preset))
@@ -456,8 +466,6 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
                 ? ResourceKind.Equipment
                 : ResourceKind.Room,
             Capacity = EditCapacity.Trim(),
-            Building = EditBuilding.Trim(),
-            Floor = EditFloor.Trim(),
             TimeZone = EditTimeZone.Trim(),
             Preset = ChangeBookingPolicy ? EditPreset : null,
             CustomPolicy = ChangeBookingPolicy && EditPreset == BookingPolicyPreset.Custom ? BuildCustomPolicy() : null,
@@ -469,7 +477,9 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
         try
         {
             var result = await _rooms.UpdateDetailsAsync(request, msg => ManageStatusMessage = msg);
-            ManageStatusSeverity = result.Succeeded ? AlertSeverity.Success : AlertSeverity.Error;
+            ManageStatusSeverity = !result.Succeeded ? AlertSeverity.Error
+                : result.WarningMessage is null ? AlertSeverity.Success
+                : AlertSeverity.Warning;
             ManageStatusMessage = result.Succeeded
                 ? $"Updated {result.PrimarySmtpAddress}."
                   + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}")

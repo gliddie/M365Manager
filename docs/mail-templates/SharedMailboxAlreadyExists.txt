@@ -1,0 +1,17 @@
+Subject: SharedMailboxName Already Exists - TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+Send this message to the Requestor and the current mailbox owners.
+ 
+Per your request the SharedMBXName already exists and was created on Date.  The current owner(s) is/are NamesOfOwners.  If you need access to this mailbox the existing mailbox owner will need to grant you those rights.  If you are looking for changes to the ownership of the mailbox the mailbox owner will need to submit a Shared Mailbox Ownership Change request form in order for changes in mailbox ownership to be made.
+ 
+In the future if you need to locate the ownership of a shared mailbox, create a new email message and enter the address in the "To" line.  In the mailtips area you it will display the owner(s) of the mailbox:
+ 
+
+ 
+Since the mailbox exists and you are not the current owner this subject service desk ticket is being closed.
+ 
+

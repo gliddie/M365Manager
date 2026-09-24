@@ -1,0 +1,13 @@
+Subject: Removal of MBXName Shared Mailbox - TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+As requested the shared mailbox MBXName and the groups created to manage access to this mailbox have been removed from the system.  It may take up to 72 hrs for the removal of these items to sync to the Offline Address List.  In the meanwhile if individuals try to email this mailbox they will receive a delivery failure message indicating that the email address cannot be resolved.
+ 
+With the removal of these items this ticket is being closed. 
+ 
+Thanks, 
+ 
+

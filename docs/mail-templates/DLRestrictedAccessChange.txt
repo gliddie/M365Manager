@@ -1,0 +1,8 @@
+Subject: Access to Restricted Email Group NameOfGroup - TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+As requested and with the appropriate authorization NamesOfIndividual(s) have been given access/had access removed to use the NameofGroup email groups.  It may take 15-30 minutes for these access changes to synchronize through the environment.   With access granted the subject ticket is being closed.
+

@@ -499,3 +499,6 @@ docs/legacy-powershell/**/*.txt
 
 # Bundled PowerShell modules (large; restored via Save-Module, included at publish)
 src/M365Manager/Modules/
+
+# Claude Code: machine-local settings (permission allowlist of one workstation)
+.claude/settings.local.json

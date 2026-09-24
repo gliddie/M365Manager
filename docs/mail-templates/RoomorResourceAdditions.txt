@@ -1,0 +1,15 @@
+Subject: RoomName Created - TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+The creation of the new room NameOfRoom has been completed.  It may take up to 72 hrs to be available in the offline address list.  Using the Room Finder individuals can select rooms from the 3LtrSiteCode Conference Rooms:
+ 
+     
+ 
+The existing room delegates have designated to manage out of policy requests for this new room. 
+ 
+With this information this ticket will be closed. 
+ 
+

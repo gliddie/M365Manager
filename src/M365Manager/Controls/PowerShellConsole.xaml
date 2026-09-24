@@ -1,0 +1,63 @@
+<UserControl x:Class="M365Manager.Controls.PowerShellConsole"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignHeight="320" d:DesignWidth="800">
+
+    <!--
+        The console keeps the classic PowerShell host look - dark blue ground, light grey text - in
+        both themes, because that is what it is imitating. The values still come from the Console*
+        tokens rather than being written here, so there is one place to change them.
+
+        The heading the control used to carry is gone: the shell's drawer already says what this is.
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Grid.RowSpan="2"
+                CornerRadius="{DynamicResource RadiusControl}"
+                Background="{DynamicResource ConsoleBackBrush}"
+                BorderBrush="{DynamicResource ConsoleBackAltBrush}" BorderThickness="1" />
+
+        <RichTextBox x:Name="Console" Grid.Row="0"
+                     Background="Transparent"
+                     Foreground="{DynamicResource ConsoleTextBrush}"
+                     BorderThickness="0" Padding="12,12,12,8"
+                     FontFamily="{DynamicResource FontFamilyMono}" FontSize="12.5"
+                     IsReadOnly="True" IsDocumentEnabled="False"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Auto"
+                     SelectionBrush="{DynamicResource ConsoleAccentBrush}"
+                     MinHeight="120"
+                     AutomationProperties.Name="PowerShell transcript">
+            <RichTextBox.Resources>
+                <!-- Paragraphs default to a margin that would double-space the console. -->
+                <Style TargetType="Paragraph">
+                    <Setter Property="Margin" Value="0" />
+                </Style>
+            </RichTextBox.Resources>
+        </RichTextBox>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="12,0,12,12">
+            <Button x:Name="CopyButton" Content="Copy all" Click="CopyButton_Click"
+                    Style="{StaticResource SecondaryButtonSmall}"
+                    ToolTip="Copies the whole transcript to the clipboard" />
+            <Button x:Name="ClearButton" Content="Clear" Click="ClearButton_Click"
+                    Margin="{DynamicResource GapInline}"
+                    Style="{StaticResource SecondaryButtonSmall}" />
+            <CheckBox x:Name="AutoScrollBox" Content="Auto-scroll" IsChecked="True"
+                      Margin="16,0,0,0" VerticalAlignment="Center"
+                      FontFamily="{DynamicResource FontFamilyUi}"
+                      FontSize="{DynamicResource FontSmall}"
+                      Foreground="{DynamicResource ConsoleMutedBrush}" />
+            <TextBlock x:Name="StatusText" Margin="16,0,0,0" VerticalAlignment="Center"
+                       FontFamily="{DynamicResource FontFamilyUi}"
+                       FontSize="{DynamicResource FontSmall}"
+                       Foreground="{DynamicResource ConsoleMutedBrush}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

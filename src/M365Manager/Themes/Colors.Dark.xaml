@@ -1,0 +1,106 @@
+<!--
+    Dark palette. Same keys as Colors.Light.xaml - see that file for what each role means.
+
+    The brand section below explains why this palette needs two brand tokens rather than one.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ===================== Surfaces ===================== -->
+    <Color x:Key="PageColor">#14161A</Color>
+    <Color x:Key="SurfaceColor">#1C1F24</Color>
+    <Color x:Key="SurfaceAltColor">#22262C</Color>
+    <Color x:Key="SidebarColor">#1A1D22</Color>
+    <Color x:Key="OverlayColor">#B3000000</Color>
+
+    <!-- ===================== Lines ===================== -->
+    <Color x:Key="BorderColor">#2E333B</Color>
+    <!-- 3.69:1 against the card. See Colors.Light.xaml - the old #3D444E measured 1.68. -->
+    <Color x:Key="BorderStrongColor">#6E7885</Color>
+
+    <!-- ===================== Text ===================== -->
+    <Color x:Key="TextColor">#E8EAED</Color>
+    <Color x:Key="TextMutedColor">#9AA3AF</Color>
+    <Color x:Key="TextInverseColor">#14161A</Color>
+    <Color x:Key="TextDisabledColor">#5B6472</Color>
+
+    <!-- ===================== Brand =====================
+         Measured, not estimated. On a dark ground no single red does both jobs:
+           - as a FILL under white text, #CA0123 gives white 5.93:1 - keep it
+           - as TEXT or a glyph on a dark card it only reaches 2.8:1 - far too low
+         So the two roles split here. BrandColor stays the deep red for fills; BrandTextColor is
+         the lightened tone used for brand-coloured text, icons, accent bars and borders (5.82:1
+         on a card). Hover is #D81F3C: lighter than the base so the change is visible, and still
+         5.02:1 under white. -->
+    <Color x:Key="BrandColor">#CA0123</Color>
+    <Color x:Key="BrandHoverColor">#D81F3C</Color>
+    <Color x:Key="BrandSoftColor">#3A121B</Color>
+    <!-- Label colour for anything sitting ON a brand or danger fill. White in both palettes:
+         the fill is dark red either way, so this does NOT follow the theme. Distinct from
+         TextInverse, which means "text on an inverted surface" and is near-black in dark. -->
+    <Color x:Key="OnBrandColor">#FFFFFF</Color>
+    <Color x:Key="BrandTextColor">#F2707F</Color>
+
+    <!-- ===================== Signal ===================== -->
+    <Color x:Key="SuccessColor">#4ADE80</Color>
+    <Color x:Key="SuccessSoftColor">#13291C</Color>
+    <Color x:Key="WarningColor">#FBBF24</Color>
+    <Color x:Key="WarningSoftColor">#2E2310</Color>
+    <Color x:Key="DangerColor">#F87171</Color>
+    <Color x:Key="DangerSoftColor">#341617</Color>
+    <!-- White on this is 5.62:1. Its edge against the dialog surface is only 2.94:1, so
+         DangerConfirmButton draws a 1px border in DangerColor (5.96:1) to make the boundary
+         unambiguous - see Styles.xaml. -->
+    <Color x:Key="DangerFillColor">#C62828</Color>
+    <Color x:Key="InfoColor">#CBD5E1</Color>
+    <Color x:Key="InfoSoftColor">#22262C</Color>
+
+    <Color x:Key="FocusColor">#E8EAED</Color>
+
+    <!-- Console keeps the same look in both themes. -->
+    <Color x:Key="ConsoleBackColor">#012456</Color>
+    <Color x:Key="ConsoleBackAltColor">#0A3A80</Color>
+    <Color x:Key="ConsoleTextColor">#EEEEEE</Color>
+    <Color x:Key="ConsoleMutedColor">#BBCCEE</Color>
+    <Color x:Key="ConsoleAccentColor">#3A6EA5</Color>
+
+    <!-- ===================== Brushes ===================== -->
+    <SolidColorBrush x:Key="PageBrush" Color="{StaticResource PageColor}" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+    <SolidColorBrush x:Key="SurfaceAltBrush" Color="{StaticResource SurfaceAltColor}" />
+    <SolidColorBrush x:Key="SidebarBrush" Color="{StaticResource SidebarColor}" />
+    <SolidColorBrush x:Key="OverlayBrush" Color="{StaticResource OverlayColor}" />
+
+    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="BorderStrongBrush" Color="{StaticResource BorderStrongColor}" />
+
+    <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
+    <SolidColorBrush x:Key="TextInverseBrush" Color="{StaticResource TextInverseColor}" />
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="{StaticResource TextDisabledColor}" />
+
+    <SolidColorBrush x:Key="BrandBrush" Color="{StaticResource BrandColor}" />
+    <SolidColorBrush x:Key="BrandHoverBrush" Color="{StaticResource BrandHoverColor}" />
+    <SolidColorBrush x:Key="BrandSoftBrush" Color="{StaticResource BrandSoftColor}" />
+    <SolidColorBrush x:Key="OnBrandBrush" Color="{StaticResource OnBrandColor}" />
+    <SolidColorBrush x:Key="BrandTextBrush" Color="{StaticResource BrandTextColor}" />
+
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
+    <SolidColorBrush x:Key="SuccessSoftBrush" Color="{StaticResource SuccessSoftColor}" />
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
+    <SolidColorBrush x:Key="WarningSoftBrush" Color="{StaticResource WarningSoftColor}" />
+    <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
+    <SolidColorBrush x:Key="DangerSoftBrush" Color="{StaticResource DangerSoftColor}" />
+    <SolidColorBrush x:Key="DangerFillBrush" Color="{StaticResource DangerFillColor}" />
+    <SolidColorBrush x:Key="InfoBrush" Color="{StaticResource InfoColor}" />
+    <SolidColorBrush x:Key="InfoSoftBrush" Color="{StaticResource InfoSoftColor}" />
+
+    <SolidColorBrush x:Key="FocusBrush" Color="{StaticResource FocusColor}" />
+
+    <SolidColorBrush x:Key="ConsoleBackBrush" Color="{StaticResource ConsoleBackColor}" />
+    <SolidColorBrush x:Key="ConsoleBackAltBrush" Color="{StaticResource ConsoleBackAltColor}" />
+    <SolidColorBrush x:Key="ConsoleTextBrush" Color="{StaticResource ConsoleTextColor}" />
+    <SolidColorBrush x:Key="ConsoleMutedBrush" Color="{StaticResource ConsoleMutedColor}" />
+    <SolidColorBrush x:Key="ConsoleAccentBrush" Color="{StaticResource ConsoleAccentColor}" />
+
+</ResourceDictionary>

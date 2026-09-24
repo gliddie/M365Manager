@@ -1,0 +1,29 @@
+Subject: Restricted Conference Rooms for 3LtrSite- TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+Creation of the restricted room NameOfRoom has been created.  It may take up to 72 hrs to be available in the offline address list.  Using the Room Finder individuals can select rooms from the 3LtrSite Restricted Rooms:
+ 
+     
+ 
+RoomDelegates has been configured as the room delegate.  As the delegate you will be forwarded requests that are outside of our booking policy where he will be required to Approve or Reject those requests.  The room delegate can request additions/changes to the restricted room delegates by submitting a service desk request.
+ 
+RoomUsers has been configured and are the only individuals() allowed to request bookings in this room.  The room delegate must request changes to authorized rooms users group for this restricted room by submitting a service desk request.
+ 
+ 
+Rooms and Resources:
+Policies are applied to all rooms and resources.  This helps to ensure effective utilization of space.  
+ 
+The Room/Resource Delegate will automatically receive an e-mail for:
+*	requests made outside of the policy to Approve or Reject reservation requests
+ 
+If someone is requesting a repeating event room/resource availability is only checked for the first day of the meeting.  If subsequent meetings have a conflict a message will be sent to the requestor as well as the room delegate to remediate the conflict.  If the room delegate desires they can approve the conflict but should go onto the calendar to reject/notify whomever had a previous reservation that the room has been allocated to another individual.  
+ 
+We recommend that you educate your staff that if they receive a conflict they can modify the reservation themselves on that day of the conflict.  Our Room/Resource policy is:
+*	90 days
+*	No meeting longer than 24 hr
+ 
+With this information this ticket will be closed. 
+

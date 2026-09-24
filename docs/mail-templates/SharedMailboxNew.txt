@@ -1,0 +1,50 @@
+Subject: NameOfMailbox Shared Mailbox -  TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+Per the subject service desk ticket the shared mailbox NameOfMailbox has been created and configured with an active 3 year retention policy,  Any email received or sent that is older than 3 years old will be automatically purged from the mailbox.  Since your request indicated that this mailbox address would not be shared with clients this mailbox has been configured to not allow receipt of email from external sources.  It may take up to 72 hours for the address for the new mailbox and group(s) that grant(s) access to sync to the Offline Address List.  In the meanwhile you can find this mailbox by selecting the Global Address List.
+
+ 
+As requested the following individuals have been made the mailbox owner:
+NamesOfOwners
+ 
+As the owner of the mailbox you have been granted the rights to update the membership of the group(s) that control(s) access to the mailbox.  Mailbox ownership does not give you rights to access the mailbox.  If you did not list yourself in one of the access groups in your request and you need access to the mailbox you will need to add yourself as a member of one of the group(s) shown below.  By default we only create groups where individuals have been identified for access.  An individual should only be added to the group which grants the highest level of access.  
+ 
+To grant others access to the mailbox you will modify the membership of the group   :
+*	MBX.NameOfMailbox.ED – grants full access to the mailbox
+*	MBX.NameOfMailbox.AU – grants access to create new folders, read and respond to all messages but can delete and/or manage only those messages they are the author of
+*	MBX.NameOfMailbox.RE – grants read only access to the mailbox
+ 
+Here is a link for modifying the group membership:
+ 
+Editing Group Membership <https://ul.service-now.com/ulsp?id=kb_article&sysparm_article=KB0011504> 
+ 
+****Note – Shared mailboxes that have not been accessed for 6 months (180 days) by an individual that has been granted access will automatically be purged from the system. ****
+ 
+ 
+Please use this information to add this mailbox to your Outlook Navigator.  Additionally, if you grant others access to this mailbox please forward the below information to them so they can add the mailbox to their Outlook Navigator.
+ 
+Individuals granted Editor Access:
+NamesofIndividualsGivenEditorAccess
+ 
+Individuals granted Author Access:
+NamesofIndividualsGivenEditorAccess
+ 
+Individuals granted Read Access:
+NamesofIndividualsGivenEditorAccess
+ 
+Mailbox Name:  NameofMailbox
+Email Address:  InternetAddressofMailbox
+ 
+Adding a Shared Mailbox in Outlook <https://ul.service-now.com/ulsp?id=kb_article&sysparm_article=KB0013171> 
+Sending Mail from a Shared Mailbox <https://ul.service-now.com/ulsp?id=kb_article&sysparm_article=KB0011491> 
+Creating Signature and Rules in a Shared Mailbox <https://ul.service-now.com/ulsp?id=kb_article&sysparm_article=KB0011356> 
+ 
+ 
+In the future if this mailbox is no longer needed/used please create a request with the Service Desk so the mailbox can be removed from the system.
+ 
+With this information this ticket is being closed.
+ 
+

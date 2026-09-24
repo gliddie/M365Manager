@@ -1,0 +1,9 @@
+Subject: Additional Users Authorized to Reserve RestrictedRoomName - TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+Per your request NamesOfIndividuals have been added to the list of staff authorized to request reservations in the RestrictedRoomName.  With this change being complete this ticket is being closed. 
+ 
+

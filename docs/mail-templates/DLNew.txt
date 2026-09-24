@@ -1,0 +1,16 @@
+Subject: NameofDL List Created - TASK
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+Per your request the distribution list named NameofDL has been created and configured to allow email sources to send to this group.  An additional address of EmailAddress@ul.com <mailto:EmailAddress@ul.com>  has been configured to receive email to this group.  It may take up to 72 hrs for this new list to sync to the offline address list, in the meanwhile you can select this from the Global Address List:
+
+ 
+NameofOwner(s) has/have been made the owner(s) of the distribution list and will be responsible for updating the group membership.  Below is a link to the document that provides instructions on how to modify the group membership.
+ 
+Editing Group Membership <https://ul.service-now.com/ulsp?id=kb_article&sysparm_article=KB0011504> 
+ 
+If this distribution group is no longer needed please contact the Service Desk and have a request created to have the list removed from the system.  With this information your ticket is being closed. 
+ 
+

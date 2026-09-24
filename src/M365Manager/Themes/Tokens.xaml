@@ -1,0 +1,70 @@
+<!--
+    Design tokens that do not change between light and dark.
+
+    Everything in Styles.xaml and in the views must come from here rather than from a literal.
+    A value that is not in this file is a value nobody can change globally later.
+
+    Colours live in Colors.Light.xaml / Colors.Dark.xaml, which share the same key names so the
+    two can be swapped at runtime (see ThemeService).
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- ===================== Spacing scale =====================
+         4 / 8 / 12 / 16 / 24 / 32 / 48. Everything snaps to this; there is no 10, 14 or 18. -->
+    <sys:Double x:Key="SpaceXs">4</sys:Double>
+    <sys:Double x:Key="SpaceSm">8</sys:Double>
+    <sys:Double x:Key="SpaceMd">12</sys:Double>
+    <sys:Double x:Key="SpaceLg">16</sys:Double>
+    <sys:Double x:Key="SpaceXl">24</sys:Double>
+    <sys:Double x:Key="Space2Xl">32</sys:Double>
+    <sys:Double x:Key="Space3Xl">48</sys:Double>
+
+    <!-- ===================== Gaps =====================
+         Named for the job, not the number - the point is that every form uses the same rhythm.
+         Label -> input -> hint -> next field. -->
+    <Thickness x:Key="GapLabel">0,0,0,4</Thickness>
+    <Thickness x:Key="GapHint">0,4,0,0</Thickness>
+    <Thickness x:Key="GapField">0,0,0,16</Thickness>
+    <Thickness x:Key="GapSection">0,0,0,24</Thickness>
+    <Thickness x:Key="GapInline">8,0,0,0</Thickness>
+    <Thickness x:Key="GapNone">0</Thickness>
+
+    <Thickness x:Key="CardPadding">20</Thickness>
+    <Thickness x:Key="PagePadding">28,24,28,32</Thickness>
+
+    <!-- ===================== Typography =====================
+         Segoe UI throughout - it ships with Windows, so no font dependency. -->
+    <FontFamily x:Key="FontFamilyUi">Segoe UI</FontFamily>
+    <FontFamily x:Key="FontFamilyMono">Cascadia Mono, Consolas</FontFamily>
+
+    <sys:Double x:Key="FontDisplay">28</sys:Double>
+    <sys:Double x:Key="FontH1">22</sys:Double>
+    <sys:Double x:Key="FontH2">16</sys:Double>
+    <sys:Double x:Key="FontH3">14</sys:Double>
+    <sys:Double x:Key="FontBody">13</sys:Double>
+    <sys:Double x:Key="FontSmall">12</sys:Double>
+    <sys:Double x:Key="FontMono">12</sys:Double>
+
+    <!-- ===================== Radii ===================== -->
+    <CornerRadius x:Key="RadiusControl">6</CornerRadius>
+    <CornerRadius x:Key="RadiusCard">10</CornerRadius>
+    <CornerRadius x:Key="RadiusPill">999</CornerRadius>
+
+    <!-- ===================== Layout ===================== -->
+    <!-- One content width for forms, so pages line up when you switch between them.
+         Grids and tables are allowed to use the full width instead. -->
+    <sys:Double x:Key="ContentWidth">880</sys:Double>
+    <sys:Double x:Key="SidebarWidth">248</sys:Double>
+    <sys:Double x:Key="RowHeight">30</sys:Double>
+    <sys:Double x:Key="ControlHeight">34</sys:Double>
+
+    <!-- ===================== Elevation =====================
+         Two levels only. A card barely lifts; a dialog clearly floats. -->
+    <DropShadowEffect x:Key="ShadowCard" BlurRadius="10" ShadowDepth="1"
+                      Direction="270" Opacity="0.06" Color="#000000" />
+    <DropShadowEffect x:Key="ShadowDialog" BlurRadius="32" ShadowDepth="6"
+                      Direction="270" Opacity="0.22" Color="#000000" />
+
+</ResourceDictionary>

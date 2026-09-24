@@ -3,22 +3,47 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:M365Manager.Controls"
         mc:Ignorable="d"
-        Title="M365Manager"
-        Height="720" Width="1120"
-        MinHeight="560" MinWidth="900"
-        Background="{StaticResource PageBrush}"
+        Title="M365 Manager"
+        Icon="Assets/app-icon.ico"
+        Height="820" Width="1280"
+        MinHeight="620" MinWidth="1024"
+        Background="{DynamicResource PageBrush}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
         WindowStartupLocation="CenterScreen">
+
+    <!--
+        Ctrl+1..0 selects the nth page in the rail, Ctrl+` toggles the console drawer. Window-level
+        so they work from anywhere, including with focus inside a form.
+    -->
+    <Window.InputBindings>
+        <KeyBinding Modifiers="Ctrl" Key="D1" Command="{Binding GoToPageByIndexCommand}" CommandParameter="1" />
+        <KeyBinding Modifiers="Ctrl" Key="D2" Command="{Binding GoToPageByIndexCommand}" CommandParameter="2" />
+        <KeyBinding Modifiers="Ctrl" Key="D3" Command="{Binding GoToPageByIndexCommand}" CommandParameter="3" />
+        <KeyBinding Modifiers="Ctrl" Key="D4" Command="{Binding GoToPageByIndexCommand}" CommandParameter="4" />
+        <KeyBinding Modifiers="Ctrl" Key="D5" Command="{Binding GoToPageByIndexCommand}" CommandParameter="5" />
+        <KeyBinding Modifiers="Ctrl" Key="D6" Command="{Binding GoToPageByIndexCommand}" CommandParameter="6" />
+        <KeyBinding Modifiers="Ctrl" Key="D7" Command="{Binding GoToPageByIndexCommand}" CommandParameter="7" />
+        <KeyBinding Modifiers="Ctrl" Key="D8" Command="{Binding GoToPageByIndexCommand}" CommandParameter="8" />
+        <KeyBinding Modifiers="Ctrl" Key="D9" Command="{Binding GoToPageByIndexCommand}" CommandParameter="9" />
+        <KeyBinding Modifiers="Ctrl" Key="D0" Command="{Binding GoToPageByIndexCommand}" CommandParameter="0" />
+        <KeyBinding Modifiers="Ctrl" Key="OemTilde" Command="{Binding ToggleConsoleCommand}" />
+    </Window.InputBindings>
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="248" />
+            <!-- Auto, with the width set on the sidebar itself: the token is a Double and
+                 ColumnDefinition.Width wants a GridLength, which DynamicResource will not convert. -->
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
         <!-- ===================== Sidebar ===================== -->
-        <Border Grid.Column="0" Background="{StaticResource SidebarBrush}"
-                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+        <Border Grid.Column="0" Width="{DynamicResource SidebarWidth}"
+                Background="{DynamicResource SidebarBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -27,23 +52,70 @@
                 </Grid.RowDefinitions>
 
                 <!-- Brand -->
-                <StackPanel Grid.Row="0" Margin="20,24,20,20">
-                    <Image Source="Assets/logo-banner.jpg" Height="34"
-                           HorizontalAlignment="Left" Stretch="Uniform" />
-                    <TextBlock Text="M365 Manager" FontFamily="Segoe UI" FontSize="13"
-                               FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"
-                               Margin="2,12,0,0" />
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="20,24,20,16">
+                    <Image Source="Assets/logo.png" Width="34" Height="34"
+                           Stretch="Uniform" VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+                    <TextBlock Text="M365 Manager" Style="{StaticResource H3}"
+                               VerticalAlignment="Center" Margin="12,0,0,0" />
                 </StackPanel>
 
-                <!-- Navigation -->
-                <ListBox Grid.Row="1" Style="{StaticResource NavList}"
-                         ItemContainerStyle="{StaticResource NavItemContainer}"
-                         ItemsSource="{Binding Pages}"
-                         SelectedItem="{Binding SelectedPage, Mode=TwoWay}" />
+                <!-- Navigation. Bound to the grouped view so the rail can draw section captions;
+                     selection still moves across all items with the arrow keys. -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ListBox Style="{StaticResource NavList}"
+                             ItemContainerStyle="{StaticResource NavItemContainer}"
+                             ItemsSource="{Binding PagesView}"
+                             SelectedItem="{Binding SelectedPage, Mode=TwoWay}"
+                             AutomationProperties.Name="Main navigation"
+                             ToolTip="Ctrl+1 to Ctrl+0 jump straight to a page">
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <!-- The Home entry has no section, so its (empty) caption
+                                             collapses instead of leaving a gap above the list. -->
+                                        <TextBlock Text="{Binding Name}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource NavSectionHeader}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Name}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                    </ListBox>
+                </ScrollViewer>
 
-                <!-- Footer -->
-                <TextBlock Grid.Row="2" Margin="22,0,20,18" Style="{StaticResource Muted}"
-                           Text="UL Solutions IT" />
+                <!-- Footer: theme switch + owner -->
+                <StackPanel Grid.Row="2" Margin="12,12,12,16">
+                    <Border Style="{StaticResource Separator}" Margin="8,0,8,12" />
+
+                    <Button Style="{StaticResource GhostButtonSmall}"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            Command="{Binding CycleThemeCommand}"
+                            ToolTip="Switch between System, Light and Dark"
+                            AutomationProperties.Name="Switch colour theme">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding ThemeGlyph}" FontFamily="Segoe MDL2 Assets"
+                                       FontSize="13" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Text="{Binding ThemeLabel}" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                        </StackPanel>
+                    </Button>
+
+                    <TextBlock Style="{StaticResource Muted}" Text="UL Solutions IT"
+                               Margin="12,12,0,0" />
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -51,57 +123,143 @@
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
-                    Padding="28,18">
-                <TextBlock Style="{StaticResource H1}"
-                           Text="{Binding SelectedPage.Title}" />
+            <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+                    Padding="28,16">
+                <TextBlock Style="{StaticResource H1}" Text="{Binding SelectedPage.Title}" />
+            </Border>
+
+            <!-- Settings could not be fully read. A strip rather than a toast: while this is up,
+                 saving anywhere in the app would write defaults over the sections that failed. -->
+            <Border Grid.Row="1" Padding="28,12"
+                    Background="{DynamicResource WarningSoftBrush}"
+                    BorderBrush="{DynamicResource WarningBrush}" BorderThickness="0,0,0,1"
+                    Visibility="{Binding SettingsLoadWarning, Converter={StaticResource EmptyToCollapsed}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets"
+                               FontSize="14" VerticalAlignment="Top" Margin="0,1,12,0"
+                               Foreground="{DynamicResource WarningBrush}" />
+
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Style="{StaticResource H3}" Text="Settings could not be read in full"
+                                   Foreground="{DynamicResource WarningBrush}" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0"
+                                   Text="{Binding SettingsLoadWarning}" />
+                    </StackPanel>
+
+                    <Button Grid.Column="2" Content="Dismiss" Style="{StaticResource GhostButtonSmall}"
+                            VerticalAlignment="Top" Margin="{DynamicResource GapInline}"
+                            Command="{Binding DismissSettingsWarningCommand}" />
+                </Grid>
             </Border>
 
             <!-- Page -->
-            <ContentControl Grid.Row="1" Content="{Binding CurrentViewModel}" />
+            <ContentControl Grid.Row="2" Content="{Binding CurrentViewModel}" />
+
+            <!--
+                PowerShell console, once for the whole shell. It used to sit at the bottom of seven
+                separate pages showing the same singleton transcript, adding 300px to each. Closed
+                by default: it is a transparency aid, not part of any task.
+            -->
+            <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <ToggleButton Grid.Row="0" IsChecked="{Binding IsConsoleOpen, Mode=TwoWay}"
+                                  Cursor="Hand" Background="Transparent" BorderThickness="0"
+                                  HorizontalContentAlignment="Left" Padding="28,7"
+                                  AutomationProperties.Name="Toggle the PowerShell console">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                        Padding="{TemplateBinding Padding}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="chev" Text="&#xE70D;" FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="10" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                        <TextBlock Text="PowerShell console" Margin="12,0,0,0"
+                                                   FontFamily="{DynamicResource FontFamilyUi}"
+                                                   FontSize="{DynamicResource FontSmall}"
+                                                   Foreground="{DynamicResource TextMutedBrush}" />
+                                    </StackPanel>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+                                    </Trigger>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="chev" Property="Text" Value="&#xE70E;" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                    </ToggleButton>
+
+                    <controls:PowerShellConsole Grid.Row="1" Height="240" Margin="28,0,28,16"
+                                                Transcript="{Binding Transcript}"
+                                                Visibility="{Binding IsConsoleOpen, Converter={StaticResource BoolToVisible}}" />
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- ===================== Startup connecting overlay ===================== -->
-        <Border Grid.Column="0" Grid.ColumnSpan="2" Background="#CC1B1B1B"
+        <Border Grid.Column="0" Grid.ColumnSpan="2" Style="{StaticResource DialogScrim}"
                 Visibility="{Binding IsConnecting, Converter={StaticResource BoolToVisible}}">
-            <Border Style="{StaticResource Card}" MaxWidth="480" Padding="28"
+            <Border Style="{StaticResource DialogSurface}"
                     HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource H2}" Text="Connecting to Microsoft 365" Margin="0,0,0,10" />
-                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,14" />
-                    <TextBlock Text="{Binding ConnectingStatusText}" Style="{StaticResource Muted}"
-                               TextWrapping="Wrap" Margin="0,0,0,10" />
+                    <TextBlock Style="{StaticResource H2}" Text="Connecting to Microsoft 365"
+                               Margin="0,0,0,12" />
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,16" />
+                    <TextBlock Text="{Binding ConnectingStatusText}" Style="{StaticResource Body}"
+                               Margin="0,0,0,16" />
 
-                    <!-- Device-code sign-in banner (shown only while a code is pending) -->
-                    <Border Margin="0,0,0,14" CornerRadius="8" Padding="18,14"
-                            Background="{StaticResource UlRedSoftBrush}" BorderBrush="{StaticResource UlRedBrush}"
-                            BorderThickness="1"
+                    <!-- Device-code sign-in banner. Brand-coloured because it is the one action
+                         being asked for here, not because anything is wrong. -->
+                    <Border Margin="0,0,0,16" CornerRadius="{DynamicResource RadiusControl}"
+                            Padding="16,14"
+                            Background="{DynamicResource BrandSoftBrush}"
+                            BorderBrush="{DynamicResource BrandTextBrush}" BorderThickness="1"
                             Visibility="{Binding DeviceCodeMessage, Converter={StaticResource EmptyToCollapsed}}">
                         <StackPanel>
-                            <TextBlock Text="Sign-in required" FontFamily="Segoe UI" FontSize="13"
-                                       FontWeight="SemiBold" Foreground="{StaticResource UlRedDarkBrush}" Margin="0,0,0,6" />
+                            <TextBlock Text="Sign-in required" Style="{StaticResource H3}"
+                                       Foreground="{DynamicResource BrandTextBrush}" Margin="0,0,0,8" />
 
-                            <StackPanel Orientation="Horizontal" Margin="0,2,0,8"
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12"
                                         Visibility="{Binding DeviceCode, Converter={StaticResource EmptyToCollapsed}}">
-                                <Border Background="White" BorderBrush="{StaticResource UlRedBrush}" BorderThickness="1"
-                                        CornerRadius="6" Padding="14,6" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding DeviceCode}" FontFamily="Consolas" FontSize="22"
-                                               FontWeight="Bold" Foreground="{StaticResource UlRedDarkBrush}" />
+                                <Border Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BrandTextBrush}" BorderThickness="1"
+                                        CornerRadius="{DynamicResource RadiusControl}"
+                                        Padding="14,6" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding DeviceCode}"
+                                               FontFamily="{DynamicResource FontFamilyMono}"
+                                               FontSize="22" FontWeight="Bold"
+                                               Foreground="{DynamicResource BrandTextBrush}" />
                                 </Border>
                                 <Button Content="Copy code" Style="{StaticResource SecondaryButtonSmall}"
-                                        Margin="12,0,0,0" VerticalAlignment="Center"
+                                        Margin="{DynamicResource GapInline}" VerticalAlignment="Center"
                                         Command="{Binding CopyDeviceCodeCommand}" />
                             </StackPanel>
 
-                            <TextBlock Text="{Binding DeviceCodeMessage}" FontFamily="Segoe UI" FontSize="13"
-                                       Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" />
-                            <TextBlock Text="A browser opens automatically. Paste the code, then sign in with your admin account."
-                                       Style="{StaticResource Muted}" Margin="0,8,0,0" />
+                            <TextBlock Text="{Binding DeviceCodeMessage}" Style="{StaticResource Muted}" />
+                            <TextBlock Style="{StaticResource FieldHint}"
+                                       Text="A browser opens automatically. Paste the code, then sign in with your admin account." />
                         </StackPanel>
                     </Border>
 

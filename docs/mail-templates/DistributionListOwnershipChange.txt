@@ -1,0 +1,32 @@
+Subject: NameofDL Ownership Change - TASK0
+To: 
+CC: 
+Sender: 
+
+----- body (plain text) -----
+Select one:
+ 
+Per the subject Service Desk ticket NameOfIndividual has been (removed/added) as an owner of the NameofDL (group/distribution list). You are the remaining owner/have been added as an owner of this distribution list.  Ownership grants you the rights to update the membership of the group.
+ 
+or
+ 
+Per the subject Service Desk ticket you have been added as an owner of the NameofDL (group/distribution list). Ownership grants you the rights to update the membership of the group.
+ 
+or  
+ 
+Per the subject Service Desk ticket and with approval from (CurrentOwner) to transfer ownership, you have been made the owner of the NameofDL (group/distribution list).  Ownership grants you the rights to update the membership of the group.
+ 
+or
+ 
+Per the request for a new group owner, you have been configured as the owner of the the NameofDL (group/distribution list) group.  Ownership grants you the rights to update the membership of the group.
+ 
+ 
+Keep this if the below link/details if this is not a unified group: 
+ 
+Here is a link for modifying the group membership:
+ 
+Editing Group Membership <https://ul.service-now.com/ulsp?id=kb_article&sysparm_article=KB0011504> 
+ 
+With this information this ticket will be closed. 
+ 
+

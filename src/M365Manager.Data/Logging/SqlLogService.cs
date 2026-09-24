@@ -50,6 +50,67 @@ public sealed class SqlLogService : ILogService
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<LogEntry>> QueryAsync(LogQuery query, CancellationToken ct = default)
+    {
+        await using var ctx = CreateContext();
+        var q = ctx.LogEntries.AsNoTracking();
+
+        if (query.FromUtc is { } from)
+            q = q.Where(x => x.TimestampUtc >= from);
+        if (query.ToUtc is { } to)
+            q = q.Where(x => x.TimestampUtc <= to);
+
+        if (!string.IsNullOrWhiteSpace(query.UserUpn))
+            q = q.Where(x => x.UserUpn == query.UserUpn);
+        if (!string.IsNullOrWhiteSpace(query.Area))
+            q = q.Where(x => x.Area == query.Area);
+        if (!string.IsNullOrWhiteSpace(query.Action))
+            q = q.Where(x => x.Action == query.Action);
+
+        if (!string.IsNullOrWhiteSpace(query.TaskNumber))
+        {
+            var task = query.TaskNumber.Trim();
+            q = q.Where(x => x.TaskNumber != null && x.TaskNumber.Contains(task));
+        }
+
+        if (query.Severity is { } severity)
+            q = q.Where(x => x.Severity == severity);
+
+        if (!string.IsNullOrWhiteSpace(query.SearchText))
+        {
+            var term = query.SearchText.Trim();
+            q = q.Where(x =>
+                (x.Message != null && x.Message.Contains(term))
+                || (x.TargetObject != null && x.TargetObject.Contains(term))
+                || (x.Action != null && x.Action.Contains(term))
+                || (x.EventCode != null && x.EventCode.Contains(term)));
+        }
+
+        return await q
+            .OrderByDescending(x => x.Id)
+            .Take(query.MaxResults <= 0 ? 1000 : query.MaxResults)
+            .ToListAsync(ct);
+    }
+
+    public async Task<LogFilterOptions> GetFilterOptionsAsync(CancellationToken ct = default)
+    {
+        await using var ctx = CreateContext();
+
+        var users = await ctx.LogEntries.AsNoTracking()
+            .Where(x => x.UserUpn != null && x.UserUpn != "")
+            .Select(x => x.UserUpn!).Distinct().OrderBy(x => x).ToListAsync(ct);
+
+        var areas = await ctx.LogEntries.AsNoTracking()
+            .Where(x => x.Area != null && x.Area != "")
+            .Select(x => x.Area!).Distinct().OrderBy(x => x).ToListAsync(ct);
+
+        var actions = await ctx.LogEntries.AsNoTracking()
+            .Where(x => x.Action != null && x.Action != "")
+            .Select(x => x.Action!).Distinct().OrderBy(x => x).ToListAsync(ct);
+
+        return new LogFilterOptions { Users = users, Areas = areas, Actions = actions };
+    }
+
     public async Task<bool> TestConnectionAsync(CancellationToken ct = default)
     {
         await using var ctx = CreateContext();

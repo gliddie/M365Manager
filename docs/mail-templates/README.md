@@ -9,7 +9,8 @@ pwsh scripts/Export-MailTemplates.ps1
 That writes a `.html` (body) and `.txt` (subject, recipients, sender) next to each `.oft`. Those
 are the source for the wording in `INotificationMailService` callers - currently
 `SharedMailboxService.SendCreationConfirmationMailAsync` /
-`SendOwnerChangeConfirmationMailAsync` and `TeamsService.SendOwnerMailAsync`.
+`SendOwnerChangeConfirmationMailAsync` / `SendRenameConfirmationMailAsync` and
+`TeamsService.SendOwnerMailAsync`.
 
 Templates that matter, per the legacy scripts:
 
@@ -18,7 +19,8 @@ Templates that matter, per the legacy scripts:
 | `SharedMailboxNew.oft` | `ShrMbxNew.ps1` | **yes** → `SharedMailboxService.SendCreationConfirmationMailAsync` |
 | `SharedMailboxOwnershipChange.oft` | `ShrMbxChgOwner.ps1` | **yes** → `SharedMailboxService.SendOwnerChangeConfirmationMailAsync` |
 | `SharedMailboxAlreadyExists.oft` | `ShrMbxNew.ps1` | not ported |
-| `SharedMailboxRemoval.oft`, `SharedMailboxRenamed.oft` | `ShrMbxRemove.ps1`, `ShrMbxAdminMenu.ps1` | feature not ported |
+| `SharedMailboxRenamed.oft` | `RenameShrMbx.ps1` | **yes** → `SharedMailboxService.SendRenameConfirmationMailAsync` |
+| `SharedMailboxRemoval.oft` | `ShrMbxRemove.ps1` | feature not ported |
 | `DLNew.oft` | `NewDLGroup.ps1` | **yes** → `GroupNotificationMail.Creation` (+ `DynamicCreation`, no template) |
 | `DLRenamed.oft` | `RenameDLGroup.ps1` | **yes** → `GroupNotificationMail.Renamed` |
 | `DLRemoval.oft` | `RemoveDLGroup.ps1` | **yes** → `GroupNotificationMail.Removal` |
@@ -74,4 +76,9 @@ derived from.
   `DLRestrictedAccessChange.oft` but addressed to the people who were granted access ("*you* have
   been given access") rather than to the requester. Everything here goes to the requester. If those
   individuals should be notified directly as well, that is a separate recipient decision.
+- **`SharedMailboxRenamed.oft` lists only the groups the mailbox actually has.** The original
+  always named all three tiers (and misspelled two of them as "MBX. NewNameOfMailbox.AU"), so a
+  mailbox with an .ED group only got a mail pointing at two groups that do not exist. It also gains
+  a sentence saying the previous address is kept as an alias, which is what the rename now does.
 - **Group alias changes send nothing** - no legacy template covered them.
+

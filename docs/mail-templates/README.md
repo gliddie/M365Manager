@@ -9,7 +9,8 @@ pwsh scripts/Export-MailTemplates.ps1
 That writes a `.html` (body) and `.txt` (subject, recipients, sender) next to each `.oft`. Those
 are the source for the wording in `INotificationMailService` callers - currently
 `SharedMailboxService.SendCreationConfirmationMailAsync` /
-`SendOwnerChangeConfirmationMailAsync` / `SendRenameConfirmationMailAsync` and
+`SendOwnerChangeConfirmationMailAsync` / `SendRenameConfirmationMailAsync` /
+`SendRemovalConfirmationMailAsync` and
 `TeamsService.SendOwnerMailAsync`.
 
 Templates that matter, per the legacy scripts:
@@ -20,7 +21,9 @@ Templates that matter, per the legacy scripts:
 | `SharedMailboxOwnershipChange.oft` | `ShrMbxChgOwner.ps1` | **yes** → `SharedMailboxService.SendOwnerChangeConfirmationMailAsync` |
 | `SharedMailboxAlreadyExists.oft` | `ShrMbxNew.ps1` | not ported |
 | `SharedMailboxRenamed.oft` | `RenameShrMbx.ps1` | **yes** → `SharedMailboxService.SendRenameConfirmationMailAsync` |
-| `SharedMailboxRemoval.oft` | `ShrMbxRemove.ps1` | feature not ported |
+| `SharedMailboxRemoval.oft` | `ShrMbxRemove.ps1` | **yes** → `SharedMailboxService.SendRemovalConfirmationMailAsync` |
+| *(none)* | `RecoverShrMbx.ps1` | no template existed - recovery reuses the creation mail, see below |
+| `ShrMbxNeedOwners.oft` | `ShrMbxRemove.ps1` ("Request for Owners" mode) | not exported, feature not ported |
 | `DLNew.oft` | `NewDLGroup.ps1` | **yes** → `GroupNotificationMail.Creation` (+ `DynamicCreation`, no template) |
 | `DLRenamed.oft` | `RenameDLGroup.ps1` | **yes** → `GroupNotificationMail.Renamed` |
 | `DLRemoval.oft` | `RemoveDLGroup.ps1` | **yes** → `GroupNotificationMail.Removal` |
@@ -88,3 +91,11 @@ derived from.
   in the originals.
 - **The creation mail tells the owners they are .ED members.** The original told them to add
   themselves if they needed access; the owners are now always added to the .ED group.
+- **`SharedMailboxRemoval.oft` goes to the owners** (read from the .ED group before it is
+  deleted), like the other shared mailbox mails - the template had no fixed recipient. It only
+  says "and the groups created to manage access ... have been removed" when they actually were
+  (the removal form can keep them), and it gains one sentence: the mailbox can be restored for 30
+  days, so contact the Service Desk if it is needed after all.
+- **A recovery has no legacy template.** It sends the creation mail with "restored" in place of
+  "created" and the subject "... Shared Mailbox Restored - TASK": the owners need the same
+  information either way - groups, how to add members, how to add the mailbox to Outlook.

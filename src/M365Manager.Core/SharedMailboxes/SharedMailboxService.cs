@@ -19,7 +19,7 @@ namespace M365Manager.Core.SharedMailboxes;
 /// well by the Kiota SDK version in use). Mailbox/group manipulation goes through
 /// <see cref="PowerShellHost"/> against the same bundled Exchange Online module <see cref="M365Manager.Core.Exchange.ExchangeService"/> connects.
 /// </summary>
-public sealed class SharedMailboxService : ISharedMailboxService
+public sealed partial class SharedMailboxService : ISharedMailboxService
 {
     /// <summary>
     /// System folders that get no permission, matching the legacy Add-FolderPermissions loop.
@@ -129,24 +129,7 @@ public sealed class SharedMailboxService : ISharedMailboxService
                 .AddParameter("MessageCopyForSentAsEnabled", true)
                 .AddParameter("ErrorAction", "Stop"), ct: ct);
 
-            var smSettings = _settings.Current.SharedMailboxes;
-            if (!string.IsNullOrWhiteSpace(smSettings.RetentionPolicyName) || !string.IsNullOrWhiteSpace(smSettings.RoleAssignmentPolicyName))
-            {
-                Progress(onProgress, "Applying configured retention/role assignment policy...");
-                await _host.InvokeAsync(ps =>
-                {
-                    ps.AddCommand("Set-Mailbox").AddParameter("Identity", address);
-                    if (!string.IsNullOrWhiteSpace(smSettings.RetentionPolicyName))
-                    {
-                        ps.AddParameter("RetentionPolicy", smSettings.RetentionPolicyName);
-                        ps.AddParameter("RetentionHoldEnabled", false);
-                    }
-                    if (!string.IsNullOrWhiteSpace(smSettings.RoleAssignmentPolicyName))
-                        ps.AddParameter("RoleAssignmentPolicy", smSettings.RoleAssignmentPolicyName);
-                    ps.AddParameter("ErrorAction", "Stop");
-                }, ct: ct);
-                await LogAsync(correlationId, "CreateSharedMailbox", "CHNG", "Applied configured retention/role assignment policy", request.TaskNumber, Severity.Success);
-            }
+            await ApplyConfiguredPoliciesAsync(correlationId, "CreateSharedMailbox", request.TaskNumber, address, onProgress, ct);
 
             await _host.InvokeAsync(ps => ps
                 .AddCommand("Set-Mailbox")
@@ -157,85 +140,16 @@ public sealed class SharedMailboxService : ISharedMailboxService
             await LogAsync(correlationId, "CreateSharedMailbox", "CHNG",
                 $"External senders {(request.AllowExternalSenders ? "allowed" : "blocked")}", request.TaskNumber, Severity.Success);
 
-            // The Editor group is always created - it carries FullAccess/SendAs and is what
-            // "owner" resolves to later. The owners always go in as members as well: owning the
-            // groups doesn't grant access to the mailbox, and owners left out used to be added by
-            // hand afterwards. The Author and Reader tiers are only created when someone was
-            // actually named for them; empty ones would just be clutter.
-            var editorMembers = string.Join(",", SplitIdentities(request.EditorMembers)
-                .Select(AppendDomain)
-                .Concat(ownerUpns)
-                .Distinct(StringComparer.OrdinalIgnoreCase));
-
-            // An individual belongs only in the group granting the highest access. The owners are
-            // in .ED now, so any owner also listed for .AU/.RE is dropped there - and a tier left
-            // with nobody in it isn't created at all.
-            var authorMembers = await WithoutOwnersAsync(request.AuthorMembers, ownerUpns, ct);
-            var readerMembers = await WithoutOwnersAsync(request.ReaderMembers, ownerUpns, ct);
-            foreach (var (tier, requested, kept) in new[] { ("AU", request.AuthorMembers, authorMembers), ("RE", request.ReaderMembers, readerMembers) })
-            {
-                if (SplitIdentities(requested).Count() != SplitIdentities(kept).Count())
-                    await LogAsync(correlationId, "CreateSharedMailbox", "INPUT",
-                        $"Owner(s) removed from the .{tier} members - they are .ED members already", request.TaskNumber, Severity.Info);
-            }
-
-            var tiers = new List<(string Tier, string FolderRight, string MembersCsv)>
-            {
-                ("ED", "Editor", editorMembers),
-            };
-            if (!string.IsNullOrWhiteSpace(authorMembers))
-                tiers.Add(("AU", "PublishingAuthor", authorMembers));
-            if (!string.IsNullOrWhiteSpace(readerMembers))
-                tiers.Add(("RE", "Reviewer", readerMembers));
+            var tiers = await PlanTierMembersAsync(correlationId, "CreateSharedMailbox", request.TaskNumber,
+                ownerUpns, request.EditorMembers, request.AuthorMembers, request.ReaderMembers, ct);
 
             string? edGroupAddress = null, auGroupAddress = null, reGroupAddress = null;
             var createdTiers = new List<AccessTier>();
 
-            foreach (var (tier, folderRight, membersCsv) in tiers)
+            foreach (var (tier, membersCsv) in tiers)
             {
-                Progress(onProgress, $"Creating .{tier} access group...");
-
-                // Name/display name keep the mailbox display name's spaces; the alias and address
-                // are the same string with the spaces removed.
-                var groupName = _naming.BuildAccessGroupName(displayName, tier);
-                var groupAlias = _naming.BuildAccessGroupAlias(displayName, tier);
-                var groupAddress = _naming.BuildAccessGroupAddress(displayName, tier, request.Domain);
-
-                await _host.InvokeAsync(ps => ps
-                    .AddCommand("New-DistributionGroup")
-                    .AddParameter("Name", groupName)
-                    .AddParameter("DisplayName", groupName)
-                    .AddParameter("PrimarySmtpAddress", groupAddress)
-                    .AddParameter("Alias", groupAlias)
-                    .AddParameter("ManagedBy", ownerUpns)
-                    .AddParameter("Type", "Security")
-                    .AddParameter("RequireSenderAuthenticationEnabled", true)
-                    .AddParameter("ErrorAction", "Stop"), ct: ct);
-
-                await _host.InvokeAsync(ps => ps
-                    .AddCommand("Set-Group")
-                    .AddParameter("Identity", groupName)
-                    .AddParameter("Notes", $"{ownerMailTip} - Per: {request.TaskNumber}")
-                    .AddParameter("ErrorAction", "Stop"), ct: ct);
-
-                await _host.InvokeAsync(ps => ps
-                    .AddCommand("Set-DistributionGroup")
-                    .AddParameter("Identity", groupName)
-                    .AddParameter("MailTip", ownerMailTip)
-                    .AddParameter("ErrorAction", "Stop"), ct: ct);
-
-                await LogAsync(correlationId, "CreateSharedMailbox", "GRP", $"Created {groupName} ({groupAddress})", request.TaskNumber, Severity.Success);
-
-                Progress(onProgress, $"Granting .{tier} mailbox permissions...");
-                await GrantTierMailboxRightsAsync(address, groupAddress, tier, ct);
-                await GrantFolderPermissionsAsync(address, groupAddress, folderRight, ct);
-                await LogAsync(correlationId, "CreateSharedMailbox", "PERM", $"Granted {folderRight} rights to {groupAddress}", request.TaskNumber, Severity.Success);
-
-                if (!string.IsNullOrWhiteSpace(membersCsv))
-                {
-                    await AddGroupMembersAsync(groupAddress, membersCsv, ct);
-                    await LogAsync(correlationId, "CreateSharedMailbox", "MEMBER", $"Added members to {groupAddress}: {membersCsv}", request.TaskNumber, Severity.Success);
-                }
+                var (groupName, groupAddress) = await CreateAccessGroupAsync(correlationId, "CreateSharedMailbox", request.TaskNumber,
+                    displayName, address, request.Domain, tier, membersCsv, ownerUpns, ownerMailTip, onProgress, ct);
 
                 createdTiers.Add(new AccessTier(tier, groupName, membersCsv));
 
@@ -1060,6 +974,133 @@ public sealed class SharedMailboxService : ISharedMailboxService
         }
     }
 
+    /// <summary>Retention and role assignment policy from Settings, when configured. Shared by create and recover.</summary>
+    private async Task ApplyConfiguredPoliciesAsync(Guid correlationId, string action, string taskNumber, string address,
+        Action<string>? onProgress, CancellationToken ct)
+    {
+        var smSettings = _settings.Current.SharedMailboxes;
+        if (string.IsNullOrWhiteSpace(smSettings.RetentionPolicyName) && string.IsNullOrWhiteSpace(smSettings.RoleAssignmentPolicyName))
+            return;
+
+        Progress(onProgress, "Applying configured retention/role assignment policy...");
+        await _host.InvokeAsync(ps =>
+        {
+            ps.AddCommand("Set-Mailbox").AddParameter("Identity", address);
+            if (!string.IsNullOrWhiteSpace(smSettings.RetentionPolicyName))
+            {
+                ps.AddParameter("RetentionPolicy", smSettings.RetentionPolicyName);
+                ps.AddParameter("RetentionHoldEnabled", false);
+            }
+            if (!string.IsNullOrWhiteSpace(smSettings.RoleAssignmentPolicyName))
+                ps.AddParameter("RoleAssignmentPolicy", smSettings.RoleAssignmentPolicyName);
+            ps.AddParameter("ErrorAction", "Stop");
+        }, ct: ct);
+        await LogAsync(correlationId, action, "CHNG", "Applied configured retention/role assignment policy", taskNumber, Severity.Success);
+    }
+
+    /// <summary>Folder permission each tier's group gets on every folder of the mailbox.</summary>
+    private static readonly Dictionary<string, string> TierFolderRights = new()
+    {
+        ["ED"] = "Editor",
+        ["AU"] = "PublishingAuthor",
+        ["RE"] = "Reviewer",
+    };
+
+    /// <summary>
+    /// Decides which tiers get a group and who goes in each - shared by create and recover.
+    ///
+    /// The Editor group is always created - it carries FullAccess/SendAs and is what "owner"
+    /// resolves to later. The owners always go in as members as well: owning the groups doesn't
+    /// grant access to the mailbox, and owners left out used to be added by hand afterwards. The
+    /// Author and Reader tiers are only created when someone was actually named for them; empty
+    /// ones would just be clutter. And an individual belongs only in the group granting the
+    /// highest access, so an owner also listed for .AU/.RE is dropped there.
+    /// </summary>
+    private async Task<List<(string Tier, string MembersCsv)>> PlanTierMembersAsync(
+        Guid correlationId, string action, string taskNumber, IReadOnlyCollection<string> ownerUpns,
+        string editorMembers, string authorMembers, string readerMembers, CancellationToken ct)
+    {
+        var editor = string.Join(",", SplitIdentities(editorMembers)
+            .Select(AppendDomain)
+            .Concat(ownerUpns)
+            .Distinct(StringComparer.OrdinalIgnoreCase));
+
+        var author = await WithoutOwnersAsync(authorMembers, ownerUpns, ct);
+        var reader = await WithoutOwnersAsync(readerMembers, ownerUpns, ct);
+        foreach (var (tier, requested, kept) in new[] { ("AU", authorMembers, author), ("RE", readerMembers, reader) })
+        {
+            if (SplitIdentities(requested).Count() != SplitIdentities(kept).Count())
+                await LogAsync(correlationId, action, "INPUT",
+                    $"Owner(s) removed from the .{tier} members - they are .ED members already", taskNumber, Severity.Info);
+        }
+
+        var tiers = new List<(string Tier, string MembersCsv)> { ("ED", editor) };
+        if (!string.IsNullOrWhiteSpace(author))
+            tiers.Add(("AU", author));
+        if (!string.IsNullOrWhiteSpace(reader))
+            tiers.Add(("RE", reader));
+        return tiers;
+    }
+
+    /// <summary>
+    /// Creates one access group the way ShrMbxNew.ps1 did - security group owned by the mailbox
+    /// owners, MailTip/Notes naming them - grants it its tier's rights on the mailbox and adds the
+    /// members. Shared by create and recover.
+    /// </summary>
+    private async Task<(string GroupName, string GroupAddress)> CreateAccessGroupAsync(
+        Guid correlationId, string action, string taskNumber,
+        string mailboxDisplayName, string mailboxAddress, string domain,
+        string tier, string membersCsv, IReadOnlyCollection<string> ownerUpns, string ownerMailTip,
+        Action<string>? onProgress, CancellationToken ct)
+    {
+        Progress(onProgress, $"Creating .{tier} access group...");
+
+        // Name/display name keep the mailbox display name's spaces; the alias and address are the
+        // same string with the spaces removed.
+        var groupName = _naming.BuildAccessGroupName(mailboxDisplayName, tier);
+        var groupAlias = _naming.BuildAccessGroupAlias(mailboxDisplayName, tier);
+        var groupAddress = _naming.BuildAccessGroupAddress(mailboxDisplayName, tier, domain);
+        var folderRight = TierFolderRights[tier];
+
+        await _host.InvokeAsync(ps => ps
+            .AddCommand("New-DistributionGroup")
+            .AddParameter("Name", groupName)
+            .AddParameter("DisplayName", groupName)
+            .AddParameter("PrimarySmtpAddress", groupAddress)
+            .AddParameter("Alias", groupAlias)
+            .AddParameter("ManagedBy", ownerUpns.ToArray())
+            .AddParameter("Type", "Security")
+            .AddParameter("RequireSenderAuthenticationEnabled", true)
+            .AddParameter("ErrorAction", "Stop"), ct: ct);
+
+        await _host.InvokeAsync(ps => ps
+            .AddCommand("Set-Group")
+            .AddParameter("Identity", groupName)
+            .AddParameter("Notes", $"{ownerMailTip} - Per: {taskNumber}")
+            .AddParameter("ErrorAction", "Stop"), ct: ct);
+
+        await _host.InvokeAsync(ps => ps
+            .AddCommand("Set-DistributionGroup")
+            .AddParameter("Identity", groupName)
+            .AddParameter("MailTip", ownerMailTip)
+            .AddParameter("ErrorAction", "Stop"), ct: ct);
+
+        await LogAsync(correlationId, action, "GRP", $"Created {groupName} ({groupAddress})", taskNumber, Severity.Success);
+
+        Progress(onProgress, $"Granting .{tier} mailbox permissions...");
+        await GrantTierMailboxRightsAsync(mailboxAddress, groupAddress, tier, ct);
+        await GrantFolderPermissionsAsync(mailboxAddress, groupAddress, folderRight, ct);
+        await LogAsync(correlationId, action, "PERM", $"Granted {folderRight} rights to {groupAddress}", taskNumber, Severity.Success);
+
+        if (!string.IsNullOrWhiteSpace(membersCsv))
+        {
+            await AddGroupMembersAsync(groupAddress, membersCsv, ct);
+            await LogAsync(correlationId, action, "MEMBER", $"Added members to {groupAddress}: {membersCsv}", taskNumber, Severity.Success);
+        }
+
+        return (groupName, groupAddress);
+    }
+
     private async Task GrantTierMailboxRightsAsync(string mailboxAddress, string groupAddress, string tier, CancellationToken ct)
     {
         if (tier == "RE")
@@ -1230,44 +1271,76 @@ public sealed class SharedMailboxService : ISharedMailboxService
         string.IsNullOrWhiteSpace(mail) ? upn : mail;
 
     /// <summary>
-    /// Resolves whatever Exchange reports in ManagedBy - which is a recipient Name/DN, NOT an SMTP
-    /// address - to the real UPN and display name. Sending mail to, or caching, the raw ManagedBy
-    /// value would fail (Graph rejects it as an address) or write a different identifier format
-    /// than the creation path stores.
+    /// Resolves whatever Exchange reports in ManagedBy - which is a recipient Name, NOT an SMTP
+    /// address or UPN - to the real UPN, display name and mail address. Sending mail to, or
+    /// caching, the raw ManagedBy value would fail or write a different identifier format than the
+    /// creation path stores.
+    ///
+    /// Exchange is asked first, and for the Entra object id rather than an address. The Name is
+    /// usually the person's display name ("Cristian Rauth"); handing that to Graph as a UPN
+    /// produced "Cristian Rauth@global.ul.com" and a 404 on every lookup, and the SMTP fallback
+    /// then stored the mail address where the UPN belongs. The object id is exact.
     /// </summary>
     private async Task<List<(string Upn, string DisplayName, string Mail)>> ResolveOwnerIdentitiesAsync(IReadOnlyList<string> identities, CancellationToken ct)
     {
         var resolved = new List<(string Upn, string DisplayName, string Mail)>();
         foreach (var id in identities)
         {
-            var user = await ResolveUserAsync(id, ct);
-            if (user is not null)
-            {
-                resolved.Add((user.Value.Upn, user.Value.DisplayName, user.Value.Mail));
-                continue;
-            }
-
-            // Graph couldn't resolve it (ManagedBy often carries the Exchange display name rather
-            // than anything Graph indexes) - ask Exchange itself for the SMTP address.
-            var recipient = await _host.InvokeAsync(ps => ps
+            var candidates = await _host.InvokeAsync(ps => ps
                 .AddCommand("Get-Recipient")
                 .AddParameter("Identity", id)
                 .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
 
-            if (recipient.Count > 0)
+            // -Identity also matches display names, so a person's own mailbox and, say, a guest
+            // MailUser displayed under the same name both come back. ManagedBy holds the exact
+            // Exchange Name, so an exact Name match decides; only then is a lone hit trusted.
+            var recipient = candidates
+                .Where(r => string.Equals(Str(r, "Name"), id, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (recipient.Count == 0 && candidates.Count == 1)
+                recipient = candidates.ToList();
+
+            if (recipient.Count == 1)
             {
-                // Exchange's PrimarySmtpAddress is already a deliverable address, so it serves as
-                // both the identifier and the mail target here.
+                var objectId = Str(recipient[0], "ExternalDirectoryObjectId");
+                if (Guid.TryParse(objectId, out _) && await GetGraphUserAsync(objectId, ct) is { } user)
+                {
+                    resolved.Add((user.Upn, user.DisplayName, user.Mail));
+                    continue;
+                }
+
+                // No Entra object behind it (a mail contact, say): Exchange's PrimarySmtpAddress
+                // is still a deliverable address, so it serves as identifier and mail target.
                 var smtp = Str(recipient[0], "PrimarySmtpAddress");
                 var display = Str(recipient[0], "DisplayName");
                 resolved.Add((smtp.Length > 0 ? smtp : id, display.Length > 0 ? display : id, smtp));
+                continue;
             }
+
+            // Exchange didn't know it (or the name was ambiguous) - maybe it is a UPN after all.
+            if (await ResolveUserAsync(id, ct) is { } byUpn)
+                resolved.Add((byUpn.Upn, byUpn.DisplayName, byUpn.Mail));
             else
-            {
                 resolved.Add((id, id, ""));
-            }
         }
         return resolved;
+    }
+
+    /// <summary>One Graph user by object id or UPN, taken as-is - no domain appended. Null when not found.</summary>
+    private async Task<(string Upn, string DisplayName, string Mail)?> GetGraphUserAsync(string idOrUpn, CancellationToken ct)
+    {
+        try
+        {
+            using var json = await _graph.GetAsync(
+                $"/users/{Uri.EscapeDataString(idOrUpn)}?$select=id,userPrincipalName,displayName,mail", ct: ct);
+            var user = json.RootElement;
+            var upn = GraphText(user, "userPrincipalName");
+            return upn.Length == 0 ? null : (upn, Or(GraphText(user, "displayName"), upn), GraphText(user, "mail"));
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -1289,23 +1362,27 @@ public sealed class SharedMailboxService : ISharedMailboxService
         // console next to the Exchange cmdlets instead of happening invisibly.
         const string select = "$select=id,userPrincipalName,displayName,mail";
 
-        try
+        async Task<(string, string, string, string)?> ByUpnAsync()
         {
-            using var json = await _graph.GetAsync($"/users/{Uri.EscapeDataString(candidate)}?{select}", ct: ct);
-            var user = json.RootElement;
-            var id = GraphText(user, "id");
-            if (id.Length > 0)
-                return (id,
-                    Or(GraphText(user, "userPrincipalName"), candidate),
-                    Or(GraphText(user, "displayName"), candidate),
-                    GraphText(user, "mail"));
-        }
-        catch
-        {
-            // fall through to mail-filter lookup below
+            try
+            {
+                using var json = await _graph.GetAsync($"/users/{Uri.EscapeDataString(candidate)}?{select}", ct: ct);
+                var user = json.RootElement;
+                var id = GraphText(user, "id");
+                if (id.Length > 0)
+                    return (id,
+                        Or(GraphText(user, "userPrincipalName"), candidate),
+                        Or(GraphText(user, "displayName"), candidate),
+                        GraphText(user, "mail"));
+            }
+            catch
+            {
+                // not a UPN - the caller tries the mail filter
+            }
+            return null;
         }
 
-        if (value.Contains('@'))
+        async Task<(string, string, string, string)?> ByMailAsync()
         {
             var filter = Uri.EscapeDataString($"mail eq '{value.Replace("'", "''")}'");
             using var json = await _graph.GetAsync($"/users?$filter={filter}&{select}", ct: ct);
@@ -1320,9 +1397,21 @@ public sealed class SharedMailboxService : ISharedMailboxService
                         Or(GraphText(match, "displayName"), value),
                         Or(GraphText(match, "mail"), value));
             }
+            return null;
         }
 
-        return null;
+        if (!value.Contains('@'))
+            return await ByUpnAsync();
+
+        // UPNs live on the sign-in domain, mailboxes on the mail domain. An address on any other
+        // domain than the sign-in one is almost certainly a mail address, and trying it as a UPN
+        // first only put a 404 into the console before the mail filter found it.
+        var upnDomain = _settings.Current.M365.Domain.Trim();
+        var looksLikeUpn = upnDomain.Length == 0 || value.EndsWith("@" + upnDomain, StringComparison.OrdinalIgnoreCase);
+
+        return looksLikeUpn
+            ? await ByUpnAsync() ?? await ByMailAsync()
+            : await ByMailAsync() ?? await ByUpnAsync();
     }
 
     private static string GraphText(JsonElement element, string name) =>
@@ -1386,19 +1475,26 @@ public sealed class SharedMailboxService : ISharedMailboxService
         string taskNumber,
         bool allowExternalSenders,
         IReadOnlyList<AccessTier> tiers,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool restored = false)
     {
         var settings = _settings.Current.SharedMailboxes;
         var name = WebUtility_HtmlEscape(displayName);
 
+        // There is no legacy template for a recovery. It is a re-creation as far as the owners are
+        // concerned - same groups, same access instructions - so it reuses this mail and only
+        // says "restored" where the original says "created".
+        var verb = restored ? "restored" : "created";
         var retention = string.IsNullOrWhiteSpace(settings.RetentionPolicyName)
-            ? "has been created and configured"
-            : $"has been created and configured with the retention policy \"{WebUtility_HtmlEscape(settings.RetentionPolicyName)}\"";
+            ? $"has been {verb} and configured"
+            : $"has been {verb} and configured with the retention policy \"{WebUtility_HtmlEscape(settings.RetentionPolicyName)}\"";
 
         var external = allowExternalSenders
             ? "This mailbox accepts e-mail from external senders."
-            : "Since your request indicated that this mailbox address would not be shared with clients, "
-              + "this mailbox has been configured to not allow receipt of e-mail from external sources.";
+            : restored
+                ? "This mailbox does not accept e-mail from external senders."
+                : "Since your request indicated that this mailbox address would not be shared with clients, "
+                  + "this mailbox has been configured to not allow receipt of e-mail from external sources.";
 
         var groupList = string.Concat(tiers.Select(t =>
             $"<li><b>{WebUtility_HtmlEscape(t.GroupName)}</b> &ndash; {TierDescriptions[t.Tier]}</li>"));
@@ -1417,7 +1513,7 @@ public sealed class SharedMailboxService : ISharedMailboxService
         var html = $"""
             <p>Per the subject service desk ticket the shared mailbox <b>{name}</b> {retention}.
             {external}
-            It may take up to 72 hours for the address for the new mailbox and group(s) that grant(s) access
+            It may take up to 72 hours for the address for the {(restored ? "restored" : "new")} mailbox and group(s) that grant(s) access
             to sync to the Offline Address List. In the meanwhile you can find this mailbox by selecting the
             Global Address List.</p>
 
@@ -1454,7 +1550,7 @@ public sealed class SharedMailboxService : ISharedMailboxService
 
         await SendMailToOwnersAsync(
             owners.Select(o => MailOrUpn(o.Upn, o.Mail)).ToArray(),
-            $"{displayName} Shared Mailbox - {taskNumber}",
+            restored ? $"{displayName} Shared Mailbox Restored - {taskNumber}" : $"{displayName} Shared Mailbox - {taskNumber}",
             html, ct);
     }
 
@@ -1828,7 +1924,8 @@ public sealed class SharedMailboxService : ISharedMailboxService
         return RenameSharedMailboxResult.Failed(correlationId, message);
     }
 
-    private async Task LogAsync(Guid correlationId, string action, string eventCode, string message, string taskNumber, Severity severity)
+    private async Task LogAsync(Guid correlationId, string action, string eventCode, string message, string taskNumber, Severity severity,
+        string? targetObject = null)
     {
         try
         {
@@ -1836,6 +1933,7 @@ public sealed class SharedMailboxService : ISharedMailboxService
             {
                 Area = "SharedMailboxes",
                 Action = action,
+                TargetObject = targetObject,
                 EventCode = eventCode,
                 Severity = severity,
                 Message = message,

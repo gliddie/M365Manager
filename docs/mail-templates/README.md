@@ -37,7 +37,7 @@ Templates that matter, per the legacy scripts:
 | `RestrictedRoomAdditions.oft` | `RoomResourceNewForm.ps1` | **yes** → same, existing list + restricted |
 | `RoomResourceRemoval.oft` | `RoomResourceRemove.ps1` | **yes** → `RoomNotificationMail.Removal` |
 | `RROOPChanges.oft` | `RoomResourceOOPChanges.ps1` | **yes** → `RoomNotificationMail.UsersAuthorized` |
-| `RoomorResourceRename.oft` | `RoomResourceRename.ps1` | feature not ported |
+| `RoomorResourceRename.oft` | `RoomResourceRename.ps1` | not exported - wording written new in `RoomNotificationMail.Renamed`, see below |
 
 The `.oft` files themselves don't need to be committed - the exported `.txt` is what the code is
 derived from.
@@ -99,3 +99,7 @@ derived from.
 - **A recovery has no legacy template.** It sends the creation mail with "restored" in place of
   "created" and the subject "... Shared Mailbox Restored - TASK": the owners need the same
   information either way - groups, how to add members, how to add the mailbox to Outlook.
+- **The room rename mail is new wording.** `RoomorResourceRename.oft` was never copied into this
+  repo. `RoomNotificationMail.Renamed` says old and new name, the new address with the note that the
+  old one keeps working, and the new room list when the site changed. Replace it with the template's
+  wording once the `.oft` is exported.

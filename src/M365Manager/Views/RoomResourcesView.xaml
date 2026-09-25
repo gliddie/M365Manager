@@ -264,6 +264,57 @@
                                     </ScrollViewer>
                                 </TabItem>
 
+                                <TabItem Header="Rename">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="New name" />
+                                            <TextBox AutomationProperties.Name="New name" Style="{StaticResource ModernTextBox}"
+                                                     Text="{Binding RenameRawName, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,12"
+                                                       Text="&lt;SITE&gt; &lt;Name&gt;, e.g. FRK Meeting Room 2. A new site code moves the room to that site's room list, delegates, admins and time zone." />
+
+                                            <StackPanel Orientation="Horizontal" Margin="{DynamicResource GapField}">
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Building" />
+                                                    <TextBox AutomationProperties.Name="New building" Style="{StaticResource ModernTextBox}" Width="100"
+                                                             Text="{Binding RenameBuilding, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                                <StackPanel Margin="0,0,16,0">
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Floor" />
+                                                    <TextBox AutomationProperties.Name="New floor" Style="{StaticResource ModernTextBox}" Width="80"
+                                                             Text="{Binding RenameFloor, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                                <StackPanel>
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Capacity" />
+                                                    <TextBox AutomationProperties.Name="New capacity" Style="{StaticResource ModernTextBox}" Width="80"
+                                                             Text="{Binding RenameCapacity, UpdateSourceTrigger=PropertyChanged}" />
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <Button Style="{StaticResource SecondaryButton}" Content="_Preview rename"
+                                                    HorizontalAlignment="Left" Margin="0,0,0,12"
+                                                    Command="{Binding PreviewRenameCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+
+                                            <Border Style="{StaticResource Inset}" Margin="0,0,0,16"
+                                                    Visibility="{Binding RenamePlanSummary, Converter={StaticResource EmptyToCollapsed}}">
+                                                <StackPanel>
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Will change" />
+                                                    <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
+                                                               Text="{Binding RenamePlanSummary}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Button Style="{StaticResource DangerButton}" Content="Re_name room"
+                                                    HorizontalAlignment="Left"
+                                                    Command="{Binding RenameRoomCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,12,0,0"
+                                                       Text="The old address stays as an alias, and the sign-in name (UPN) moves with it. The requester above gets a confirmation e-mail." />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
                                 <TabItem Header="Danger zone">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
                                         <StackPanel>

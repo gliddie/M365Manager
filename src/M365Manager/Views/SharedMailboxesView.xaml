@@ -300,6 +300,60 @@
                                         </StackPanel>
                                     </ScrollViewer>
                                 </TabItem>
+
+                                <!-- Remove -->
+                                <TabItem Header="Remove">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
+                                            <TextBox AutomationProperties.Name="Ticket / task number" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                                     Text="{Binding RemoveTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Shared mailbox" />
+                                            <TextBox Style="{StaticResource ModernTextBox}"
+                                                     AutomationProperties.Name="Shared mailbox to remove"
+                                                     Text="{Binding RemoveMailboxIdentity, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,12"
+                                                       Text="Filled in when you pick a row on the left, or type a display name or address directly." />
+
+                                            <Button Style="{StaticResource SecondaryButton}" Content="_Look up mailbox"
+                                                    HorizontalAlignment="Left" Margin="0,0,0,12"
+                                                    Command="{Binding LookUpRemovalMailboxCommand}"
+                                                    IsEnabled="{Binding IsRemoveLookupBusy, Converter={StaticResource InverseBool}}" />
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,12"
+                                                       Text="Shows the owners, access groups with their members, forwarding and direct permissions - everything that goes with the mailbox." />
+
+                                            <Border Style="{StaticResource Inset}" Margin="0,0,0,16"
+                                                    Visibility="{Binding HasRemovalPreview, Converter={StaticResource BoolToVisible}}">
+                                                <StackPanel>
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Will be removed" />
+                                                    <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
+                                                               Text="{Binding RemovalSummary}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,8"
+                                                      Content="Also delete its .ED/.AU/.RE access groups"
+                                                      IsChecked="{Binding RemoveDeleteAccessGroups}" />
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,16"
+                                                       Text="The groups exist only for this mailbox. Deleted groups are gone for good - a recovery recreates them from the snapshot." />
+
+                                            <Button Style="{StaticResource DangerButton}" Content="_Delete shared mailbox"
+                                                    HorizontalAlignment="Left"
+                                                    Command="{Binding RemoveSharedMailboxCommand}"
+                                                    IsEnabled="{Binding IsRemoving, Converter={StaticResource InverseBool}}" />
+
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,12,0,0"
+                                                       Text="A full snapshot is written to the log first, and the owners get a confirmation e-mail. The mailbox stays recoverable for 30 days." />
+
+                                            <ProgressBar Style="{StaticResource BusyBar}" Margin="0,12,0,0"
+                                                         Visibility="{Binding IsRemoving, Converter={StaticResource BoolToVisible}}" />
+                                            <controls:AlertBox Margin="0,12,0,0"
+                                                               Text="{Binding RemoveStatusMessage}"
+                                                               Severity="{Binding RemoveStatusSeverity}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
                             </TabControl>
                         </Border>
                     </Grid>
@@ -418,6 +472,115 @@
 
                     <controls:AlertBox Margin="0,16,0,0"
                                        Text="{Binding StatusMessage}" Severity="{Binding StatusSeverity}" />
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- ================================================================
+             Recover
+             ================================================================ -->
+        <TabItem Header="Recover deleted mailbox">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="28,20,28,32" MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left">
+
+                    <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16" TextWrapping="Wrap"
+                               Text="A removed shared mailbox stays recoverable for 30 days. Its access groups do not come back with it - they are recreated here, with the owners and members you enter. If this app removed the mailbox, those are prefilled from its snapshot. The owners get a confirmation e-mail." />
+
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
+                            <TextBox AutomationProperties.Name="Ticket / task number" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                     Text="{Binding RecoverTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0"
+                                           Text="Deleted shared mailboxes" />
+                                <Button Content="_Load deleted mailboxes" Style="{StaticResource SecondaryButtonSmall}"
+                                        Margin="{DynamicResource GapInline}"
+                                        Command="{Binding LoadDeletedMailboxesCommand}"
+                                        IsEnabled="{Binding IsLoadingDeleted, Converter={StaticResource InverseBool}}" />
+                            </StackPanel>
+
+                            <ProgressBar Style="{StaticResource BusyBar}" Margin="0,0,0,8"
+                                         Visibility="{Binding IsLoadingDeleted, Converter={StaticResource BoolToVisible}}" />
+
+                            <Border Style="{StaticResource Inset}" Padding="0" Height="220" Margin="0,0,0,16">
+                                <Grid>
+                                    <TextBlock Margin="16" TextWrapping="Wrap"
+                                               VerticalAlignment="Center" TextAlignment="Center"
+                                               Text="{Binding DeletedListHint}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DeletedMailboxes.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <DataGrid ItemsSource="{Binding DeletedMailboxes}"
+                                              SelectedItem="{Binding SelectedDeletedMailbox, Mode=TwoWay}"
+                                              AutomationProperties.Name="Deleted shared mailboxes">
+                                        <DataGrid.Style>
+                                            <Style TargetType="DataGrid" BasedOn="{StaticResource ModernDataGrid}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DeletedMailboxes.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </DataGrid.Style>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Mailbox" Width="2*" Binding="{Binding DisplayName}" />
+                                            <DataGridTextColumn Header="Address" Width="2*" Binding="{Binding PrimarySmtpAddress}" />
+                                            <DataGridTextColumn Header="Deleted" Width="*" Binding="{Binding WhenSoftDeleted, StringFormat='yyyy-MM-dd HH:mm'}" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </Border>
+
+                            <controls:AlertBox Margin="0,0,0,16" Severity="Info"
+                                               Text="{Binding RecoverPrefillNote}" />
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Owner(s)" />
+                            <TextBox AutomationProperties.Name="Owner(s)" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding RecoverOwnerIdentities, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="Comma-separated SamAccountName, UPN or e-mail address. Required - they manage the recreated groups and are added to .ED." />
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text=".ED members (Editor - Full Access + Send As)" />
+                            <TextBox AutomationProperties.Name=".ED members (Editor - Full Access + Send As)" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding RecoverEditorMembers, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="Always recreated. The owner(s) are added automatically." />
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text=".AU members (Author - Send on Behalf)" />
+                            <TextBox AutomationProperties.Name=".AU members (Author - Send on Behalf)" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding RecoverAuthorMembers, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="Only recreated when you name at least one member." />
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text=".RE members (Reader - read-only)" />
+                            <TextBox AutomationProperties.Name=".RE members (Reader - read-only)" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding RecoverReaderMembers, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,20"
+                                       Text="Only recreated when you name at least one member." />
+
+                            <Button Style="{StaticResource PrimaryButton}" Content="_Restore mailbox"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding RecoverSharedMailboxCommand}"
+                                    IsEnabled="{Binding IsRecovering, Converter={StaticResource InverseBool}}" />
+
+                            <ProgressBar Style="{StaticResource BusyBar}" Margin="0,12,0,0"
+                                         Visibility="{Binding IsRecovering, Converter={StaticResource BoolToVisible}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <controls:AlertBox Margin="0,16,0,0"
+                                       Text="{Binding RecoverStatusMessage}" Severity="{Binding RecoverStatusSeverity}" />
                 </StackPanel>
             </ScrollViewer>
         </TabItem>

@@ -87,6 +87,41 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
     [ObservableProperty] private bool _isRenameLookupBusy;
     [ObservableProperty] private string _renameStatusMessage = "Look the mailbox up first, then enter its new name.";
 
+    // --- Remove ---
+    //
+    // Two-stage like rename, and like the legacy ShrMbxRemove.ps1 dialog: look up first, see who
+    // loses what (owners, members, forwarding, direct access), then confirm.
+    [ObservableProperty] private string _removeTaskNumber = "";
+    [ObservableProperty] private string _removeMailboxIdentity = "";
+    [ObservableProperty] private bool _removeDeleteAccessGroups = true;
+    [ObservableProperty] private bool _isRemoveLookupBusy;
+    [ObservableProperty] private bool _isRemoving;
+    [ObservableProperty] private bool _hasRemovalPreview;
+    [ObservableProperty] private string _removalSummary = "";
+    [ObservableProperty] private string _removeStatusMessage = "Look the mailbox up first - you see what goes with it before anything is deleted.";
+    [ObservableProperty] private AlertSeverity _removeStatusSeverity = AlertSeverity.Info;
+    private SharedMailboxRemovalPreview? _removalPreview;
+
+    // --- Recover ---
+    [ObservableProperty] private string _recoverTaskNumber = "";
+    [ObservableProperty] private DeletedSharedMailbox? _selectedDeletedMailbox;
+    [ObservableProperty] private string _recoverOwnerIdentities = "";
+    [ObservableProperty] private string _recoverEditorMembers = "";
+    [ObservableProperty] private string _recoverAuthorMembers = "";
+    [ObservableProperty] private string _recoverReaderMembers = "";
+    [ObservableProperty] private string _recoverPrefillNote = "";
+    [ObservableProperty] private bool _isLoadingDeleted;
+    [ObservableProperty] private bool _isRecovering;
+    [ObservableProperty] private string _deletedListHint = "Load the list to see which shared mailboxes can still be restored.";
+    [ObservableProperty] private string _recoverStatusMessage = "";
+    [ObservableProperty] private AlertSeverity _recoverStatusSeverity = AlertSeverity.Info;
+
+    /// <summary>Soft-deleted shared mailboxes - recoverable for 30 days after removal.</summary>
+    public ObservableCollection<DeletedSharedMailbox> DeletedMailboxes { get; } = new();
+
+    /// <summary>Index of the "Recover deleted mailbox" tab in the view's top-level TabStrip.</summary>
+    private const int RecoverTabIndex = 2;
+
     // Status severity, so success and failure stop looking identical. Set explicitly at each
     // outcome rather than inferred from the wording.
     [ObservableProperty] private AlertSeverity _statusSeverity = AlertSeverity.Info;
@@ -165,6 +200,7 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
 
         ChangeOwnerMailboxAddress = identity;
         RenameMailboxIdentity = identity;
+        RemoveMailboxIdentity = identity;
     }
 
     public ObservableCollection<SharedMailboxOverviewRow> SharedMailboxes { get; } = new();
@@ -596,7 +632,7 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
 
             await RefreshRenamePreviewAsync();
             UpdateRenameGroupSummary();
-            RenameStatus("Mailbox found. Enter the new location/name, then confirm and rename.", AlertSeverity.Error);
+            RenameStatus("Mailbox found. Enter the new location/name, then confirm and rename.");
         }
         catch (Exception ex)
         {
@@ -738,11 +774,12 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
                     ? ""
                     : $" The previous address {result.PreviousPrimarySmtpAddress} is kept as an alias.";
 
-                RenameStatusMessage =
+                RenameStatus(
                     $"'{result.PreviousDisplayName}' renamed to '{result.DisplayName}' ({result.PrimarySmtpAddress})."
                     + alias
                     + groups
-                    + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}");
+                    + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}"),
+                    result.WarningMessage is null ? AlertSeverity.Success : AlertSeverity.Warning);
 
                 ClearRenameForm();
                 _ = RefreshOverviewAsync();
@@ -789,5 +826,305 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
         // there is no preview left, so the success message just written survives this reset.
         _renamePreview = null;
         RenameMailboxIdentity = "";
+    }
+
+    // ----- Remove -----
+
+    private void RemoveStatus(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        RemoveStatusSeverity = severity;
+        RemoveStatusMessage = text;
+    }
+
+    /// <summary>A preview belongs to one mailbox; naming a different one has to invalidate it.</summary>
+    partial void OnRemoveMailboxIdentityChanged(string value)
+    {
+        if (_removalPreview is null)
+            return;
+
+        _removalPreview = null;
+        HasRemovalPreview = false;
+        RemovalSummary = "";
+        RemoveStatus("Look the mailbox up again - the identity changed.");
+    }
+
+    [RelayCommand]
+    private async Task LookUpRemovalMailboxAsync()
+    {
+        if (string.IsNullOrWhiteSpace(RemoveMailboxIdentity))
+        {
+            RemoveStatus("Enter the shared mailbox's display name or address.", AlertSeverity.Error);
+            return;
+        }
+
+        IsRemoveLookupBusy = true;
+        RemoveStatus("Looking the mailbox up...");
+        Transcript.BeginOperation($"Look up shared mailbox: {RemoveMailboxIdentity.Trim()}");
+        try
+        {
+            var preview = await _sharedMailboxes.PreviewRemovalAsync(RemoveMailboxIdentity.Trim());
+            _removalPreview = preview;
+            HasRemovalPreview = true;
+            RemovalSummary = DescribeRemoval(preview);
+            RemoveStatus("Mailbox found. Check what goes with it below, then delete.");
+        }
+        catch (Exception ex)
+        {
+            _removalPreview = null;
+            HasRemovalPreview = false;
+            RemovalSummary = "";
+            RemoveStatus($"Lookup failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
+        }
+        finally
+        {
+            IsRemoveLookupBusy = false;
+        }
+    }
+
+    private static string DescribeRemoval(SharedMailboxRemovalPreview preview)
+    {
+        var lines = new List<string>
+        {
+            $"Name: {preview.DisplayName}",
+            $"Address: {preview.PrimarySmtpAddress}",
+            $"Owner(s): {(preview.Owners.Length == 0 ? "none resolved - no confirmation e-mail will be sent" : preview.Owners)}",
+        };
+
+        if (preview.Forwarding.Length > 0)
+            lines.Add($"Forwards to: {preview.Forwarding} - this stops with the removal");
+
+        if (preview.AccessGroups.Count == 0)
+            lines.Add("Access groups: none found");
+        foreach (var group in preview.AccessGroups)
+        {
+            var members = group.MemberNames.Count == 0 ? "no members" : string.Join(", ", group.MemberNames);
+            lines.Add($".{group.Tier} {group.Name}: {members}");
+        }
+
+        if (preview.DirectAccess.Count > 0)
+            lines.Add($"Direct access (not through a group): {string.Join(", ", preview.DirectAccess)}");
+
+        return string.Join("\n", lines);
+    }
+
+    [RelayCommand]
+    private async Task RemoveSharedMailboxAsync()
+    {
+        if (string.IsNullOrWhiteSpace(RemoveTaskNumber))
+        {
+            RemoveStatus("Enter the ticket/task number authorizing this removal.", AlertSeverity.Error);
+            return;
+        }
+        if (_removalPreview is null)
+        {
+            RemoveStatus("Look the mailbox up first - the removal shows what goes with it before you confirm.", AlertSeverity.Error);
+            return;
+        }
+
+        var preview = _removalPreview;
+        var memberCount = preview.AccessGroups.Sum(g => g.MemberNames.Count);
+        var groupsLine = preview.AccessGroups.Count == 0
+            ? "It has no .ED/.AU/.RE access group."
+            : RemoveDeleteAccessGroups
+                ? $"Its access groups are deleted too: {string.Join(", ", preview.AccessGroups.Select(g => g.Name))}. "
+                  + $"{memberCount} member(s) lose access."
+                : $"Its access groups are kept: {string.Join(", ", preview.AccessGroups.Select(g => g.Name))}.";
+
+        var extras = new List<string> { preview.PrimarySmtpAddress, groupsLine };
+        if (preview.Forwarding.Length > 0)
+            extras.Add($"Mail forwarding to {preview.Forwarding} stops.");
+        if (preview.DirectAccess.Count > 0)
+            extras.Add($"{preview.DirectAccess.Count} direct permission(s) go with it.");
+        extras.Add("A full snapshot is written to the log first. The mailbox stays recoverable for 30 days "
+                   + "(Recover deleted mailbox); deleted access groups are recreated then, not restored.");
+
+        if (!_dialogs.ConfirmDestructive(
+                $"Delete {preview.DisplayName}?",
+                "The shared mailbox is deleted from the tenant.",
+                "Delete mailbox",
+                string.Join("\n\n", extras)))
+            return;
+
+        IsRemoving = true;
+        RemoveStatus("Starting shared mailbox removal...");
+        Transcript.BeginOperation($"Remove shared mailbox: {preview.PrimarySmtpAddress}");
+        try
+        {
+            var result = await _sharedMailboxes.RemoveAsync(new RemoveSharedMailboxRequest
+            {
+                TaskNumber = RemoveTaskNumber.Trim(),
+                // The address the lookup resolved, not whatever was typed: that is the mailbox the
+                // operator saw and confirmed.
+                MailboxIdentity = preview.PrimarySmtpAddress,
+                DeleteAccessGroups = RemoveDeleteAccessGroups,
+            }, msg => RemoveStatusMessage = msg);
+
+            if (result.Succeeded)
+            {
+                var groups = result.RemovedGroups.Count == 0
+                    ? ""
+                    : $" Removed access group(s): {string.Join(", ", result.RemovedGroups)}.";
+                RemoveStatus(
+                    $"'{result.DisplayName}' ({result.PrimarySmtpAddress}) removed.{groups} A pre-removal snapshot was written to the log."
+                    + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}"),
+                    result.WarningMessage is null ? AlertSeverity.Success : AlertSeverity.Warning);
+
+                RemoveTaskNumber = "";
+                // Cleared before the identity so OnRemoveMailboxIdentityChanged keeps the message above.
+                _removalPreview = null;
+                HasRemovalPreview = false;
+                RemovalSummary = "";
+                RemoveMailboxIdentity = "";
+                _ = RefreshOverviewAsync();
+            }
+            else
+            {
+                RemoveStatus($"Removal failed: {result.ErrorMessage}", AlertSeverity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            RemoveStatus($"Removal failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
+        }
+        finally
+        {
+            IsRemoving = false;
+        }
+    }
+
+    // ----- Recover -----
+
+    private void RecoverStatus(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        RecoverStatusSeverity = severity;
+        RecoverStatusMessage = text;
+    }
+
+    /// <summary>Loads the list the first time the tab is opened - it needs Exchange, so not at startup.</summary>
+    partial void OnSelectedTabIndexChanged(int value)
+    {
+        if (value == RecoverTabIndex && DeletedMailboxes.Count == 0 && !IsLoadingDeleted)
+            _ = LoadDeletedMailboxesAsync();
+    }
+
+    [RelayCommand]
+    private async Task LoadDeletedMailboxesAsync()
+    {
+        IsLoadingDeleted = true;
+        DeletedListHint = "Loading deleted shared mailboxes from Exchange...";
+        try
+        {
+            var list = await _sharedMailboxes.GetDeletedSharedMailboxesAsync();
+            DeletedMailboxes.Clear();
+            foreach (var mailbox in list)
+                DeletedMailboxes.Add(mailbox);
+
+            DeletedListHint = "No deleted shared mailboxes - nothing can be restored right now. "
+                              + "Removed mailboxes stay here for 30 days.";
+        }
+        catch (Exception ex)
+        {
+            DeletedListHint = "Could not load the list - check the Exchange connection on the Dashboard.";
+            RecoverStatus($"Could not load deleted mailboxes: {ErrorText.Describe(ex)}", AlertSeverity.Error);
+        }
+        finally
+        {
+            IsLoadingDeleted = false;
+        }
+    }
+
+    /// <summary>
+    /// Prefills owners and members from what this app recorded when it removed the mailbox. The
+    /// fields stay editable; a mailbox removed some other way simply starts empty.
+    /// </summary>
+    async partial void OnSelectedDeletedMailboxChanged(DeletedSharedMailbox? value)
+    {
+        RecoverOwnerIdentities = "";
+        RecoverEditorMembers = "";
+        RecoverAuthorMembers = "";
+        RecoverReaderMembers = "";
+        RecoverPrefillNote = "";
+        if (value is null)
+            return;
+
+        var data = await _sharedMailboxes.GetRestoreDataAsync(value.ExchangeGuid);
+        if (!ReferenceEquals(value, SelectedDeletedMailbox))
+            return; // a different row was picked while this one was loading
+
+        if (data is null)
+        {
+            RecoverPrefillNote = "No snapshot from this app for this mailbox - enter the owners and members from the ticket.";
+            return;
+        }
+
+        string Members(string tier) => string.Join(", ", data.Groups.Where(g => g.Tier == tier).SelectMany(g => g.Members));
+        RecoverOwnerIdentities = string.Join(", ", data.Owners);
+        RecoverEditorMembers = Members("ED");
+        RecoverAuthorMembers = Members("AU");
+        RecoverReaderMembers = Members("RE");
+        RecoverPrefillNote = $"Prefilled from the snapshot taken when it was removed on {data.RemovedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm}"
+                             + (data.TaskNumber.Length > 0 ? $" ({data.TaskNumber})" : "") + ". Check before restoring.";
+    }
+
+    [RelayCommand]
+    private async Task RecoverSharedMailboxAsync()
+    {
+        if (string.IsNullOrWhiteSpace(RecoverTaskNumber))
+        {
+            RecoverStatus("Enter the ticket/task number authorizing this recovery.", AlertSeverity.Error);
+            return;
+        }
+        if (SelectedDeletedMailbox is not { } mailbox)
+        {
+            RecoverStatus("Pick the mailbox to restore in the list.", AlertSeverity.Error);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(RecoverOwnerIdentities))
+        {
+            RecoverStatus("Enter at least one owner - the recreated access groups need someone to manage them.", AlertSeverity.Error);
+            return;
+        }
+
+        IsRecovering = true;
+        RecoverStatus($"Restoring {mailbox.DisplayName}...");
+        Transcript.BeginOperation($"Recover shared mailbox: {mailbox.PrimarySmtpAddress}");
+        try
+        {
+            var result = await _sharedMailboxes.RecoverAsync(new RecoverSharedMailboxRequest
+            {
+                TaskNumber = RecoverTaskNumber.Trim(),
+                ExchangeGuid = mailbox.ExchangeGuid,
+                OwnerIdentities = RecoverOwnerIdentities.Trim(),
+                EditorMembers = RecoverEditorMembers.Trim(),
+                AuthorMembers = RecoverAuthorMembers.Trim(),
+                ReaderMembers = RecoverReaderMembers.Trim(),
+            }, msg => RecoverStatusMessage = msg);
+
+            if (result.Succeeded)
+            {
+                var groups = result.AccessGroups.Count == 0 ? "" : $" Access group(s): {string.Join(", ", result.AccessGroups)}.";
+                RecoverStatus(
+                    $"'{result.DisplayName}' ({result.PrimarySmtpAddress}) restored.{groups}"
+                    + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}"),
+                    result.WarningMessage is null ? AlertSeverity.Success : AlertSeverity.Warning);
+
+                DeletedMailboxes.Remove(mailbox);
+                SelectedDeletedMailbox = null;
+                RecoverTaskNumber = "";
+                _ = RefreshOverviewAsync();
+            }
+            else
+            {
+                RecoverStatus($"Recovery failed: {result.ErrorMessage}", AlertSeverity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            RecoverStatus($"Recovery failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
+        }
+        finally
+        {
+            IsRecovering = false;
+        }
     }
 }

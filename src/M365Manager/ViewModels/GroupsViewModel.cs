@@ -45,9 +45,6 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
     [ObservableProperty] private GroupMemberInfo? _selectedMember;
     [ObservableProperty] private string _newMemberAddress = "";
 
-    /// <summary>ServiceNow task number required before any add/remove change. Not auto-cleared.</summary>
-    [ObservableProperty] private string _taskNumber = "";
-
     /// <summary>Synced from the Members DataGrid's multi-selection (see GroupsView.xaml.cs).</summary>
     private IReadOnlyList<GroupMemberInfo> _selectedMembers = Array.Empty<GroupMemberInfo>();
 
@@ -517,9 +514,14 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
         }
     }
 
+    /// <summary>
+    /// Member add/remove reads the same "Ticket / task number" field as every other action on the
+    /// manage panel. It used to read a separate TaskNumber property left over from the old layout,
+    /// which no longer had an input - so add/remove always failed with the field visibly filled in.
+    /// </summary>
     private bool TryRequireTaskNumber(out string task)
     {
-        task = TaskNumber.Trim();
+        task = ManageTaskNumber.Trim();
         if (task.Length > 0)
             return true;
 

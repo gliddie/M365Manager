@@ -8,7 +8,8 @@ Companion script to Import-M365GroupsToSql.ps1. That script already imports ever
 the Team-specific attributes into dbo.Teams (see src/M365Manager.Data/Scripts/04_Teams.sql),
 keyed by the same group id:
   - From Microsoft Graph (app-only, certificate auth): Visibility, CreatedDateTime, IsArchived,
-    AllowToAddGuests (Group.Unified.Guest directory setting).
+    AllowToAddGuests - the effective value: tenant-wide Group.Unified setting AND the team's own
+    Group.Unified.Guest setting, read via Invoke-MgGraphRequest (no extra Graph submodule).
   - From Exchange Online (app-only, certificate auth - separate app registration/certificate
     from the Graph one): HiddenFromAddressListsEnabled, WelcomeMessageEnabled, SharePointSiteUrl.
     These three have no Graph equivalent - they're Exchange-only UnifiedGroup properties.
@@ -262,39 +263,93 @@ WHEN NOT MATCHED THEN
     Invoke-SqlCommand -Sql $sql -Parameters $parameters
 }
 
-function Get-GuestAccessTemplateId {
-    # Get-MgGroupSettingTemplate lives in Microsoft.Graph.Identity.DirectoryManagement, a
-    # different submodule than Get-MgGroup/Get-MgTeam - try to load it explicitly, but degrade
-    # gracefully (AllowToAddGuests stays NULL) instead of aborting the whole import if it, or the
-    # cmdlet itself, isn't available on this machine.
+# ----- Guest access (AllowToAddGuests) -----
+#
+# Read through plain Graph REST (Invoke-MgGraphRequest, part of Microsoft.Graph.Authentication,
+# which is loaded anyway) instead of Get-MgGroupSettingTemplate / Get-MgGroupSetting. The template
+# cmdlet lives in Microsoft.Graph.Identity.DirectoryManagement, and on the scheduler box every
+# version of that submodule that could be installed next to the pinned Groups/Teams modules
+# collided with them ("Assembly with same name is already loaded") and broke Get-MgGroup itself.
+# REST needs no extra module at all - the same approach the app's TeamsService takes.
+#
+# The value stored is the EFFECTIVE one: guests can be added to a team only if the tenant-wide
+# Group.Unified setting allows it AND the team has no Group.Unified.Guest setting forbidding it.
+# A team without its own setting inherits the tenant value - previously that case came out NULL,
+# which is what nearly every "external" team looked like.
+
+# Well-known id of the Group.Unified.Guest template; used when the template list can't be read.
+$script:GuestTemplateFallbackId = '08d542b9-071f-4e16-94b0-74abb372e3d9'
+$script:GuestSettingsUnavailable = $false
+
+function Invoke-GraphGet {
+    param([string]$Uri)
+    Invoke-MgGraphRequest -Method GET -Uri $Uri -OutputType PSObject -ErrorAction Stop
+}
+
+function Get-SettingValue {
+    param($Setting, [string]$Name)
+    $entry = $Setting.values | Where-Object { $_.name -eq $Name } | Select-Object -First 1
+    if ($null -eq $entry -or [string]::IsNullOrWhiteSpace($entry.value)) { return $null }
+    return [bool]::Parse($entry.value)
+}
+
+function Get-GuestAccessContext {
+    $templateId = $script:GuestTemplateFallbackId
     try {
-        if (-not (Get-Command Get-MgGroupSettingTemplate -ErrorAction SilentlyContinue)) {
-            Import-Module Microsoft.Graph.Identity.DirectoryManagement -ErrorAction Stop
-        }
-        $template = Get-MgGroupSettingTemplate -All -ErrorAction Stop | Where-Object { $_.DisplayName -eq 'Group.Unified.Guest' } | Select-Object -First 1
-        if (-not $template) {
-            Write-ImportLog "WARNING: 'Group.Unified.Guest' setting template not found - AllowToAddGuests will be left NULL for all teams."
-            return $null
-        }
-        return $template.Id
+        $templates = Invoke-GraphGet -Uri 'https://graph.microsoft.com/v1.0/groupSettingTemplates?$select=id,displayName'
+        $match = $templates.value | Where-Object { $_.displayName -eq 'Group.Unified.Guest' } | Select-Object -First 1
+        if ($match) { $templateId = $match.id }
     }
     catch {
-        Write-ImportLog "WARNING: Could not read group setting templates ($($_.Exception.Message)) - AllowToAddGuests will be left NULL for all teams. Install-Module Microsoft.Graph.Identity.DirectoryManagement -Scope CurrentUser to fix this."
-        return $null
+        Write-DebugLog "Could not list group setting templates ($($_.Exception.Message)) - using the well-known Group.Unified.Guest id."
     }
+
+    # Tenant default: Group.Unified/AllowToAddGuests. No such setting means the Microsoft 365
+    # default, which is "allowed".
+    $tenantAllows = $true
+    try {
+        $tenantSettings = Invoke-GraphGet -Uri 'https://graph.microsoft.com/v1.0/groupSettings'
+        $unified = $tenantSettings.value | Where-Object { $_.displayName -eq 'Group.Unified' } | Select-Object -First 1
+        if ($unified) {
+            $value = Get-SettingValue -Setting $unified -Name 'AllowToAddGuests'
+            if ($null -ne $value) { $tenantAllows = $value }
+        }
+    }
+    catch {
+        Write-ImportLog "WARNING: Could not read the tenant-wide group settings ($($_.Exception.Message)) - AllowToAddGuests will be left NULL. The Graph app needs Directory.Read.All."
+        $script:GuestSettingsUnavailable = $true
+    }
+
+    [pscustomobject]@{ TemplateId = $templateId; TenantAllows = $tenantAllows }
 }
 
 function Get-AllowToAddGuests {
-    param([string]$GroupId, [string]$TemplateId)
+    param([string]$GroupId, $Context)
 
-    if (-not $TemplateId) { return $null }
-    $settings = Get-MgGroupSetting -GroupId $GroupId -ErrorAction SilentlyContinue
-    $guestSetting = $settings | Where-Object { $_.TemplateId -eq $TemplateId } | Select-Object -First 1
-    if (-not $guestSetting) { return $null }
+    if ($script:GuestSettingsUnavailable) { return $null }
+    if (-not $Context.TenantAllows) { return $false }   # the tenant switch overrides every team
 
-    $value = ($guestSetting.Values | Where-Object { $_.Name -eq 'AllowToAddGuests' } | Select-Object -First 1).Value
-    if ($null -eq $value) { return $null }
-    return [bool]::Parse($value)
+    try {
+        $settings = Invoke-GraphGet -Uri "https://graph.microsoft.com/v1.0/groups/$GroupId/settings"
+    }
+    catch {
+        # A permission problem would repeat for every team - report it once and stop asking.
+        if ($_.Exception.Message -match '403|Forbidden|Authorization_RequestDenied') {
+            Write-ImportLog "WARNING: Not allowed to read group settings ($($_.Exception.Message)) - AllowToAddGuests will be left NULL for the remaining teams. The Graph app needs Directory.Read.All."
+            $script:GuestSettingsUnavailable = $true
+        }
+        else {
+            Write-DebugLog "Could not read settings of group $GroupId`: $($_.Exception.Message)"
+        }
+        return $null
+    }
+
+    $guestSetting = $settings.value | Where-Object { $_.templateId -eq $Context.TemplateId } | Select-Object -First 1
+    if (-not $guestSetting) { return $true }   # no own setting - inherits the tenant's "allowed"
+
+    $value = Get-SettingValue -Setting $guestSetting -Name 'AllowToAddGuests'
+    if ($null -eq $value) { return $true }
+    return $value
 }
 
 try {
@@ -323,7 +378,8 @@ try {
     $groups = Get-MgGroup -All -Filter "resourceProvisioningOptions/Any(x:x eq 'Team')" -ConsistencyLevel eventual -CountVariable teamCount -ErrorAction Stop
     Write-ImportLog "Found $($groups.Count) Teams-enabled groups."
 
-    $guestTemplateId = Get-GuestAccessTemplateId
+    $guestContext = Get-GuestAccessContext
+    Write-ImportLog "Guest access: tenant-wide AllowToAddGuests = $($guestContext.TenantAllows)."
 
     $imported = 0
     $skipped = 0
@@ -346,7 +402,7 @@ try {
             Write-DebugLog "Could not read Get-MgTeam for '$($group.DisplayName)': $($_.Exception.Message)"
         }
 
-        $allowGuests = Get-AllowToAddGuests -GroupId $group.Id -TemplateId $guestTemplateId
+        $allowGuests = Get-AllowToAddGuests -GroupId $group.Id -Context $guestContext
 
         $hidden = $null
         $welcome = $null

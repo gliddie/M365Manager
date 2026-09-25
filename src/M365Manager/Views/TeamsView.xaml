@@ -7,10 +7,11 @@
              mc:Ignorable="d" d:DesignHeight="700" d:DesignWidth="1000">
 
     <!--
-        Teams has no management actions - only create and look up - so this is the simplest of the
-        three: overview first (that is what you reach for when a ticket names a team), creating on
-        the second tab. Selecting a row fills a detail card with the attributes the grid has no
-        room for, rather than the ten-column grid the page used to show.
+        Teams themselves have no management actions - only create and look up: overview first (that
+        is what you reach for when a ticket names a team), creating on the second tab. Selecting a
+        row fills a detail card with the attributes the grid has no room for, rather than the
+        ten-column grid the page used to show. The third tab manages the tenant-wide external
+        access (federation) allow list - partner domains, not individual teams.
     -->
     <TabControl Style="{StaticResource TabStrip}" Padding="0"
                 SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
@@ -258,6 +259,135 @@
                                        Text="{Binding StatusMessage}" Severity="{Binding StatusSeverity}" />
                 </StackPanel>
             </ScrollViewer>
+        </TabItem>
+
+        <!--
+            External access (federation): which partner domains Teams users may chat, call and
+            meet with. One tenant-wide list, read live from Teams - list on the left, the mode it
+            is in and the add/remove actions on the right.
+        -->
+        <TabItem Header="External access">
+            <Grid Margin="28,20,28,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Style="{StaticResource ModernTextBox}" Width="320"
+                                 AutomationProperties.Name="Filter allowed domains"
+                                 Text="{Binding FederationFilterText, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Content="_Refresh" Style="{StaticResource SecondaryButton}"
+                                Margin="{DynamicResource GapInline}"
+                                Command="{Binding RefreshFederationCommand}"
+                                IsEnabled="{Binding IsFederationBusy, Converter={StaticResource InverseBool}}" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource FieldHint}"
+                               Text="Partner domains on the Teams federation allow list. Read live from Teams, not from the SQL cache." />
+
+                    <ProgressBar Style="{StaticResource BusyBar}" Margin="0,12,0,0"
+                                 Visibility="{Binding IsFederationBusy, Converter={StaticResource BoolToVisible}}" />
+                </StackPanel>
+
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="400" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Style="{StaticResource Card}" Padding="0">
+                        <Grid>
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="24">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding FederationDomains.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="&#xE774;" FontFamily="Segoe MDL2 Assets" FontSize="28"
+                                           HorizontalAlignment="Center"
+                                           Foreground="{DynamicResource TextDisabledBrush}" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0,12,0,0" TextAlignment="Center" TextWrapping="Wrap"
+                                           Text="{Binding FederationListHint}" />
+                            </StackPanel>
+
+                            <DataGrid ItemsSource="{Binding FederationDomainsView}"
+                                      SelectedItem="{Binding SelectedFederationDomain, Mode=TwoWay}"
+                                      AutomationProperties.Name="Allowed partner domains">
+                                <DataGrid.Style>
+                                    <Style TargetType="DataGrid" BasedOn="{StaticResource ModernDataGrid}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding FederationDomains.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </DataGrid.Style>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Allowed domain" Width="*" Binding="{Binding}" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <controls:AlertBox Margin="0,0,0,12"
+                                               Text="{Binding FederationModeText}" Severity="{Binding FederationModeSeverity}" />
+
+                            <Border Style="{StaticResource Card}"
+                                    Visibility="{Binding HasFederationState, Converter={StaticResource BoolToVisible}}">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
+                                    <TextBox AutomationProperties.Name="Ticket / task number" Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding FederationTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                               Text="Required for adding and for removing." />
+
+                                    <TextBlock Style="{StaticResource H3}" Text="Add partner domains" Margin="0,0,0,8" />
+                                    <TextBox AutomationProperties.Name="Partner domains to add" Style="{StaticResource ModernTextBoxMultiline}" Height="80"
+                                             Text="{Binding FederationDomainsInput, UpdateSourceTrigger=PropertyChanged}"
+                                             IsEnabled="{Binding CanAddFederationDomains}" />
+                                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,12"
+                                               Text="One per line or comma-separated, e.g. partner.com. A pasted web or e-mail address is reduced to its domain." />
+                                    <Button Style="{StaticResource PrimaryButton}" Content="_Add domains"
+                                            HorizontalAlignment="Left" Margin="0,0,0,24"
+                                            Command="{Binding AddFederationDomainsCommand}"
+                                            IsEnabled="{Binding CanSubmitFederationAdd}" />
+
+                                    <TextBlock Style="{StaticResource H3}" Text="Remove a domain" Margin="0,0,0,8" />
+                                    <TextBlock Margin="0,0,0,12" TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                                <Setter Property="Text" Value="{Binding SelectedFederationDomain, StringFormat='Selected: {0}'}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedFederationDomain}" Value="{x:Null}">
+                                                        <Setter Property="Text" Value="Select a domain in the list on the left." />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <Button Style="{StaticResource DangerButton}" Content="Re_move domain"
+                                            HorizontalAlignment="Left"
+                                            Command="{Binding RemoveFederationDomainCommand}"
+                                            IsEnabled="{Binding IsFederationBusy, Converter={StaticResource InverseBool}}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+                <controls:AlertBox Grid.Row="2" Margin="0,12,0,16"
+                                   Text="{Binding FederationStatusMessage}" Severity="{Binding FederationStatusSeverity}" />
+            </Grid>
         </TabItem>
     </TabControl>
 </UserControl>

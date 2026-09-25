@@ -75,6 +75,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ITeamNamingRepository, SqlTeamNamingRepository>();
         services.AddSingleton<ITeamNamingService, TeamNamingService>();
         services.AddSingleton<ITeamsService, TeamsService>();
+        services.AddSingleton<ITeamsFederationService, TeamsFederationService>();
 
         // Shared Mailboxes feature: reuses the Teams naming acronym table (dbo.TeamNameAcronyms)
         // and the ExchangeService connection - no new IM365Connector needed.

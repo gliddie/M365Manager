@@ -82,9 +82,10 @@ public sealed partial class MainViewModel : ObservableObject
         _settings = settingsService;
         Transcript = transcript;
 
-        // Ordered by how often the work actually happens, not alphabetically: the six pages that
-        // carry the daily ticket load sit together at the top, telephony next, and the rarely used
-        // Trace plus the supporting pages drop to the bottom. Section drives the sidebar grouping.
+        // Ordered by how often the work actually happens, not alphabetically: the mailbox and group
+        // pages that carry the daily ticket load at the top, then everything Teams - the teams
+        // themselves, meeting policies and telephony (New Hire) - together, and the rarely used
+        // Trace plus the supporting pages at the bottom. Section drives the sidebar grouping.
         // Glyph values are Segeo MDL2 Assets codes - swap one here if it reads wrong.
         Pages = new ObservableCollection<NavItem>
         {
@@ -92,11 +93,11 @@ public sealed partial class MainViewModel : ObservableObject
 
             new() { Title = "Groups",           Section = "DAILY OPERATIONS", Glyph = "", ViewModel = groups },
             new() { Title = "Shared Mailboxes", Section = "DAILY OPERATIONS", Glyph = "", ViewModel = sharedMailboxes },
-            new() { Title = "Teams",            Section = "DAILY OPERATIONS", Glyph = "", ViewModel = teams },
             new() { Title = "Rooms & Resources",Section = "DAILY OPERATIONS", Glyph = "", ViewModel = roomResources },
 
-            new() { Title = "New Hire",         Section = "TELEPHONY",        Glyph = "", ViewModel = newHire },
-            new() { Title = "Teams Policies",   Section = "TELEPHONY",        Glyph = "", ViewModel = teamsPolicies },
+            new() { Title = "Teams",            Section = "TEAMS",            Glyph = "", ViewModel = teams },
+            new() { Title = "Teams Policies",   Section = "TEAMS",            Glyph = "", ViewModel = teamsPolicies },
+            new() { Title = "New Hire",         Section = "TEAMS",            Glyph = "", ViewModel = newHire },
 
             new() { Title = "Trace Guests",     Section = "MORE",             Glyph = "", ViewModel = trace },
 

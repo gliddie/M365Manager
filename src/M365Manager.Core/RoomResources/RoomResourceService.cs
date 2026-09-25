@@ -19,7 +19,7 @@ namespace M365Manager.Core.RoomResources;
 /// room lists and their security groups are all plain Exchange objects, so unlike the Teams
 /// feature this needs no Graph calls and no extra Graph consent.
 /// </summary>
-public sealed class RoomResourceService : IRoomResourceService
+public sealed partial class RoomResourceService : IRoomResourceService
 {
     /// <summary>
     /// Booking-policy text appended to every accept/decline notification. Inlined from the legacy
@@ -64,6 +64,7 @@ public sealed class RoomResourceService : IRoomResourceService
     private readonly ILogService _log;
     private readonly IConnectionStringProvider _connectionStrings;
     private readonly INotificationMailService _mail;
+    private readonly GraphRestClient _graph;
 
     public RoomResourceService(
         PowerShellHost host,
@@ -73,7 +74,8 @@ public sealed class RoomResourceService : IRoomResourceService
         IRoomSiteRepository sites,
         ILogService log,
         IConnectionStringProvider connectionStrings,
-        INotificationMailService mail)
+        INotificationMailService mail,
+        GraphRestClient graph)
     {
         _host = host;
         _auth = auth;
@@ -83,6 +85,7 @@ public sealed class RoomResourceService : IRoomResourceService
         _log = log;
         _connectionStrings = connectionStrings;
         _mail = mail;
+        _graph = graph;
     }
 
     // ----- confirmation e-mail -----

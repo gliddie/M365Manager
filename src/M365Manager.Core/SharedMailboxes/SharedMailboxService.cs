@@ -503,10 +503,13 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
             // to the previous address keeps arriving.
             if (!addressUnchanged)
             {
+                // WindowsEmailAddress, not PrimarySmtpAddress: Exchange Online's Set-Mailbox has no
+                // -PrimarySmtpAddress ("A parameter cannot be found..."). On a cloud mailbox,
+                // WindowsEmailAddress sets the primary SMTP address and keeps the old one as a proxy.
                 await _host.InvokeAsync(ps => ps
                     .AddCommand("Set-Mailbox")
                     .AddParameter("Identity", mailboxId)
-                    .AddParameter("PrimarySmtpAddress", newAddress)
+                    .AddParameter("WindowsEmailAddress", newAddress)
                     .AddParameter("ErrorAction", "Stop"), ct: ct);
             }
 

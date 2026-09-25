@@ -187,6 +187,35 @@ internal static class RoomNotificationMail
         return ($"{displayName} Updated - {taskNumber}", html);
     }
 
+    /// <summary>
+    /// The legacy RoomorResourceRename.oft was never exported into this repo, so this wording is new
+    /// and follows the others. Replace it with the template's once that is available.
+    /// </summary>
+    public static (string Subject, string Html) Renamed(string oldDisplayName, string newDisplayName,
+        string oldAddress, string newAddress, string? newRoomList, string taskNumber)
+    {
+        var addressChanged = !string.Equals(oldAddress, newAddress, StringComparison.OrdinalIgnoreCase);
+        var address = addressChanged
+            ? $"<p>Its e-mail address is now <b>{E(newAddress)}</b>. The previous address {E(oldAddress)} keeps "
+              + "working, so existing meetings and bookings addressed to it are not affected.</p>"
+            : "";
+        var roomList = string.IsNullOrWhiteSpace(newRoomList)
+            ? ""
+            : $"""<p>It is now listed in the room list <b>{E(newRoomList)}</b> in the Room Finder.</p>""";
+
+        var html = $"""
+            <p>As requested <b>{E(oldDisplayName)}</b> has been renamed to <b>{E(newDisplayName)}</b>.</p>
+            {address}
+            {roomList}
+            <p>It may take up to 72 hrs for the new name to sync to the Offline Address List; in the meanwhile you
+            can find it by selecting the Global Address List.</p>
+
+            <p>With this change being complete this ticket is being closed.</p>
+            """;
+
+        return ($"{oldDisplayName} Renamed to {newDisplayName} - {taskNumber}", html);
+    }
+
     // ----- shared pieces -----
 
     /// <summary>

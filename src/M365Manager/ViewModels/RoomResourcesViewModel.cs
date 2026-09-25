@@ -411,6 +411,22 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
         // A general-use room has no users group - default the membership panel to what it has.
         MembershipGroupKind = value.HasUsersGroup ? MembershipGroupKind : RoomGroupKind.Delegates;
         _ = LoadCurrentMembersAsync();
+
+        // The rename form starts from the room as it is, so a ticket that changes one thing only
+        // needs that one thing typed.
+        _applyingRenamePrefill = true;
+        try
+        {
+            RenameRawName = value.DisplayName;
+            RenameBuilding = value.Building;
+            RenameFloor = value.Floor;
+            RenameCapacity = value.Capacity?.ToString() ?? "";
+        }
+        finally
+        {
+            _applyingRenamePrefill = false;
+        }
+        InvalidateRenamePlan();
     }
 
     partial void OnMembershipGroupKindChanged(RoomGroupKind value) => _ = LoadCurrentMembersAsync();
@@ -627,6 +643,171 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
         catch (Exception ex)
         {
             ManageStatus($"Removal failed: {ex.Message}", AlertSeverity.Error);
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+
+    // --- manage: rename ---
+    //
+    // Two steps, like the shared mailbox rename: "Preview rename" reads the room from Exchange and
+    // works out everything that would change - address, groups, room list, time zone, admins -
+    // and only then does the Rename button do anything. A rename touches up to a dozen objects.
+
+    [ObservableProperty] private string _renameRawName = "";
+    [ObservableProperty] private string _renameBuilding = "";
+    [ObservableProperty] private string _renameFloor = "";
+    [ObservableProperty] private string _renameCapacity = "";
+    [ObservableProperty] private string _renamePlanSummary = "";
+    [ObservableProperty] private bool _hasRenamePlan;
+    private RoomRenamePlan? _renamePlan;
+
+    /// <summary>Set while a room selection fills the fields, so that doesn't count as an edit.</summary>
+    private bool _applyingRenamePrefill;
+
+    // Any change to the inputs makes the previewed plan stale.
+    partial void OnRenameRawNameChanged(string value) => OnRenameInputChanged();
+    partial void OnRenameBuildingChanged(string value) => OnRenameInputChanged();
+    partial void OnRenameFloorChanged(string value) => OnRenameInputChanged();
+    partial void OnRenameCapacityChanged(string value) => OnRenameInputChanged();
+
+    private void OnRenameInputChanged()
+    {
+        if (!_applyingRenamePrefill)
+            InvalidateRenamePlan();
+    }
+
+    private void InvalidateRenamePlan()
+    {
+        _renamePlan = null;
+        HasRenamePlan = false;
+        RenamePlanSummary = "";
+    }
+
+    private RoomRenameRequest BuildRenameRequest() => new()
+    {
+        TaskNumber = ManageTaskNumber.Trim(),
+        RequesterIdentity = ManageRequesterIdentity.Trim(),
+        MailboxIdentity = SelectedRoom?.PrimarySmtpAddress ?? "",
+        RawName = RenameRawName.Trim(),
+        Building = RenameBuilding.Trim(),
+        Floor = RenameFloor.Trim(),
+        Capacity = RenameCapacity.Trim(),
+    };
+
+    [RelayCommand]
+    private async Task PreviewRenameAsync()
+    {
+        if (SelectedRoom is null)
+        {
+            ManageStatus("Select a room or resource in the grid first.", AlertSeverity.Error);
+            return;
+        }
+
+        IsManageBusy = true;
+        InvalidateRenamePlan();
+        ManageStatus("Reading the room and working out the rename...");
+        Transcript.BeginOperation($"Preview rename: {SelectedRoom.PrimarySmtpAddress}");
+        try
+        {
+            var current = await _rooms.LookUpForRenameAsync(SelectedRoom.PrimarySmtpAddress);
+            var plan = await _rooms.PlanRenameAsync(current, BuildRenameRequest());
+            RenamePlanSummary = DescribeRenamePlan(plan);
+
+            if (plan.Errors.Count > 0)
+            {
+                ManageStatus(string.Join(" ", plan.Errors), AlertSeverity.Error);
+                return;
+            }
+
+            _renamePlan = plan;
+            HasRenamePlan = true;
+            ManageStatus("Check the changes below, then rename.");
+        }
+        catch (Exception ex)
+        {
+            ManageStatus($"Preview failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
+        }
+        finally
+        {
+            IsManageBusy = false;
+        }
+    }
+
+    private static string DescribeRenamePlan(RoomRenamePlan plan)
+    {
+        var lines = new List<string>
+        {
+            $"Name: {plan.Current.DisplayName}  ->  {plan.NewNames.DisplayName}",
+            $"Address: {plan.Current.PrimarySmtpAddress}  ->  {plan.NewNames.Address}",
+        };
+        foreach (var (from, to) in plan.GroupRenames)
+            lines.Add($"Group: {from}  ->  {to}");
+        if (plan.DelegateSwap is { } swap)
+            lines.Add($"Delegates: {(swap.From.Length > 0 ? swap.From : "(none)")}  ->  {swap.To}");
+        if (plan.RoomListMove is { } move)
+            lines.Add($"Room list: {move.From}  ->  {move.To}");
+        if (plan.NewTimeZone is { } tz)
+            lines.Add($"Time zone: {(plan.Current.TimeZone.Length > 0 ? plan.Current.TimeZone : "(not set)")}  ->  {tz}");
+        if (plan.NewRegionalAdminGroup is { } admins)
+            lines.Add($"Regional admins: {admins}");
+        foreach (var note in plan.Notes)
+            lines.Add(note);
+        return string.Join("\n", lines);
+    }
+
+    [RelayCommand]
+    private async Task RenameRoomAsync()
+    {
+        if (SelectedRoom is null)
+        {
+            ManageStatus("Select a room or resource in the grid first.", AlertSeverity.Error);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(ManageTaskNumber))
+        {
+            ManageStatus("Enter the ticket/task number authorizing this rename.", AlertSeverity.Error);
+            return;
+        }
+        if (_renamePlan is not { } plan)
+        {
+            ManageStatus("Preview the rename first - it shows everything that changes with it.", AlertSeverity.Error);
+            return;
+        }
+
+        if (!_dialogs.ConfirmDestructive(
+                $"Rename {plan.Current.DisplayName}?",
+                $"It becomes '{plan.NewNames.DisplayName}' ({plan.NewNames.Address}).",
+                "Rename room",
+                RenamePlanSummary))
+            return;
+
+        IsManageBusy = true;
+        ManageStatus("Starting rename...");
+        Transcript.BeginOperation($"Rename: {plan.Current.DisplayName} -> {plan.NewNames.DisplayName}");
+        try
+        {
+            var result = await _rooms.RenameAsync(BuildRenameRequest(), msg => ManageStatusMessage = msg);
+            if (result.Succeeded)
+            {
+                var changes = result.Changes.Count == 0 ? "" : $" {string.Join("; ", result.Changes)}.";
+                ManageStatus(
+                    $"'{result.PreviousDisplayName}' renamed to '{result.DisplayName}' ({result.PrimarySmtpAddress}).{changes}"
+                    + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}"),
+                    result.WarningMessage is null ? AlertSeverity.Success : AlertSeverity.Warning);
+                InvalidateRenamePlan();
+                _ = RefreshOverviewAsync();
+            }
+            else
+            {
+                ManageStatus($"Rename failed: {result.ErrorMessage}", AlertSeverity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ManageStatus($"Rename failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {

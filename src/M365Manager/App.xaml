@@ -41,6 +41,9 @@
             <DataTemplate DataType="{x:Type vm:TeamsPoliciesViewModel}">
                 <views:TeamsPoliciesView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ExternalAccessViewModel}">
+                <views:ExternalAccessView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:NewHireViewModel}">
                 <views:NewHireView />
             </DataTemplate>

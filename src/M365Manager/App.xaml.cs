@@ -31,6 +31,7 @@ public partial class App : Application
                 services.AddSingleton<SharedMailboxesViewModel>();
                 services.AddSingleton<RoomResourcesViewModel>();
                 services.AddSingleton<TeamsPoliciesViewModel>();
+        services.AddSingleton<ExternalAccessViewModel>();
                 services.AddSingleton<NewHireViewModel>();
                 services.AddSingleton<TraceViewModel>();
                 services.AddSingleton<SettingsViewModel>();

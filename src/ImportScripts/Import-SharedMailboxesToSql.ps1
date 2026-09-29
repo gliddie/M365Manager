@@ -275,17 +275,28 @@ function Get-GroupsFromMailboxPermissions {
     return $result
 }
 
+function Get-SqlUtcNow {
+    # The SQL server's clock: LastSeenAtUtc is stamped with SYSUTCDATETIME() on the server.
+    $connection = New-Object System.Data.SqlClient.SqlConnection(Get-ConnectionString)
+    $command = $connection.CreateCommand()
+    $command.CommandText = 'SELECT SYSUTCDATETIME()'
+    $connection.Open()
+    try { return [datetime]$command.ExecuteScalar() }
+    finally { $connection.Dispose() }
+}
 function Update-MissingMailboxFlags {
-    param([string[]]$SeenGuids)
+    param([string[]]$SeenGuids, [datetime]$RunStartUtc)
 
     # Shared mailboxes that were in the cache but no longer come back from Exchange are flagged
     # rather than deleted, so the grid can still show what happened (same convention as dbo.Groups
     # and the rooms importer).
     if ($SeenGuids.Count -eq 0) { return }
 
-    $list = ($SeenGuids | ForEach-Object { "'" + $_ + "'" }) -join ","
-    $sql = "UPDATE dbo.SharedMailboxes SET IsDeletedInM365 = 1 WHERE ExchangeGuid NOT IN ($list)"
-    Invoke-SqlCommand -Sql $sql
+    # Every mailbox written this run got LastSeenAtUtc = now; anything older was not returned.
+    # Replaces a NOT IN list of every ExchangeGuid, which grows with the tenant - the same pattern
+    # made the groups import time out at 37,000 entries.
+    $sql = 'UPDATE dbo.SharedMailboxes SET IsDeletedInM365 = 1 WHERE IsDeletedInM365 = 0 AND (LastSeenAtUtc IS NULL OR LastSeenAtUtc < @RunStartUtc)'
+    Invoke-SqlCommand -Sql $sql -Parameters @{ RunStartUtc = $RunStartUtc }
 }
 
 function Write-SharedMailboxRecord {
@@ -351,6 +362,7 @@ try {
     Write-ImportLog 'Indexing access groups...'
     Initialize-AccessGroupIndex
 
+    $runStartUtc = Get-SqlUtcNow
     Write-ImportLog 'Querying shared mailboxes...'
     $mailboxes = Get-EXOMailbox -RecipientTypeDetails SharedMailbox -ResultSize Unlimited `
         -Properties ExchangeGuid, DisplayName, Alias, PrimarySmtpAddress, RequireSenderAuthenticationEnabled, WhenMailboxCreated -ErrorAction Stop
@@ -416,7 +428,7 @@ try {
         $imported++
     }
 
-    Update-MissingMailboxFlags -SeenGuids $seenGuids
+    Update-MissingMailboxFlags -SeenGuids $seenGuids -RunStartUtc $runStartUtc
 
     Write-ImportLog "Import completed: $imported shared mailbox(es) imported, $skipped skipped."
     exit 0

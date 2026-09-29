@@ -19,6 +19,11 @@
                 <x:Type TypeName="sm:OwnerChangeMode" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+        <ObjectDataProvider x:Key="AliasChangeModes" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="sm:AliasChangeMode" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
     </UserControl.Resources>
 
     <TabControl Style="{StaticResource TabStrip}" Padding="0"
@@ -218,6 +223,79 @@
                                             <controls:AlertBox Margin="0,12,0,0"
                                                                Text="{Binding ChangeOwnerStatusMessage}"
                                                                Severity="{Binding ChangeOwnerStatusSeverity}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <!-- Aliases -->
+                                <TabItem Header="Aliases">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
+                                            <TextBox AutomationProperties.Name="Ticket / task number" Style="{StaticResource ModernTextBox}" Margin="{DynamicResource GapField}"
+                                                     Text="{Binding AliasTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Shared mailbox" />
+                                            <TextBox Style="{StaticResource ModernTextBox}"
+                                                     AutomationProperties.Name="Shared mailbox to change aliases on"
+                                                     Text="{Binding AliasMailboxIdentity, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,12"
+                                                       Text="Filled in when you pick a row on the left, or type a display name or address directly." />
+
+                                            <Button Style="{StaticResource SecondaryButton}" Content="Show _addresses"
+                                                    HorizontalAlignment="Left" Margin="0,0,0,12"
+                                                    Command="{Binding LookUpAliasesCommand}"
+                                                    IsEnabled="{Binding IsAliasBusy, Converter={StaticResource InverseBool}}" />
+
+                                            <Border Style="{StaticResource Inset}" Padding="12" Margin="0,0,0,16"
+                                                    Visibility="{Binding CurrentAddresses, Converter={StaticResource EmptyToCollapsed}}">
+                                                <StackPanel>
+                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Current addresses" />
+                                                    <ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto">
+                                                        <TextBlock Style="{StaticResource Mono}" Text="{Binding CurrentAddresses}" />
+                                                    </ScrollViewer>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Change" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                <ComboBox AutomationProperties.Name="Alias change mode" Style="{StaticResource ModernComboBox}" Width="110"
+                                                          ItemsSource="{Binding Source={StaticResource AliasChangeModes}}"
+                                                          SelectedItem="{Binding AliasChangeMode}" />
+                                                <TextBox AutomationProperties.Name="Alias addresses" Style="{StaticResource ModernTextBox}" Width="260"
+                                                         Margin="{DynamicResource GapInline}"
+                                                         Text="{Binding AliasAddresses, UpdateSourceTrigger=PropertyChanged}" />
+                                            </StackPanel>
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,12"
+                                                       Text="Full e-mail addresses, comma-separated. Existing addresses are never touched otherwise; the primary address cannot be removed." />
+
+                                            <CheckBox Margin="0,0,0,16"
+                                                      Content="Make the added address the primary address"
+                                                      IsChecked="{Binding AliasMakePrimary}">
+                                                <CheckBox.Style>
+                                                    <Style TargetType="CheckBox" BasedOn="{StaticResource ModernCheckBox}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding AliasChangeMode}" Value="{x:Static sm:AliasChangeMode.Remove}">
+                                                                <Setter Property="IsEnabled" Value="False" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </CheckBox.Style>
+                                            </CheckBox>
+
+                                            <Button Style="{StaticResource PrimaryButton}" Content="Apply alias _change"
+                                                    HorizontalAlignment="Left"
+                                                    Command="{Binding ChangeAliasesCommand}"
+                                                    IsEnabled="{Binding IsAliasBusy, Converter={StaticResource InverseBool}}" />
+
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,12,0,0"
+                                                       Text="As primary, the previous primary address stays as an alias. Removing asks you to confirm." />
+
+                                            <ProgressBar Style="{StaticResource BusyBar}" Margin="0,12,0,0"
+                                                         Visibility="{Binding IsAliasBusy, Converter={StaticResource BoolToVisible}}" />
+                                            <controls:AlertBox Margin="0,12,0,0"
+                                                               Text="{Binding AliasStatusMessage}"
+                                                               Severity="{Binding AliasStatusSeverity}" />
                                         </StackPanel>
                                     </ScrollViewer>
                                 </TabItem>

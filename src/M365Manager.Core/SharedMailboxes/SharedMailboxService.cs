@@ -1983,6 +1983,27 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
 
         var candidates = byDisplayName.Count > 0 ? byDisplayName : byIdentity;
 
+        // Both lookups run with SilentlyContinue, which makes every failure - an expired Exchange
+        // session, a dropped connection - look exactly like "no such mailbox". Asking once more
+        // with Stop surfaces the real cause; only a genuine "couldn't be found" stays "not found".
+        if (candidates.Count == 0)
+        {
+            try
+            {
+                await _host.InvokeAsync(ps => ps
+                    .AddCommand("Get-Mailbox")
+                    .AddParameter("Identity", identity)
+                    .AddParameter("ErrorAction", "Stop"), ct: ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested
+                                       && !ex.Message.Contains("couldn't be found", StringComparison.OrdinalIgnoreCase)
+                                       && !ex.Message.Contains("could not be found", StringComparison.OrdinalIgnoreCase))
+            {
+                return (null, $"Exchange Online could not be asked for '{identity}': {ex.Message} "
+                              + "If the connection has expired, restart the app to sign in again.");
+            }
+        }
+
         return candidates.Count switch
         {
             1 => (candidates[0], null),

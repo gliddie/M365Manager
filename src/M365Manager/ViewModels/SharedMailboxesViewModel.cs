@@ -87,6 +87,17 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
     [ObservableProperty] private bool _isRenameLookupBusy;
     [ObservableProperty] private string _renameStatusMessage = "Look the mailbox up first, then enter its new name.";
 
+    // --- Aliases ---
+    [ObservableProperty] private string _aliasTaskNumber = "";
+    [ObservableProperty] private string _aliasMailboxIdentity = "";
+    [ObservableProperty] private AliasChangeMode _aliasChangeMode = AliasChangeMode.Add;
+    [ObservableProperty] private string _aliasAddresses = "";
+    [ObservableProperty] private bool _aliasMakePrimary;
+    [ObservableProperty] private string _currentAddresses = "";
+    [ObservableProperty] private bool _isAliasBusy;
+    [ObservableProperty] private string _aliasStatusMessage = "";
+    [ObservableProperty] private AlertSeverity _aliasStatusSeverity = AlertSeverity.Info;
+
     // --- Remove ---
     //
     // Two-stage like rename, and like the legacy ShrMbxRemove.ps1 dialog: look up first, see who
@@ -199,6 +210,7 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
             : value.PrimarySmtpAddress;
 
         ChangeOwnerMailboxAddress = identity;
+        AliasMailboxIdentity = identity;
         RenameMailboxIdentity = identity;
         RemoveMailboxIdentity = identity;
     }
@@ -826,6 +838,145 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
         // there is no preview left, so the success message just written survives this reset.
         _renamePreview = null;
         RenameMailboxIdentity = "";
+    }
+
+    // ----- Aliases -----
+
+    private void AliasStatus(string text, AlertSeverity severity = AlertSeverity.Info)
+    {
+        AliasStatusSeverity = severity;
+        AliasStatusMessage = text;
+    }
+
+    /// <summary>The list shown belongs to one mailbox; naming another one clears it.</summary>
+    partial void OnAliasMailboxIdentityChanged(string value) => CurrentAddresses = "";
+
+    /// <summary>"Make primary" only means something when adding.</summary>
+    partial void OnAliasChangeModeChanged(AliasChangeMode value)
+    {
+        if (value != AliasChangeMode.Add)
+            AliasMakePrimary = false;
+    }
+
+    [RelayCommand]
+    private async Task LookUpAliasesAsync()
+    {
+        if (string.IsNullOrWhiteSpace(AliasMailboxIdentity))
+        {
+            AliasStatus("Enter the shared mailbox's display name or address.", AlertSeverity.Error);
+            return;
+        }
+
+        IsAliasBusy = true;
+        AliasStatus("Reading the addresses...");
+        Transcript.BeginOperation($"Read addresses: {AliasMailboxIdentity.Trim()}");
+        try
+        {
+            ShowAddresses(await _sharedMailboxes.GetAddressesAsync(AliasMailboxIdentity.Trim()));
+            AliasStatusMessage = "";
+        }
+        catch (Exception ex)
+        {
+            CurrentAddresses = "";
+            AliasStatus($"Lookup failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
+        }
+        finally
+        {
+            IsAliasBusy = false;
+        }
+    }
+
+    private void ShowAddresses(SharedMailboxAddresses addresses)
+    {
+        var lines = new List<string> { $"Primary: {addresses.PrimarySmtpAddress}" };
+        lines.AddRange(addresses.Aliases.Count == 0 ? new[] { "(no aliases)" } : addresses.Aliases);
+        CurrentAddresses = string.Join("\n", lines);
+    }
+
+    [RelayCommand]
+    private async Task ChangeAliasesAsync()
+    {
+        if (string.IsNullOrWhiteSpace(AliasTaskNumber))
+        {
+            AliasStatus("Enter the ticket/task number authorizing this change.", AlertSeverity.Error);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(AliasMailboxIdentity))
+        {
+            AliasStatus("Enter the shared mailbox's display name or address.", AlertSeverity.Error);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(AliasAddresses))
+        {
+            AliasStatus("Enter at least one e-mail address.", AlertSeverity.Error);
+            return;
+        }
+
+        var identity = AliasMailboxIdentity.Trim();
+
+        // Mail to a removed alias bounces from then on - so removing asks first.
+        if (AliasChangeMode == AliasChangeMode.Remove
+            && !_dialogs.ConfirmDestructive(
+                "Remove alias(es)?",
+                $"These addresses are removed from {identity}. Mail sent to them bounces from then on.",
+                "Remove aliases",
+                AliasAddresses.Trim()))
+            return;
+
+        IsAliasBusy = true;
+        AliasStatus(AliasChangeMode == AliasChangeMode.Add ? "Adding..." : "Removing...");
+        Transcript.BeginOperation($"{AliasChangeMode} alias(es) on {identity}: {AliasAddresses.Trim()}");
+        try
+        {
+            var result = await _sharedMailboxes.ChangeAliasesAsync(new ChangeSharedMailboxAliasesRequest
+            {
+                TaskNumber = AliasTaskNumber.Trim(),
+                MailboxIdentity = identity,
+                Mode = AliasChangeMode,
+                Addresses = AliasAddresses.Trim(),
+                MakePrimary = AliasMakePrimary,
+            });
+
+            if (!result.Succeeded)
+            {
+                AliasStatus($"Alias change failed: {result.ErrorMessage}", AlertSeverity.Error);
+                return;
+            }
+
+            var verb = AliasChangeMode == AliasChangeMode.Add ? "Added" : "Removed";
+            var parts = new List<string>();
+            if (result.Changed.Count > 0)
+                parts.Add($"{verb}: {string.Join(", ", result.Changed)}.");
+            if (result.Skipped.Count > 0)
+                parts.Add(AliasChangeMode == AliasChangeMode.Add
+                    ? $"Already there: {string.Join(", ", result.Skipped)}."
+                    : $"Not on the mailbox: {string.Join(", ", result.Skipped)}.");
+            if (result.Failed.Count > 0)
+                parts.Add($"Failed: {string.Join("; ", result.Failed)}.");
+
+            AliasStatus(string.Join(" ", parts),
+                result.Failed.Count > 0 ? (result.Changed.Count > 0 ? AlertSeverity.Warning : AlertSeverity.Error)
+                : result.Changed.Count > 0 ? AlertSeverity.Success
+                : AlertSeverity.Info);
+
+            if (result.Failed.Count == 0)
+            {
+                AliasAddresses = "";
+                AliasMakePrimary = false;
+            }
+
+            ShowAddresses(await _sharedMailboxes.GetAddressesAsync(identity));
+            if (result.Changed.Any(c => c.EndsWith("(now primary)")))
+                _ = RefreshOverviewAsync();
+        }
+        catch (Exception ex)
+        {
+            AliasStatus($"Alias change failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
+        }
+        finally
+        {
+            IsAliasBusy = false;
+        }
     }
 
     // ----- Remove -----

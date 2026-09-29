@@ -31,6 +31,19 @@ public interface ISharedMailboxService
     Task<RenameSharedMailboxResult> RenameAsync(RenameSharedMailboxRequest request, Action<string>? onProgress = null, CancellationToken ct = default);
 
     /// <summary>
+    /// The mailbox's primary address and its secondary SMTP aliases. Throws when the mailbox cannot
+    /// be resolved or is not a shared mailbox; the message is meant for the operator.
+    /// </summary>
+    Task<SharedMailboxAddresses> GetAddressesAsync(string mailboxIdentity, CancellationToken ct = default);
+
+    /// <summary>
+    /// Adds or removes secondary SMTP addresses one by one (a bad one does not stop the rest) and,
+    /// when asked, makes a single added address the primary. Existing addresses are never touched
+    /// otherwise, and the primary address can never be removed.
+    /// </summary>
+    Task<ChangeSharedMailboxAliasesResult> ChangeAliasesAsync(ChangeSharedMailboxAliasesRequest request, CancellationToken ct = default);
+
+    /// <summary>
     /// Reads back what a removal would take with it - owners, forwarding, access groups and their
     /// members, direct folder permissions - without changing anything. Throws when the mailbox
     /// cannot be resolved or is not a shared mailbox; the message is meant for the operator.

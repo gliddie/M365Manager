@@ -1,7 +1,9 @@
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text.Json;
 using Azure.Core;
 using Azure.Identity;
 using M365Manager.Core.Settings;
-using Microsoft.Graph;
 
 namespace M365Manager.Core.M365;
 
@@ -31,8 +33,9 @@ public sealed class M365AuthService : IM365AuthService, IM365Connector
         "Group.ReadWrite.All", "Directory.ReadWrite.All", "Mail.Send",
     };
 
+    private static readonly HttpClient Http = new();
+
     private readonly ISettingsService _settings;
-    private GraphServiceClient? _graph;
     private InteractiveBrowserCredential? _credential;
 
     public M365AuthService(ISettingsService settings)
@@ -43,9 +46,6 @@ public sealed class M365AuthService : IM365AuthService, IM365Connector
     public SignedInUser? CurrentUser { get; private set; }
 
     public bool IsSignedIn => CurrentUser is not null;
-
-    public GraphServiceClient Graph =>
-        _graph ?? throw new InvalidOperationException("Not signed in to M365. Sign in first.");
 
     public async Task<SignedInUser> SignInAsync(CancellationToken ct = default)
     {
@@ -63,15 +63,35 @@ public sealed class M365AuthService : IM365AuthService, IM365Connector
         };
 
         _credential = new InteractiveBrowserCredential(options);
-        _graph = new GraphServiceClient(_credential, Scopes);
 
-        var me = await _graph.Me.GetAsync(cancellationToken: ct);
+        // The first token asks for the app's delegated scopes by name, as the Graph SDK client
+        // used to - that is the request that shows the sign-in (and any consent) prompt. Every
+        // later call goes through GraphRestClient with .default. The SDK itself is gone: /me here
+        // was the last thing it was used for, and it is one GET.
+        var token = await _credential.GetTokenAsync(
+            new TokenRequestContext(Scopes.Select(s => $"https://graph.microsoft.com/{s}").ToArray()), ct);
 
-        CurrentUser = new SignedInUser(
-            me?.UserPrincipalName ?? "",
-            me?.DisplayName ?? "",
-            me?.Id ?? "");
+        using var request = new HttpRequestMessage(HttpMethod.Get,
+            "https://graph.microsoft.com/v1.0/me?$select=id,userPrincipalName,displayName");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
 
+        using var response = await Http.SendAsync(request, ct);
+        var payload = await response.Content.ReadAsStringAsync(ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            _credential = null;
+            throw new InvalidOperationException(
+                $"Signed in, but reading the account from Microsoft Graph failed ({(int)response.StatusCode}): "
+                + (payload.Length > 300 ? payload[..300] + "..." : payload));
+        }
+
+        using var me = JsonDocument.Parse(payload);
+        string Text(string name) =>
+            me.RootElement.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString() ?? ""
+                : "";
+
+        CurrentUser = new SignedInUser(Text("userPrincipalName"), Text("displayName"), Text("id"));
         return CurrentUser;
     }
 
@@ -94,7 +114,6 @@ public sealed class M365AuthService : IM365AuthService, IM365Connector
 
     public void SignOut()
     {
-        _graph = null;
         _credential = null;
         CurrentUser = null;
     }

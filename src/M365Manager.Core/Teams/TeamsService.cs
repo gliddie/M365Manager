@@ -17,9 +17,8 @@ namespace M365Manager.Core.Teams;
 /// (group creation with owners@odata.bind, teamify, guest directory settings, sendMail) go
 /// through plain REST via <see cref="IM365AuthService.GetAccessTokenAsync"/> rather than the
 /// Kiota SDK client, so the exact request/response JSON shape (stable, documented Graph v1.0
-/// contracts) isn't at the mercy of a particular SDK version's generated type surface. User
-/// lookup reuses <see cref="IM365AuthService.Graph"/> - the same call shape already proven
-/// elsewhere in this codebase (see ExchangeService.RemoveMembersAsync).
+/// contracts) isn't at the mercy of a particular SDK version's generated type surface. The app
+/// no longer references the Graph SDK at all - every Graph call is REST.
 /// </summary>
 public sealed class TeamsService : ITeamsService
 {

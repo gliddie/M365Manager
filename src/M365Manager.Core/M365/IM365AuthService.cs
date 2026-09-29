@@ -1,5 +1,3 @@
-using Microsoft.Graph;
-
 namespace M365Manager.Core.M365;
 
 public interface IM365AuthService
@@ -15,16 +13,6 @@ public interface IM365AuthService
     /// using the configured Tenant/Client IDs. Returns the signed-in user.
     /// </summary>
     Task<SignedInUser> SignInAsync(CancellationToken ct = default);
-
-    /// <summary>
-    /// The authenticated Kiota SDK client. Throws if not signed in.
-    ///
-    /// Only sign-in itself still uses this. Feature code must go through
-    /// <see cref="GraphRestClient"/> instead - calls made here bypass the console transcript, which
-    /// is exactly how whole features (Trace, Teams policies, notification mail) used to look as if
-    /// they did nothing at all.
-    /// </summary>
-    GraphServiceClient Graph { get; }
 
     /// <summary>
     /// Gets an access token for another resource (e.g. Exchange Online) using the same

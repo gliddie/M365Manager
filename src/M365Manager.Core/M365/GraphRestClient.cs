@@ -8,7 +8,8 @@ using M365Manager.Core.PowerShell;
 namespace M365Manager.Core.M365;
 
 /// <summary>
-/// Thin wrapper over the Graph v1.0 REST API for endpoints the Kiota SDK models awkwardly.
+/// Thin wrapper over the Graph v1.0 REST API - the app's only way to call Graph since the Kiota SDK
+/// package was removed (2026-09-29). Every call is echoed to the PowerShell console.
 ///
 /// TeamsService and SharedMailboxService each still carry their own private copy of this - they
 /// predate it and are in active use, so they were left alone; new callers should use this instead.

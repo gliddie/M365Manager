@@ -62,6 +62,7 @@ public sealed partial class MainViewModel : ObservableObject
         SharedMailboxesViewModel sharedMailboxes,
         RoomResourcesViewModel roomResources,
         TeamsPoliciesViewModel teamsPolicies,
+        ExternalAccessViewModel externalAccess,
         NewHireViewModel newHire,
         TraceViewModel trace,
         SettingsViewModel settings,
@@ -97,6 +98,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             new() { Title = "Teams",            Section = "TEAMS",            Glyph = "", ViewModel = teams },
             new() { Title = "Teams Policies",   Section = "TEAMS",            Glyph = "", ViewModel = teamsPolicies },
+            new() { Title = "External Access",  Section = "TEAMS",            Glyph = "", ViewModel = externalAccess },
             new() { Title = "New Hire",         Section = "TEAMS",            Glyph = "", ViewModel = newHire },
 
             new() { Title = "Trace Guests",     Section = "MORE",             Glyph = "", ViewModel = trace },
@@ -160,6 +162,7 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnSelectedPageChanged(NavItem? value)
     {
         CurrentViewModel = value?.ViewModel;
+        (value?.ViewModel as IActivatablePage)?.OnActivated();
     }
 
     /// <summary>

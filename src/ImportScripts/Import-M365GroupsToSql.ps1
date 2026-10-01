@@ -48,10 +48,7 @@ param(
     [string]$SqlDatabase = "M365Manager",
 
     [Parameter()]
-    [string]$SqlUser = "",
-
-    [Parameter()]
-    [string]$SqlPassword = "",
+    [string]$SqlCredentialPath = "D:\SCRIPTS\Secure\m365manager-sql.xml",
 
     [Parameter()]
     [switch]$UseIntegratedSecurity = $false,
@@ -163,18 +160,52 @@ function Get-GraphAccessToken {
     return $context
 }
 
+function Read-SqlCredential {
+    # Export-Clixml protects the password with DPAPI: only the Windows account that wrote the file,
+    # on the machine it was written on, can read it back. Create it AS the task's account:
+    #   Get-Credential | Export-Clixml D:\SCRIPTS\Secure\m365manager-sql.xml
+    $account = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    if (-not (Test-Path -LiteralPath $SqlCredentialPath)) {
+        throw "SQL credential file not found: $SqlCredentialPath (running as $account)."
+    }
+
+    try {
+        $credential = Import-Clixml -LiteralPath $SqlCredentialPath
+    }
+    catch {
+        throw "SQL credential file $SqlCredentialPath could not be decrypted as $account. Only the Windows account that created it can read it, and only on the same machine. $($_.Exception.Message)"
+    }
+
+    if ($credential -isnot [pscredential]) {
+        throw "SQL credential file $SqlCredentialPath does not contain a credential (create it with Get-Credential | Export-Clixml)."
+    }
+
+    return $credential
+}
+
 function Get-ConnectionString {
+    # Built once per run: the credential file is decrypted on the first SQL command, every later
+    # command reuses the result.
+    if ($script:ConnectionString) { return $script:ConnectionString }
+
+    # The builder escapes the values - a ';' or '=' in the password broke the old string concatenation.
+    $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+    $builder['Data Source'] = $SqlServer
+    $builder['Initial Catalog'] = $SqlDatabase
+    $builder['Encrypt'] = [bool]$UseSqlEncryption
+    $builder['TrustServerCertificate'] = $true
+
     if ($UseIntegratedSecurity) {
-        $encryptionPart = if ($UseSqlEncryption) { "Encrypt=True;TrustServerCertificate=True;" } else { "Encrypt=False;TrustServerCertificate=True;" }
-        return "Server=$SqlServer;Database=$SqlDatabase;Integrated Security=True;$encryptionPart"
+        $builder['Integrated Security'] = $true
+    }
+    else {
+        $credential = Read-SqlCredential
+        $builder['User ID'] = $credential.UserName
+        $builder['Password'] = $credential.GetNetworkCredential().Password
     }
 
-    if ([string]::IsNullOrWhiteSpace($SqlUser) -or [string]::IsNullOrWhiteSpace($SqlPassword)) {
-        throw "Provide SqlUser and SqlPassword or use -UseIntegratedSecurity."
-    }
-
-    $encryptionPart = if ($UseSqlEncryption) { "Encrypt=True;TrustServerCertificate=True;" } else { "Encrypt=False;TrustServerCertificate=True;" }
-    return "Server=$SqlServer;Database=$SqlDatabase;User Id=$SqlUser;Password=$SqlPassword;$encryptionPart"
+    $script:ConnectionString = $builder.ConnectionString
+    return $script:ConnectionString
 }
 
 function Invoke-SqlCommand {

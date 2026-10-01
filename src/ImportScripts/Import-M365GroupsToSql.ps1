@@ -180,12 +180,17 @@ function Get-ConnectionString {
 function Invoke-SqlCommand {
     param(
         [string]$Sql,
-        [hashtable]$Parameters = @{}
+        [hashtable]$Parameters = @{},
+        # SqlClient's default is 30 s. Fine per row; not for set-based statements over the whole table.
+        [int]$TimeoutSeconds = 30,
+        # Return the affected row count instead of discarding it.
+        [switch]$ReturnRowCount
     )
 
     $connection = New-Object System.Data.SqlClient.SqlConnection(Get-ConnectionString)
     $command = $connection.CreateCommand()
     $command.CommandText = $Sql
+    $command.CommandTimeout = $TimeoutSeconds
     foreach ($key in $Parameters.Keys) {
         $value = $Parameters[$key]
         $param = $command.Parameters.Add("@$key", [System.Data.SqlDbType]::NVarChar)
@@ -218,11 +223,23 @@ function Invoke-SqlCommand {
 
     $connection.Open()
     try {
-        $command.ExecuteNonQuery() | Out-Null
+        $affected = $command.ExecuteNonQuery()
+        if ($ReturnRowCount) { return $affected }
     }
     finally {
         $connection.Dispose()
     }
+}
+
+function Get-SqlUtcNow {
+    # The SQL server's clock, not this machine's: LastSeenAtUtc is stamped with SYSUTCDATETIME()
+    # on the server, so the run start has to come from the same clock.
+    $connection = New-Object System.Data.SqlClient.SqlConnection(Get-ConnectionString)
+    $command = $connection.CreateCommand()
+    $command.CommandText = 'SELECT SYSUTCDATETIME()'
+    $connection.Open()
+    try { return [datetime]$command.ExecuteScalar() }
+    finally { $connection.Dispose() }
 }
 
 function Ensure-Schema {
@@ -599,6 +616,10 @@ try {
         }
     }
 
+    # Every group written below gets LastSeenAtUtc = now; whatever is older than this afterwards
+    # was not in Graph this time round.
+    $runStartUtc = Get-SqlUtcNow
+
     Write-ImportLog 'Querying groups from Microsoft Graph...'
     $groups = Get-GroupsFromGraph -GraphContext $graphContext
 
@@ -616,17 +637,22 @@ try {
     }
 
     Write-ImportLog 'Marking groups not seen in this run as deleted in M365...'
-    $ids = @($groups | ForEach-Object { $_.id })
-    if ($ids.Count -gt 0) {
-        $quotedIds = $ids | ForEach-Object { "'{0}'" -f ([guid]$_).ToString() }
-        $groupIdList = $quotedIds -join ','
+    # Used to be "WHERE CONVERT(NVARCHAR(36), Id) NOT IN (<every id of this run>)": a literal list of
+    # ~37,000 GUIDs, compared against a converted column no index could serve. It outgrew the 30 s
+    # command timeout and failed every run, after nine hours of importing. The LastSeenAtUtc stamp
+    # every group got above says the same thing and is one indexed-range condition. Groups already
+    # flagged are left alone instead of being re-flagged on every run.
+    # Guarded like before: an empty Graph result must never mark the whole table as deleted.
+    if ($groups.Count -gt 0) {
         $markDeletedSql = @"
 UPDATE dbo.Groups
 SET IsDeletedInM365 = 1,
     UpdatedDateTime = SYSUTCDATETIME()
-WHERE CONVERT(NVARCHAR(36), Id) NOT IN ($groupIdList)
+WHERE IsDeletedInM365 = 0
+  AND (LastSeenAtUtc IS NULL OR LastSeenAtUtc < @RunStartUtc)
 "@
-        Invoke-SqlCommand -Sql $markDeletedSql
+        $marked = Invoke-SqlCommand -Sql $markDeletedSql -Parameters @{ RunStartUtc = $runStartUtc } -TimeoutSeconds 300 -ReturnRowCount
+        Write-ImportLog "$marked group(s) newly marked as deleted in M365."
     }
 
     Write-ImportLog 'Import completed successfully.'

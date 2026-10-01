@@ -267,16 +267,27 @@ WHEN NOT MATCHED THEN
     Invoke-SqlCommand -Sql $sql -Parameters $parameters
 }
 
+function Get-SqlUtcNow {
+    # The SQL server's clock: LastSeenAtUtc is stamped with SYSUTCDATETIME() on the server.
+    $connection = New-Object System.Data.SqlClient.SqlConnection(Get-ConnectionString)
+    $command = $connection.CreateCommand()
+    $command.CommandText = 'SELECT SYSUTCDATETIME()'
+    $connection.Open()
+    try { return [datetime]$command.ExecuteScalar() }
+    finally { $connection.Dispose() }
+}
 function Update-MissingRoomFlags {
-    param([string[]]$SeenGuids)
+    param([string[]]$SeenGuids, [datetime]$RunStartUtc)
 
     # Rooms that were in the cache but no longer come back from Exchange are flagged rather than
     # deleted, so the grid can still show what happened (same convention as dbo.Groups).
     if ($SeenGuids.Count -eq 0) { return }
 
-    $list = ($SeenGuids | ForEach-Object { "'" + $_ + "'" }) -join ","
-    $sql = "UPDATE dbo.RoomResources SET IsDeletedInM365 = 1 WHERE ExchangeGuid NOT IN ($list)"
-    Invoke-SqlCommand -Sql $sql
+    # Every room written this run got LastSeenAtUtc = now; anything older was not returned.
+    # Replaces a NOT IN list of every ExchangeGuid, which grows with the tenant - the same pattern
+    # made the groups import time out at 37,000 entries.
+    $sql = 'UPDATE dbo.RoomResources SET IsDeletedInM365 = 1 WHERE IsDeletedInM365 = 0 AND (LastSeenAtUtc IS NULL OR LastSeenAtUtc < @RunStartUtc)'
+    Invoke-SqlCommand -Sql $sql -Parameters @{ RunStartUtc = $RunStartUtc }
 }
 
 function Get-SiteCodeFromName {
@@ -318,6 +329,7 @@ try {
 
     # Room-list membership is read once up front rather than per room - one call per list instead
     # of one per mailbox.
+    $runStartUtc = Get-SqlUtcNow
     Write-ImportLog 'Reading room lists...'
     $roomListMembers = @{}
     try {
@@ -432,7 +444,7 @@ try {
         $imported++
     }
 
-    Update-MissingRoomFlags -SeenGuids $seenGuids
+    Update-MissingRoomFlags -SeenGuids $seenGuids -RunStartUtc $runStartUtc
 
     Write-ImportLog "Import completed: $imported room(s)/resource(s) imported."
     exit 0

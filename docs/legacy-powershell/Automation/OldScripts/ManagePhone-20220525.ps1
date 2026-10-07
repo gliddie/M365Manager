@@ -845,7 +845,7 @@ $status = New-Object -TypeName psobject
 $Script:dbserver = "usnbkmsfb005p.global.ul.com"
 $Script:db = "uchelper"
 $Script:dbuser = "sfbhelper"
-$Script:dbpw = "Underwr1terS"
+$Script:dbpw = "XXXXXXXXXXX"
 ################################################################
 
 Build-PhoneDetails

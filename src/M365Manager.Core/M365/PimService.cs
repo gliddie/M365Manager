@@ -66,6 +66,7 @@ public sealed class PimService : IPimService, IM365Connector
     private readonly Dictionary<string, string> _roleNames = new(StringComparer.OrdinalIgnoreCase);
 
     private bool _checked;
+    private string? _mfaToken;   // one MFA prompt per activation run, not one per role
     private bool _renewRequested;
 
     public PimService(IM365AuthService auth, IPowerShellTranscript transcript)
@@ -104,6 +105,7 @@ public sealed class PimService : IPimService, IM365Connector
         var me = _auth.CurrentUser
             ?? throw new InvalidOperationException("Sign in to Microsoft Graph first - PIM roles are activated for the signed-in admin.");
 
+        _mfaToken = null;
         await RefreshAsync(ct);
 
         var now = DateTimeOffset.UtcNow;
@@ -269,13 +271,21 @@ public sealed class PimService : IPimService, IM365Connector
         if (response.Ok)
             return;
 
-        // The activation policy can demand a fresh MFA or an authentication context the sign-in
-        // token does not carry yet. Graph names the failed rule; the matching claims request makes
-        // Entra show the sign-in window with the step-up, and the request is sent once more.
-        var claims = StepUpClaims(response, policy);
-        if (claims is not null)
+        // The activation policy can demand MFA or an authentication context the sign-in token does
+        // not carry - typical when the app signed in silently through the Windows session. Graph
+        // names the failed rule; the app then gets a token that satisfies it (the browser opens and
+        // Entra asks for MFA) and sends the request once more.
+        if (response.Error.Contains("MfaRule", StringComparison.OrdinalIgnoreCase))
         {
-            _transcript.Write(TranscriptLineKind.Output, $"{role.DisplayName}: the activation needs a fresh sign-in (MFA) - opening the sign-in window.");
+            _transcript.Write(TranscriptLineKind.Output, $"{role.DisplayName}: PIM requires MFA for the activation - opening the sign-in window.");
+            _mfaToken ??= await _auth.GetAccessTokenWithFreshMfaAsync(GraphScope, ct);
+            response = await SendAsync(HttpMethod.Post, path, body, null, ct, _mfaToken);
+            if (response.Ok)
+                return;
+        }
+        else if (StepUpClaims(response, policy) is { } claims)
+        {
+            _transcript.Write(TranscriptLineKind.Output, $"{role.DisplayName}: the activation needs a step-up sign-in - opening the sign-in window.");
             response = await SendAsync(HttpMethod.Post, path, body, claims, ct);
             if (response.Ok)
                 return;
@@ -299,10 +309,8 @@ public sealed class PimService : IPimService, IM365Connector
             && policy.AuthenticationContext is { Length: > 0 } context)
             return "{\"access_token\":{\"acrs\":{\"essential\":true,\"value\":\"" + context + "\"}}}";
 
-        if (error.Contains("MfaRule", StringComparison.OrdinalIgnoreCase))
-            return "{\"access_token\":{\"amr\":{\"essential\":true,\"values\":[\"mfa\"]}}}";
-
         return null;
+
     }
 
     private async Task TryDeactivateAsync(string principalId, PimRoleState role, CancellationToken ct)
@@ -378,9 +386,9 @@ public sealed class PimService : IPimService, IM365Connector
     /// Its own request path rather than GraphRestClient: activation needs the status code, the
     /// claims challenge header and a token requested with claims, none of which that client exposes.
     /// </summary>
-    private async Task<GraphResponse> SendAsync(HttpMethod method, string path, object? body, string? claims, CancellationToken ct)
+    private async Task<GraphResponse> SendAsync(HttpMethod method, string path, object? body, string? claims, CancellationToken ct, string? token = null)
     {
-        var token = claims is null
+        token ??= claims is null
             ? await _auth.GetAccessTokenAsync(GraphScope, ct)
             : await _auth.GetAccessTokenWithClaimsAsync(GraphScope, claims, ct);
 

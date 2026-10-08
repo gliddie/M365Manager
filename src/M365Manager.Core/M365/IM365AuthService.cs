@@ -27,6 +27,13 @@ public interface IM365AuthService
     Task<string> GetAccessTokenWithClaimsAsync(string scope, string? claims, CancellationToken ct = default);
 
     /// <summary>
+    /// Opens the browser and makes Entra ask for MFA now, then returns a token that proves it. For
+    /// PIM activations whose policy requires MFA ("MfaRule") when the normal sign-in went through
+    /// without one (single sign-on from the Windows session).
+    /// </summary>
+    Task<string> GetAccessTokenWithFreshMfaAsync(string scope, CancellationToken ct = default);
+
+    /// <summary>
     /// Makes the next token request for every resource fetch a fresh token instead of a cached one.
     /// Needed after a PIM activation: cached tokens still carry the roles from before it.
     /// </summary>

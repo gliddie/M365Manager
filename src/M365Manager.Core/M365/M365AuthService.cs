@@ -4,6 +4,7 @@ using System.Text.Json;
 using Azure.Core;
 using Azure.Identity;
 using M365Manager.Core.Settings;
+using Microsoft.Identity.Client;
 
 namespace M365Manager.Core.M365;
 
@@ -141,6 +142,31 @@ public sealed class M365AuthService : IM365AuthService, IM365Connector
         var context = new TokenRequestContext(new[] { scope }, claims: claims);
         var token = await _credential.GetTokenAsync(context, ct);
         return token.Token;
+    }
+
+    public async Task<string> GetAccessTokenWithFreshMfaAsync(string scope, CancellationToken ct = default)
+    {
+        var m365 = _settings.Current.M365;
+        if (_credential is null || string.IsNullOrWhiteSpace(m365.ClientId))
+            throw new InvalidOperationException("Not signed in to M365. Sign in first.");
+
+        // Straight MSAL, because InteractiveBrowserCredential cannot pass extra query parameters.
+        // amr_values=ngcmfa makes Entra ask for MFA now even when the browser session would sign in
+        // silently - the same prompt the Entra portal shows before a PIM activation. A claims request
+        // for amr=mfa does not do that: Entra answers it from the refresh token, without MFA.
+        var app = PublicClientApplicationBuilder.Create(m365.ClientId)
+            .WithTenantId(m365.TenantId)
+            .WithRedirectUri("http://localhost")
+            .Build();
+
+        var request = app.AcquireTokenInteractive(new[] { scope })
+            .WithUseEmbeddedWebView(false)
+            .WithExtraQueryParameters(new Dictionary<string, (string, bool)> { ["amr_values"] = ("ngcmfa", false) });
+        if (CurrentUser?.Upn is { Length: > 0 } upn)
+            request = request.WithLoginHint(upn);
+
+        var result = await request.ExecuteAsync(ct);
+        return result.AccessToken;
     }
 
     public void InvalidateCachedTokens()

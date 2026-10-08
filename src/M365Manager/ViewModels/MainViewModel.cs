@@ -233,7 +233,7 @@ public sealed partial class MainViewModel : ObservableObject
                     void Apply()
                     {
                         if (progress.State == ConnectorState.Failed)
-                            _failedConnectors.Add(progress.DisplayName);
+                            _failedConnectors[progress.DisplayName] = progress.Error ?? "";
                         else if (progress.State == ConnectorState.Connected)
                             _failedConnectors.Remove(progress.DisplayName);
 
@@ -295,7 +295,8 @@ public sealed partial class MainViewModel : ObservableObject
     private static readonly System.Globalization.CultureInfo English = System.Globalization.CultureInfo.GetCultureInfo("en-US");
 
     private readonly System.Windows.Threading.DispatcherTimer _sessionTimer;
-    private readonly HashSet<string> _failedConnectors = new();
+    // Connector name -> its error, so the strip can say why and not only what.
+    private readonly Dictionary<string, string> _failedConnectors = new();
     private bool _sessionProblemSuspected;
 
     /// <summary>One line in the sidebar footer, e.g. "Admin roles active until 21:14".</summary>
@@ -334,7 +335,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         else if (_failedConnectors.Count > 0)
         {
-            SessionWarning = $"Not connected: {string.Join(", ", _failedConnectors)}. Pages that need it will not work until it is reconnected.";
+            SessionWarning = "Not connected: " + string.Join("; ", _failedConnectors.Select(f => string.IsNullOrWhiteSpace(f.Value) ? f.Key : $"{f.Key} - {f.Value}")) + ". Pages that need it will not work until it is reconnected.";
             SessionWarningIsError = true;
         }
         else if (_sessionProblemSuspected)

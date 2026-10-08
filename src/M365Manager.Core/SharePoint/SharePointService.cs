@@ -7,7 +7,7 @@ namespace M365Manager.Core.SharePoint;
 /// <summary>
 /// SharePoint Online admin connector (PnP.PowerShell, embedded runspace). Reuses the same
 /// bundled-module + interactive-auth pattern as <see cref="Exchange.ExchangeService"/>.
-/// Registered as a low-priority <see cref="IM365Connector"/> (Order = 2) so it auto-connects
+/// Registered as a low-priority <see cref="IM365Connector"/> (Order = 3) so it auto-connects
 /// at startup alongside Graph and Exchange - see CoreServiceCollectionExtensions.
 /// </summary>
 public sealed class SharePointService : ISharePointService, IM365Connector
@@ -24,7 +24,7 @@ public sealed class SharePointService : ISharePointService, IM365Connector
     }
 
     public string DisplayName => "SharePoint Online";
-    public int Order => 2;
+    public int Order => 3;
 
     public bool IsConnected { get; private set; }
 
@@ -53,6 +53,24 @@ public sealed class SharePointService : ISharePointService, IM365Connector
             .AddParameter("ErrorAction", "Stop"), onPrompt, ct, suppressTranscript: true);
 
         IsConnected = true;
+    }
+
+    public async Task DisconnectAsync(CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            return;
+
+        IsConnected = false;
+        try
+        {
+            await _host.InvokeAsync(ps => ps
+                .AddCommand("Disconnect-PnPOnline")
+                .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
+        }
+        catch
+        {
+            // Already gone is fine - the reconnect opens a new session either way.
+        }
     }
 
     public async Task LockSiteSharingAsync(string siteUrl, CancellationToken ct = default)

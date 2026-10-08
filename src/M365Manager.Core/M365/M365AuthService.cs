@@ -27,16 +27,28 @@ public sealed class M365AuthService : IM365AuthService, IM365Connector
     // Directory.ReadWrite.All: guest-access directory setting on new groups (TeamsService.SetGuestAccessAsync).
     // Mail.Send: owner notification e-mail after team creation (TeamsService.SendOwnerMailAsync)
     // and after shared mailbox creation/owner change (SharedMailboxService).
+    // RoleEligibilitySchedule.Read.Directory, RoleAssignmentSchedule.ReadWrite.Directory,
+    // RoleManagementPolicy.Read.Directory: PimService finds the signed-in admin's eligible PIM roles,
+    // reads each role's maximum activation time and activates them.
     private static readonly string[] Scopes =
     {
         "User.Read", "User.Read.All", "GroupMember.ReadWrite.All",
         "Group.ReadWrite.All", "Directory.ReadWrite.All", "Mail.Send",
+        "RoleEligibilitySchedule.Read.Directory", "RoleAssignmentSchedule.ReadWrite.Directory",
+        "RoleManagementPolicy.Read.Directory",
     };
 
     private static readonly HttpClient Http = new();
 
     private readonly ISettingsService _settings;
+    private readonly object _tokenLock = new();
     private InteractiveBrowserCredential? _credential;
+
+    // Set by InvalidateCachedTokens. A token carries the admin roles that were active when it was
+    // issued (the "wids" claim) and is cached for up to an hour, so after a PIM activation every
+    // resource has to be asked once for a fresh one - otherwise Graph keeps refusing for that hour.
+    private DateTimeOffset? _tokensInvalidatedAt;
+    private readonly HashSet<string> _scopesRefreshedSinceInvalidation = new(StringComparer.OrdinalIgnoreCase);
 
     public M365AuthService(ISettingsService settings)
     {
@@ -104,12 +116,57 @@ public sealed class M365AuthService : IM365AuthService, IM365Connector
 
     public async Task<string> GetAccessTokenAsync(string scope, CancellationToken ct = default)
     {
+        string? claims = null;
+        lock (_tokenLock)
+        {
+            if (_tokensInvalidatedAt is { } since && !_scopesRefreshedSinceInvalidation.Contains(scope))
+                claims = NotBeforeClaims(since);
+        }
+
+        var token = await GetAccessTokenWithClaimsAsync(scope, claims, ct);
+
+        if (claims is not null)
+            lock (_tokenLock) _scopesRefreshedSinceInvalidation.Add(scope);
+
+        return token;
+    }
+
+    public async Task<string> GetAccessTokenWithClaimsAsync(string scope, string? claims, CancellationToken ct = default)
+    {
         if (_credential is null)
             throw new InvalidOperationException("Not signed in to M365. Sign in first.");
 
-        var context = new TokenRequestContext(new[] { scope });
+        // With claims the token cache is skipped: the credential redeems its refresh token, or -
+        // for an MFA or authentication-context challenge - opens the sign-in window again.
+        var context = new TokenRequestContext(new[] { scope }, claims: claims);
         var token = await _credential.GetTokenAsync(context, ct);
         return token.Token;
+    }
+
+    public void InvalidateCachedTokens()
+    {
+        lock (_tokenLock)
+        {
+            _tokensInvalidatedAt = DateTimeOffset.UtcNow;
+            _scopesRefreshedSinceInvalidation.Clear();
+        }
+    }
+
+    /// <summary>
+    /// The claims challenge Entra itself sends when it wants a token issued after a point in time
+    /// (continuous access evaluation). Asking for it is the supported way to force a fresh token.
+    /// </summary>
+    private static string NotBeforeClaims(DateTimeOffset since) =>
+        "{\"access_token\":{\"nbf\":{\"essential\":true,\"value\":\"" + since.ToUnixTimeSeconds() + "\"}}}";
+
+    /// <summary>
+    /// Graph stays signed in on a reconnect - there is no session to tear down, only tokens that
+    /// may carry roles which have since expired. They are refreshed on next use instead.
+    /// </summary>
+    Task IM365Connector.DisconnectAsync(CancellationToken ct)
+    {
+        InvalidateCachedTokens();
+        return Task.CompletedTask;
     }
 
     public void SignOut()

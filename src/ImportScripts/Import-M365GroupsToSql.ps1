@@ -583,6 +583,14 @@ function Get-GroupMembersFromGraph {
     return $members
 }
 
+function Test-IsNotFound {
+    # Graph's answer for an object deleted after the group list was read - normal in a run that takes
+    # hours over ~37,000 groups, and no reason to throw the whole run away.
+    param($ErrorRecord)
+    $text = "$($ErrorRecord.Exception.Message) $($ErrorRecord.ErrorDetails.Message)"
+    return $text -match 'Request_ResourceNotFound|ResourceNotFound|does not exist|\(404\)|NotFound'
+}
+
 function Resolve-NestedMembers {
     param(
         [string]$GroupId,
@@ -603,7 +611,19 @@ function Resolve-NestedMembers {
         return
     }
 
-    $members = Get-GroupMembersFromGraph -GroupId $GroupId
+    try {
+        $members = Get-GroupMembersFromGraph -GroupId $GroupId
+    }
+    catch {
+        # A nested group deleted while the run was going: skip that branch only. The top-level group
+        # (no $Path yet) is handled by the main loop, which marks it deleted.
+        if ((Test-IsNotFound $_) -and -not [string]::IsNullOrWhiteSpace($Path)) {
+            Write-ImportLog "Skipping nested group '$GroupDisplayName' [$GroupId] under '$Path' - it no longer exists."
+            return
+        }
+        throw
+    }
+
     foreach ($member in $members) {
         if ($member.Type -eq '#microsoft.graph.group') {
             $nestedPath = if ([string]::IsNullOrWhiteSpace($Path)) { $GroupDisplayName + ' > ' + $member.DisplayName } else { $Path + ' > ' + $member.DisplayName }
@@ -655,16 +675,47 @@ try {
     $groups = Get-GroupsFromGraph -GraphContext $graphContext
 
     Write-ImportLog "Importing $($groups.Count) groups..."
+
+    # One group failing used to end the whole run - after hours, with nothing marked deleted. Now a
+    # group deleted meanwhile is skipped and flagged, other per-group errors are logged and counted.
+    # Many errors in one run point at something systemic (expired certificate, Graph outage), so the
+    # run still stops at this limit instead of logging the same failure 37,000 times.
+    $maxGroupErrors = 50
+    $groupErrors = 0
+    $groupsGone = 0
+
     foreach ($group in $groups) {
         $groupId = [guid]$group.id
         $groupKey = $groupId.ToString()
 
-        Write-DebugLog "Processing group: $($group.displayName) [$groupKey]"
-        if ($script:ImportedGroupIds.Add($groupKey)) {
-            Write-GroupRecord -Group $group -GroupKey $groupKey -GroupTypeSummary ($group.groupTypes -join ',')
-        }
+        try {
+            Write-DebugLog "Processing group: $($group.displayName) [$groupKey]"
+            if ($script:ImportedGroupIds.Add($groupKey)) {
+                Write-GroupRecord -Group $group -GroupKey $groupKey -GroupTypeSummary ($group.groupTypes -join ',')
+            }
 
-        Resolve-NestedMembers -GroupId $group.id -GroupDisplayName $group.displayName
+            Resolve-NestedMembers -GroupId $group.id -GroupDisplayName $group.displayName
+        }
+        catch {
+            if (Test-IsNotFound $_) {
+                # Deleted after the list was read. Write-GroupRecord already stamped it as seen, so
+                # the end-of-run marking would miss it - flag it here instead.
+                $groupsGone++
+                Write-ImportLog "Group '$($group.displayName)' [$groupKey] was deleted during the run - marked as deleted."
+                Invoke-SqlCommand -Sql "UPDATE dbo.Groups SET IsDeletedInM365 = 1, UpdatedDateTime = SYSUTCDATETIME() WHERE Id = @Id" -Parameters @{ Id = $groupKey } | Out-Null
+                continue
+            }
+
+            $groupErrors++
+            Write-ImportLog "ERROR in group '$($group.displayName)' [$groupKey]: $($_.Exception.Message)"
+            if ($groupErrors -ge $maxGroupErrors) {
+                throw "Stopped after $groupErrors failed groups - see the errors above."
+            }
+        }
+    }
+
+    if ($groupsGone -gt 0) {
+        Write-ImportLog "$groupsGone group(s) were deleted in M365 while the run was going."
     }
 
     Write-ImportLog 'Marking groups not seen in this run as deleted in M365...'
@@ -684,6 +735,12 @@ WHERE IsDeletedInM365 = 0
 "@
         $marked = Invoke-SqlCommand -Sql $markDeletedSql -Parameters @{ RunStartUtc = $runStartUtc } -TimeoutSeconds 300 -ReturnRowCount
         Write-ImportLog "$marked group(s) newly marked as deleted in M365."
+    }
+
+    if ($groupErrors -gt 0) {
+        # Finished and saved, but not clean - exit 1 so the task history shows it.
+        Write-ImportLog "Import completed with $groupErrors failed group(s) - see the errors above."
+        exit 1
     }
 
     Write-ImportLog 'Import completed successfully.'

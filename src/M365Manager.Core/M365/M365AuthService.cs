@@ -150,10 +150,11 @@ public sealed class M365AuthService : IM365AuthService, IM365Connector
         if (_credential is null || string.IsNullOrWhiteSpace(m365.ClientId))
             throw new InvalidOperationException("Not signed in to M365. Sign in first.");
 
-        // Straight MSAL, because InteractiveBrowserCredential cannot pass extra query parameters.
-        // amr_values=ngcmfa makes Entra ask for MFA now even when the browser session would sign in
-        // silently - the same prompt the Entra portal shows before a PIM activation. A claims request
-        // for amr=mfa does not do that: Entra answers it from the refresh token, without MFA.
+        // Straight MSAL, so the request is guaranteed to go through the browser. The claims request
+        // for amr=mfa makes Entra run MFA in that sign-in - the prompt the Entra portal shows before a
+        // PIM activation. The same claims sent through the credential do nothing: it answers them
+        // silently from the refresh token, which carries no MFA. (amr_values=mfa would be the classic
+        // way, but the v2 endpoint MSAL uses rejects it - AADSTS901002.)
         var app = PublicClientApplicationBuilder.Create(m365.ClientId)
             .WithTenantId(m365.TenantId)
             .WithRedirectUri("http://localhost")
@@ -161,7 +162,7 @@ public sealed class M365AuthService : IM365AuthService, IM365Connector
 
         var request = app.AcquireTokenInteractive(new[] { scope })
             .WithUseEmbeddedWebView(false)
-            .WithExtraQueryParameters(new Dictionary<string, (string, bool)> { ["amr_values"] = ("ngcmfa", false) });
+            .WithClaims("{\"access_token\":{\"amr\":{\"values\":[\"mfa\"]}}}");
         if (CurrentUser?.Upn is { Length: > 0 } upn)
             request = request.WithLoginHint(upn);
 

@@ -12,9 +12,47 @@ namespace M365Manager.ViewModels;
 /// </summary>
 public static class ErrorText
 {
+    /// <summary>
+    /// Raised when an error looks like an expired PIM role or sign-in rather than a real problem with
+    /// the request. The shell listens and offers "Renew roles &amp; reconnect" - every page already
+    /// routes its errors through <see cref="Describe"/>, so none of them needs to know about it.
+    /// </summary>
+    public static event Action<string>? SessionProblemSuspected;
+
+    /// <summary>
+    /// What Exchange, Teams, PnP and Graph answer once the admin role behind the session is gone:
+    /// Exchange drops the cmdlets the role granted, the others refuse the call.
+    /// </summary>
+    private static readonly string[] SessionProblemMarkers =
+    {
+        "is not recognized as a name of a cmdlet",
+        "is not recognized as the name of a cmdlet",
+        "Authorization_RequestDenied",
+        "Insufficient privileges",
+        "isn't within your current write scope",
+        "Access is denied",
+        "AccessDenied",
+        "(403)",
+        "Forbidden",
+        "UnAuthorized",
+        "token has expired",
+        "AADSTS700082",
+        "AADSTS50173",
+    };
+
+    private const string SessionHint =
+        " Your admin roles or sign-in may have expired - use \"Renew roles & reconnect\" at the top.";
+
     public static string Describe(Exception ex)
     {
         var root = Unwrap(ex);
+
+        if (root is not SqlException
+            && SessionProblemMarkers.Any(m => root.Message.Contains(m, StringComparison.OrdinalIgnoreCase)))
+        {
+            SessionProblemSuspected?.Invoke(root.Message);
+            return root.Message + SessionHint;
+        }
 
         if (root is SqlException sql)
         {

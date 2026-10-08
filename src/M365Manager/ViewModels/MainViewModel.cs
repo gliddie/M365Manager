@@ -13,6 +13,8 @@ namespace M365Manager.ViewModels;
 public sealed partial class MainViewModel : ObservableObject
 {
     private readonly IStartupConnectionService _startup;
+    private readonly IPimService _pim;
+    private readonly IM365AuthService _auth;
     private readonly IThemeService _theme;
     private readonly ISettingsService _settings;
     private readonly DashboardViewModel _dashboard;
@@ -68,6 +70,8 @@ public sealed partial class MainViewModel : ObservableObject
         SettingsViewModel settings,
         LogsViewModel logs,
         IStartupConnectionService startup,
+        IPimService pim,
+        IM365AuthService auth,
         IThemeService theme,
         ISettingsService settingsService,
         INavigationService navigation,
@@ -79,6 +83,8 @@ public sealed partial class MainViewModel : ObservableObject
         _sharedMailboxes = sharedMailboxes;
         _trace = trace;
         _startup = startup;
+        _pim = pim;
+        _auth = auth;
         _theme = theme;
         _settings = settingsService;
         Transcript = transcript;
@@ -118,6 +124,27 @@ public sealed partial class MainViewModel : ObservableObject
         CheckSettingsLoad();
 
         navigation.Requested += OnNavigationRequested;
+
+        _pim.StateChanged += (_, _) => OnUiThread(UpdateSessionStatus);
+        ErrorText.SessionProblemSuspected += _ => OnUiThread(() =>
+        {
+            _sessionProblemSuspected = true;
+            UpdateSessionStatus();
+        });
+
+        // The expiry warning has to appear without anyone clicking anything - the typical case is
+        // the window left open overnight.
+        _sessionTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _sessionTimer.Tick += (_, _) => UpdateSessionStatus();
+        _sessionTimer.Start();
+        UpdateSessionStatus();
+    }
+
+    private static void OnUiThread(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess()) action();
+        else dispatcher.BeginInvoke(action);
     }
 
     [RelayCommand]
@@ -171,20 +198,45 @@ public sealed partial class MainViewModel : ObservableObject
     /// Settings to sign in and then Groups to connect separately. Called once from
     /// App.xaml.cs after the main window is shown.
     /// </summary>
-    public async Task ConnectAllAsync()
+    public Task ConnectAllAsync() => RunConnectAsync(_startup.ConnectAllAsync);
+
+    /// <summary>
+    /// The one way back after roles ran out or a connection failed: renews the PIM roles, drops the
+    /// Exchange, Teams and SharePoint sessions and opens them again - see
+    /// IStartupConnectionService.ReconnectAllAsync. Replaces the Connect button the Groups page had.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRenewAndReconnect))]
+    private Task RenewAndReconnectAsync()
+    {
+        _sessionProblemSuspected = false;
+        return RunConnectAsync(_startup.ReconnectAllAsync);
+    }
+
+    private bool CanRenewAndReconnect() => !IsConnecting;
+
+    partial void OnIsConnectingChanged(bool value) => RenewAndReconnectCommand.NotifyCanExecuteChanged();
+
+    private async Task RunConnectAsync(
+        Func<Action<ConnectorProgress>?, Action<string>?, CancellationToken, Task> run)
     {
         IsConnecting = true;
         _browserOpened = false;
         DeviceCodeMessage = "";
         DeviceCode = "";
+        _failedConnectors.Clear();
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
         try
         {
-            await _startup.ConnectAllAsync(
+            await run(
                 progress =>
                 {
                     void Apply()
                     {
+                        if (progress.State == ConnectorState.Failed)
+                            _failedConnectors[progress.DisplayName] = progress.Error ?? "";
+                        else if (progress.State == ConnectorState.Connected)
+                            _failedConnectors.Remove(progress.DisplayName);
+
                         ConnectingStatusText = progress.State switch
                         {
                             ConnectorState.Connecting => $"Connecting to {progress.DisplayName}...",
@@ -221,7 +273,8 @@ public sealed partial class MainViewModel : ObservableObject
                             _browserOpened = DeviceCodePrompt.TryOpenBrowser(prompt);
                     }
                     if (dispatcher is not null) dispatcher.Invoke(Show); else Show();
-                });
+                },
+                CancellationToken.None);
         }
         finally
         {
@@ -232,7 +285,78 @@ public sealed partial class MainViewModel : ObservableObject
             _groups.RefreshConnectionState();
             _sharedMailboxes.RefreshAvailableDomains();
             _trace.RefreshAfterConnect();
+            UpdateSessionStatus();
         }
+    }
+
+    // ----- Session: PIM roles and connections -----
+
+    private static readonly TimeSpan ExpiryWarning = TimeSpan.FromMinutes(15);
+    private static readonly System.Globalization.CultureInfo English = System.Globalization.CultureInfo.GetCultureInfo("en-US");
+
+    private readonly System.Windows.Threading.DispatcherTimer _sessionTimer;
+    // Connector name -> its error, so the strip can say why and not only what.
+    private readonly Dictionary<string, string> _failedConnectors = new();
+    private bool _sessionProblemSuspected;
+
+    /// <summary>One line in the sidebar footer, e.g. "Admin roles active until 21:14".</summary>
+    [ObservableProperty] private string _sessionStatusText = "";
+
+    /// <summary>The strip under the header; empty hides it. Carries the renew button.</summary>
+    [ObservableProperty] private string _sessionWarning = "";
+
+    /// <summary>Red rather than amber: roles already expired or a connection is missing.</summary>
+    [ObservableProperty] private bool _sessionWarningIsError;
+
+    private void UpdateSessionStatus()
+    {
+        if (IsConnecting)
+            return;
+
+        var now = DateTimeOffset.Now;
+        var until = _pim.ActiveUntil;
+
+        SessionStatusText = !_auth.IsSignedIn ? "Not signed in"
+            : until is { } end && end <= now ? "Admin roles expired"
+            : until is { } active ? $"Admin roles active until {FormatTime(active)}"
+            : _pim.Roles.Count > 0 ? "Admin roles active"
+            : "Signed in";
+
+        if (until is { } expired && expired <= now)
+        {
+            SessionWarning = $"Your admin roles expired at {FormatTime(expired)}. Actions will be refused until they are renewed.";
+            SessionWarningIsError = true;
+        }
+        else if (until is { } soon && soon - now <= ExpiryWarning)
+        {
+            var minutes = Math.Max(1, (int)Math.Ceiling((soon - now).TotalMinutes));
+            SessionWarning = $"Your admin roles expire at {FormatTime(soon)} (in {minutes} min).";
+            SessionWarningIsError = false;
+        }
+        else if (_failedConnectors.Count > 0)
+        {
+            SessionWarning = "Not connected: " + string.Join("; ", _failedConnectors.Select(f => string.IsNullOrWhiteSpace(f.Value) ? f.Key : $"{f.Key} - {f.Value}")) + ". Pages that need it will not work until it is reconnected.";
+            SessionWarningIsError = true;
+        }
+        else if (_sessionProblemSuspected)
+        {
+            SessionWarning = "A command was refused - your admin roles or sign-in may have expired.";
+            SessionWarningIsError = false;
+        }
+        else
+        {
+            SessionWarning = "";
+            SessionWarningIsError = false;
+        }
+    }
+
+    /// <summary>"21:14" today, "Fri 09:14" otherwise - a 12-hour activation regularly crosses midnight.</summary>
+    private static string FormatTime(DateTimeOffset time)
+    {
+        var local = time.ToLocalTime();
+        return local.Date == DateTime.Today
+            ? local.ToString("HH:mm", English)
+            : local.ToString("ddd HH:mm", English);
     }
 
     // ----- Settings load warning -----

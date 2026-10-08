@@ -33,40 +33,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Connect fallback. The app connects everything at startup, so this only shows
-                     when that failed. -->
-                <Button Grid.Row="0" Style="{StaticResource SecondaryButton}" Content="Co_nnect to Exchange"
-                        HorizontalAlignment="Left" Margin="0,0,0,16"
-                        Command="{Binding ConnectCommand}"
-                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"
-                        Visibility="{Binding IsConnected, Converter={StaticResource BoolToCollapsed}}" />
-
                 <StackPanel Grid.Row="1" Margin="0,0,0,16">
-                    <!-- Device-code sign-in -->
-                    <Border Margin="0,0,0,16" CornerRadius="{DynamicResource RadiusControl}" Padding="16,14"
-                            Background="{DynamicResource BrandSoftBrush}"
-                            BorderBrush="{DynamicResource BrandTextBrush}" BorderThickness="1"
-                            Visibility="{Binding DeviceCodeMessage, Converter={StaticResource EmptyToCollapsed}}">
-                        <StackPanel>
-                            <TextBlock Text="Sign-in required" Style="{StaticResource H3}"
-                                       Foreground="{DynamicResource BrandTextBrush}" Margin="0,0,0,8" />
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12"
-                                        Visibility="{Binding DeviceCode, Converter={StaticResource EmptyToCollapsed}}">
-                                <Border Background="{DynamicResource SurfaceBrush}"
-                                        BorderBrush="{DynamicResource BrandTextBrush}" BorderThickness="1"
-                                        CornerRadius="{DynamicResource RadiusControl}" Padding="14,6">
-                                    <TextBlock Text="{Binding DeviceCode}" FontFamily="{DynamicResource FontFamilyMono}"
-                                               FontSize="22" FontWeight="Bold"
-                                               Foreground="{DynamicResource BrandTextBrush}" />
-                                </Border>
-                                <Button Content="Copy code" Style="{StaticResource SecondaryButtonSmall}"
-                                        Margin="{DynamicResource GapInline}" VerticalAlignment="Center"
-                                        Command="{Binding CopyCodeCommand}" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding DeviceCodeMessage}" Style="{StaticResource Muted}" />
-                        </StackPanel>
-                    </Border>
-
                     <!-- Search is the primary action of this tab. -->
                     <StackPanel Orientation="Horizontal">
                         <TextBox Style="{StaticResource ModernTextBox}" Width="360"

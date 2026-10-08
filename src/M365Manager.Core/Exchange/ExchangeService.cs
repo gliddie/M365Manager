@@ -29,7 +29,7 @@ public sealed class ExchangeService : IExchangeService, IM365Connector
     }
 
     public string DisplayName => "Exchange Online";
-    public int Order => 1;
+    public int Order => 2;   // after Graph (0) and the PIM roles (1) - the session gets the rights active at connect time
 
     public bool IsConnected { get; private set; }
 
@@ -53,6 +53,25 @@ public sealed class ExchangeService : IExchangeService, IM365Connector
         }, onPrompt, ct, suppressTranscript: true);
 
         IsConnected = true;
+    }
+
+    public async Task DisconnectAsync(CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            return;
+
+        IsConnected = false;
+        try
+        {
+            await _host.InvokeAsync(ps => ps
+                .AddCommand("Disconnect-ExchangeOnline")
+                .AddParameter("Confirm", false)
+                .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
+        }
+        catch
+        {
+            // A session whose roles expired may already be unusable; the reconnect opens a new one.
+        }
     }
 
     public async Task<IReadOnlyList<DistributionGroupInfo>> SearchGroupsAsync(string search, CancellationToken ct = default)

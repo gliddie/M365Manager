@@ -26,4 +26,12 @@ public interface IM365Connector
     /// interactive sign-in instructions (device code, browser URL, ...) to surface to the user.
     /// </summary>
     Task ConnectAsync(Action<string>? onPrompt = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Drops the current session so the next <see cref="ConnectAsync"/> starts a fresh one. Used by
+    /// "Renew roles &amp; reconnect": Exchange Online in particular fixes its cmdlet set at connect
+    /// time from the roles active in that moment, so a session opened before a PIM activation never
+    /// gains the new rights. Must not throw for a session that is already gone.
+    /// </summary>
+    Task DisconnectAsync(CancellationToken ct = default);
 }

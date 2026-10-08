@@ -94,9 +94,18 @@
                     </ListBox>
                 </ScrollViewer>
 
-                <!-- Footer: theme switch + owner -->
+                <!-- Footer: session state, theme switch, owner -->
                 <StackPanel Grid.Row="2" Margin="12,12,12,16">
                     <Border Style="{StaticResource Separator}" Margin="8,0,8,12" />
+
+                    <!-- Always-visible session line; problems get the strip above the page as well. -->
+                    <StackPanel Orientation="Horizontal" Margin="12,0,0,12"
+                                AutomationProperties.Name="{Binding SessionStatusText}">
+                        <TextBlock Text="&#xE83D;" FontFamily="Segoe MDL2 Assets" FontSize="13"
+                                   VerticalAlignment="Center" Foreground="{DynamicResource TextMutedBrush}" />
+                        <TextBlock Text="{Binding SessionStatusText}" Style="{StaticResource Muted}"
+                                   Margin="12,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    </StackPanel>
 
                     <Button Style="{StaticResource GhostButtonSmall}"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
@@ -135,9 +144,60 @@
                 <TextBlock Style="{StaticResource H1}" Text="{Binding SelectedPage.Title}" />
             </Border>
 
+            <StackPanel Grid.Row="1">
+
+            <!-- Session problems: PIM roles about to run out or expired, a connection missing, or a
+                 command refused the way an expired role gets refused. One button fixes all of them,
+                 from whatever page the admin is on - it replaced the Groups page's Connect button. -->
+            <Border Padding="28,12" BorderThickness="0,0,0,1"
+                    Visibility="{Binding SessionWarning, Converter={StaticResource EmptyToCollapsed}}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SessionWarningIsError}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource DangerSoftBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets"
+                               FontSize="14" VerticalAlignment="Center" Margin="0,0,12,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SessionWarningIsError}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Grid.Column="1" Text="{Binding SessionWarning}" Style="{StaticResource Body}"
+                               TextWrapping="Wrap" VerticalAlignment="Center" />
+
+                    <Button Grid.Column="2" Content="Renew roles &amp; reconnect"
+                            Style="{StaticResource SecondaryButtonSmall}" VerticalAlignment="Center"
+                            Margin="{DynamicResource GapInline}"
+                            Command="{Binding RenewAndReconnectCommand}"
+                            AutomationProperties.Name="Renew admin roles and reconnect" />
+                </Grid>
+            </Border>
+
             <!-- Settings could not be fully read. A strip rather than a toast: while this is up,
                  saving anywhere in the app would write defaults over the sections that failed. -->
-            <Border Grid.Row="1" Padding="28,12"
+            <Border Padding="28,12"
                     Background="{DynamicResource WarningSoftBrush}"
                     BorderBrush="{DynamicResource WarningBrush}" BorderThickness="0,0,0,1"
                     Visibility="{Binding SettingsLoadWarning, Converter={StaticResource EmptyToCollapsed}}">
@@ -164,6 +224,8 @@
                             Command="{Binding DismissSettingsWarningCommand}" />
                 </Grid>
             </Border>
+
+            </StackPanel>
 
             <!-- Page -->
             <ContentControl Grid.Row="2" Content="{Binding CurrentViewModel}" />

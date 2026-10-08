@@ -31,16 +31,10 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
     [ObservableProperty] private string _searchText = "";
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private bool _isBusy;
-    [ObservableProperty] private string _statusMessage = "Connect to Exchange Online to search groups.";
+    [ObservableProperty] private string _statusMessage = "Connecting to Exchange Online...";
 
     [ObservableProperty] private DistributionGroupInfo? _selectedGroup;
     [ObservableProperty] private string _ownersText = "";
-
-    /// <summary>Device-code sign-in instructions, shown prominently while connecting.</summary>
-    [ObservableProperty] private string _deviceCodeMessage = "";
-
-    /// <summary>Just the sign-in code, for the copy button.</summary>
-    [ObservableProperty] private string _deviceCode = "";
 
     [ObservableProperty] private GroupMemberInfo? _selectedMember;
     [ObservableProperty] private string _newMemberAddress = "";
@@ -51,7 +45,6 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
     /// <summary>Free-text filter applied to <see cref="MembersView"/> (name, address, UPN, type, path).</summary>
     [ObservableProperty] private string _memberFilterText = "";
 
-    private bool _browserOpened;
 
     public ObservableCollection<DistributionGroupInfo> SearchResults { get; } = new();
     public ObservableCollection<GroupMemberInfo> Members { get; } = new();
@@ -213,92 +206,13 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
 
     /// <summary>
     /// Reflects the shared ExchangeService's connection state onto this page. Called by
-    /// MainViewModel after the app-wide startup connect finishes, so this page shows
-    /// "Connected" without the user having to click this page's own Connect button.
+    /// MainViewModel after every app-wide connect (startup and "Renew roles & reconnect").
     /// </summary>
     public void RefreshConnectionState()
     {
         IsConnected = _exchange.IsConnected;
         if (IsConnected)
-            Status("Connected to Exchange Online. Enter a name and search.", AlertSeverity.Error);
-    }
-
-    [RelayCommand]
-    private async Task ConnectAsync()
-    {
-        IsBusy = true;
-        _browserOpened = false;
-        DeviceCodeMessage = "";
-        DeviceCode = "";
-        StatusMessage = "Connecting to Exchange Online...";
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        try
-        {
-            await _exchange.ConnectAsync(prompt =>
-            {
-                void Show()
-                {
-                    // Accumulate all sign-in output so the full instructions stay visible.
-                    DeviceCodeMessage = string.IsNullOrEmpty(DeviceCodeMessage) ? prompt : $"{DeviceCodeMessage}\n{prompt}";
-                    StatusMessage = prompt;
-                    ExtractDeviceCode(prompt);
-                    TryOpenBrowser(prompt);
-                }
-
-                if (dispatcher is not null)
-                    dispatcher.Invoke(Show);
-                else
-                    Show();
-            });
-
-            IsConnected = _exchange.IsConnected;
-            DeviceCodeMessage = "";
-            DeviceCode = "";
-            Status("Connected to Exchange Online. Enter a name and search.", AlertSeverity.Error);
-            await SafeLogAsync("Connect", null, Severity.Success, "Connected to Exchange Online.");
-        }
-        catch (Exception ex)
-        {
-            DeviceCodeMessage = "";
-            DeviceCode = "";
-            Status($"Connection failed: {ex.Message}", AlertSeverity.Error);
-            await SafeLogAsync("Connect", null, Severity.Error, $"Exchange connect failed: {ex.Message}");
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
-    private void ExtractDeviceCode(string prompt)
-    {
-        var code = DeviceCodePrompt.ExtractCode(prompt);
-        if (code is not null)
-            DeviceCode = code;
-    }
-
-    [RelayCommand]
-    private void CopyCode()
-    {
-        if (string.IsNullOrEmpty(DeviceCode))
-            return;
-        try
-        {
-            System.Windows.Clipboard.SetText(DeviceCode);
-            StatusMessage = $"Code {DeviceCode} copied to clipboard.";
-        }
-        catch
-        {
-            // Clipboard can occasionally be locked by another app; ignore.
-        }
-    }
-
-    private void TryOpenBrowser(string prompt)
-    {
-        if (_browserOpened)
-            return;
-
-        _browserOpened = DeviceCodePrompt.TryOpenBrowser(prompt);
+            Status("Connected to Exchange Online. Enter a name and search.", AlertSeverity.Info);
     }
 
     [RelayCommand]
@@ -306,7 +220,7 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
     {
         if (!IsConnected)
         {
-            Status("Please connect to Exchange Online first.", AlertSeverity.Error);
+            Status("Exchange Online is not connected - use \"Renew roles & reconnect\" at the top of the window.", AlertSeverity.Error);
             return;
         }
         if (string.IsNullOrWhiteSpace(SearchText))

@@ -23,7 +23,7 @@ public sealed class TeamsPowerShellService : ITeamsPowerShellService, IM365Conne
     public string DisplayName => "Microsoft Teams";
 
     /// <summary>Last of the connectors - nothing else waits on it, and it is the slowest to sign in.</summary>
-    public int Order => 3;
+    public int Order => 4;
 
     public bool IsConnected { get; private set; }
 
@@ -46,6 +46,24 @@ public sealed class TeamsPowerShellService : ITeamsPowerShellService, IM365Conne
         }, onPrompt, ct, suppressTranscript: true);
 
         IsConnected = true;
+    }
+
+    public async Task DisconnectAsync(CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            return;
+
+        IsConnected = false;
+        try
+        {
+            await _host.InvokeAsync(ps => ps
+                .AddCommand("Disconnect-MicrosoftTeams")
+                .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
+        }
+        catch
+        {
+            // Already gone is fine - the reconnect opens a new session either way.
+        }
     }
 
     public async Task AssignPhoneNumberAsync(string upn, string phoneNumber, string phoneNumberType, CancellationToken ct = default)

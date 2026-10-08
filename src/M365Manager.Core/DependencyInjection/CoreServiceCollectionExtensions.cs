@@ -41,6 +41,12 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IM365Connector>(sp => sp.GetRequiredService<M365AuthService>());
         services.AddSingleton<GraphRestClient>();
 
+        // PIM roles: activated right after the Graph sign-in and before Exchange/Teams/SharePoint
+        // connect, so those sessions start with the rights (Order 1, see PimService).
+        services.AddSingleton<PimService>();
+        services.AddSingleton<IPimService>(sp => sp.GetRequiredService<PimService>());
+        services.AddSingleton<IM365Connector>(sp => sp.GetRequiredService<PimService>());
+
         // Embedded PowerShell + Exchange Online. The transcript is what the console views on the
         // feature pages render; PowerShellHost feeds it centrally, so no service opts in.
         services.AddSingleton<IPowerShellTranscript, PowerShellTranscript>();

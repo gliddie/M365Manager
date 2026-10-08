@@ -14,6 +14,14 @@ public interface IStartupConnectionService
     /// unreachable shouldn't prevent a future Teams/SharePoint connector from still signing in.
     /// </summary>
     Task ConnectAllAsync(Action<ConnectorProgress>? onProgress = null, Action<string>? onPrompt = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// "Renew roles &amp; reconnect": drops every session (in reverse order, so nothing is torn down
+    /// underneath a connector that depends on it), then runs <see cref="ConnectAllAsync"/> again.
+    /// Graph stays signed in but fetches fresh tokens; the PIM connector renews roles that are about
+    /// to run out; Exchange, Teams and SharePoint open new sessions carrying the renewed roles.
+    /// </summary>
+    Task ReconnectAllAsync(Action<ConnectorProgress>? onProgress = null, Action<string>? onPrompt = null, CancellationToken ct = default);
 }
 
 public sealed class StartupConnectionService : IStartupConnectionService
@@ -46,5 +54,22 @@ public sealed class StartupConnectionService : IStartupConnectionService
                 onProgress?.Invoke(new ConnectorProgress(connector.DisplayName, ConnectorState.Failed, ex.Message));
             }
         }
+    }
+
+    public async Task ReconnectAllAsync(Action<ConnectorProgress>? onProgress = null, Action<string>? onPrompt = null, CancellationToken ct = default)
+    {
+        foreach (var connector in _connectors.OrderByDescending(c => c.Order))
+        {
+            try
+            {
+                await connector.DisconnectAsync(ct);
+            }
+            catch
+            {
+                // DisconnectAsync is documented not to throw; one that does must not stop the rest.
+            }
+        }
+
+        await ConnectAllAsync(onProgress, onPrompt, ct);
     }
 }

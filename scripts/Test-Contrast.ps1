@@ -63,6 +63,8 @@ $pairs = @(
     @('ConsoleMutedColor','ConsoleBackColor','console muted',4.5),
     @('BrandTextColor','SurfaceColor','brand TEXT on card',4.5),
     @('BrandTextColor','BrandSoftColor','brand TEXT on brand-soft',4.5),
+    @('TextColor','BrandSoftColor','text on highlighted list entry / grid hover',4.5),
+    @('BrandTextColor','SurfaceColor','selected-entry accent bar in drop-down',3.0),
     @('BrandTextColor','SidebarColor','nav accent on sidebar',3.0),
     @('OnBrandColor','BrandColor','white label on primary button',4.5),
     @('OnBrandColor','BrandHoverColor','white label on primary hover',4.5),

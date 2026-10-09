@@ -470,8 +470,7 @@
                                             Visibility="{Binding CreateIsTemporary, Converter={StaticResource BoolToVisible}}">
                                     <TextBlock Style="{StaticResource FieldLabel}" Text="Remove on"
                                                VerticalAlignment="Center" Margin="0,0,12,0" />
-                                    <DatePicker AutomationProperties.Name="Remove on" SelectedDate="{Binding CreateRemoveOn}" Width="150"
-                                                FontFamily="{DynamicResource FontFamilyUi}" FontSize="13" />
+                                    <DatePicker Style="{StaticResource ModernDatePicker}" AutomationProperties.Name="Remove on" SelectedDate="{Binding CreateRemoveOn}" Width="150" />
                                 </StackPanel>
 
                                 <TextBlock Style="{StaticResource FieldLabel}" Text="Owner(s)" />

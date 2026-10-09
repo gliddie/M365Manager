@@ -4,10 +4,15 @@ Imports Microsoft 365 groups and their members into SQL Server for fast GUI look
 
 .DESCRIPTION
 This script connects to Microsoft 365 using a registered app with certificate-based authentication,
-queries all supported group types (distribution, mail-enabled security, security, Microsoft 365 / Unified,
-dynamic distribution, and nested memberships), and stores the data in SQL Server.
+queries all groups (distribution, mail-enabled security, security, Microsoft 365 / Unified, dynamic) with
+their DIRECT members, and stores the data in SQL Server.
 
-It is designed to run on a separate server as a scheduled task every 4 hours.
+It is designed to run on a separate server as a scheduled task (once a day at the moment).
+
+SPEED (rebuilt 2026-10): one SQL connection for the run, each group's members replaced with one
+DELETE + one bulk insert, and members fetched for 20 groups per Graph $batch request. The first version
+opened a connection per statement (two per member row), MERGEd row by row and re-expanded every
+nested group under each parent - about nine hours for ~37,000 groups.
 
 REQUIRED PERMISSIONS FOR THE REGISTERED APP
 - Microsoft Graph:
@@ -26,7 +31,12 @@ IMPORTANT
 - For managed environments, you may also need to consent to these permissions in Entra ID.
 
 NOTES
-- This script intentionally imports both direct and nested group membership via recursive traversal.
+- Direct members only. Nested groups are not expanded: every group is imported in its own right, so a
+  nested group's members are already under that group. A member that is a group gets IsNested = 1 and
+  Path = '<group> > <member group>' (the app reads IsNested = 0 as the user members).
+- Members removed in M365 disappear from the cache on the next run (rows are replaced, not merged).
+- A group deleted while the run is going is skipped and flagged IsDeletedInM365; other per-group errors
+  are logged, the run continues and ends with exit code 1 (stops after 50 such errors).
 - If a group is not found in SQL, the GUI can fall back to live Microsoft 365 lookups.
 #>
 
@@ -79,8 +89,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$script:ImportedGroupIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-$script:ImportedMemberKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$script:SqlConnection = $null
 
 function Write-ImportLog {
     param([string]$Message)
@@ -218,7 +227,7 @@ function Invoke-SqlCommand {
         [switch]$ReturnRowCount
     )
 
-    $connection = New-Object System.Data.SqlClient.SqlConnection(Get-ConnectionString)
+    $connection = Get-SqlConnection
     $command = $connection.CreateCommand()
     $command.CommandText = $Sql
     $command.CommandTimeout = $TimeoutSeconds
@@ -252,14 +261,24 @@ function Invoke-SqlCommand {
         }
     }
 
-    $connection.Open()
     try {
         $affected = $command.ExecuteNonQuery()
         if ($ReturnRowCount) { return $affected }
     }
     finally {
-        $connection.Dispose()
+        $command.Dispose()
     }
+}
+
+function Get-SqlConnection {
+    # One connection for the whole run. Opening one per statement - two statements per member row -
+    # was the bulk of the old nine-hour runtime. Reopened if the server dropped it.
+    if ($null -eq $script:SqlConnection -or $script:SqlConnection.State -ne [System.Data.ConnectionState]::Open) {
+        if ($null -ne $script:SqlConnection) { $script:SqlConnection.Dispose() }
+        $script:SqlConnection = New-Object System.Data.SqlClient.SqlConnection(Get-ConnectionString)
+        $script:SqlConnection.Open()
+    }
+    return $script:SqlConnection
 }
 
 function Get-SqlUtcNow {
@@ -345,30 +364,6 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_GroupMembers_GroupId'
     Invoke-SqlCommand -Sql $sql
 }
 
-function Ensure-GroupExists {
-    param(
-        [guid]$GroupId,
-        [string]$DisplayName = "",
-        [string]$PrimarySmtpAddress = ""
-    )
-
-    $sql = @"
-IF NOT EXISTS (SELECT 1 FROM dbo.Groups WHERE Id = @Id)
-BEGIN
-    INSERT INTO dbo.Groups (Id, DisplayName, PrimarySmtpAddress, CreatedDateTime, UpdatedDateTime, LastImportedAtUtc)
-    VALUES (@Id, @DisplayName, @PrimarySmtpAddress, SYSUTCDATETIME(), SYSUTCDATETIME(), SYSUTCDATETIME());
-END
-"@
-
-    $parameters = @{
-        Id = $GroupId
-        DisplayName = $DisplayName
-        PrimarySmtpAddress = $PrimarySmtpAddress
-    }
-
-    Invoke-SqlCommand -Sql $sql -Parameters $parameters
-}
-
 function Write-GroupRecord {
     param(
         [pscustomobject]$Group,
@@ -422,54 +417,6 @@ WHEN NOT MATCHED THEN
         MembershipRule = $Group.membershipRule
         Notes = $Group.notes
         ManagedBy = ($Group.managedBy -join ';')
-    }
-
-    Invoke-SqlCommand -Sql $sql -Parameters $parameters
-}
-
-function Write-MemberRecord {
-    param(
-        [guid]$GroupId,
-        [string]$MemberType,
-        [string]$MemberId,
-        [string]$DisplayName,
-        [string]$PrimarySmtpAddress,
-        [string]$UserPrincipalName,
-        [string]$UserType,
-        [bool]$IsNested = $false,
-        [string]$Path = ""
-    )
-
-    $sql = @"
-MERGE dbo.GroupMembers AS target
-USING (SELECT @GroupId AS GroupId, @MemberId AS MemberId) AS source ON target.GroupId = source.GroupId AND target.MemberId = source.MemberId
-WHEN MATCHED THEN
-    UPDATE SET
-        MemberType = @MemberType,
-        DisplayName = @DisplayName,
-        PrimarySmtpAddress = @PrimarySmtpAddress,
-        UserPrincipalName = @UserPrincipalName,
-        UserType = @UserType,
-        IsNested = @IsNested,
-        Path = @Path,
-        LastImportedAtUtc = SYSUTCDATETIME()
-WHEN NOT MATCHED THEN
-    INSERT (GroupId, MemberType, MemberId, DisplayName, PrimarySmtpAddress, UserPrincipalName, UserType, IsNested, Path, LastImportedAtUtc)
-    VALUES (@GroupId, @MemberType, @MemberId, @DisplayName, @PrimarySmtpAddress, @UserPrincipalName, @UserType, @IsNested, @Path, SYSUTCDATETIME());
-"@
-
-    Ensure-GroupExists -GroupId $GroupId
-
-    $parameters = @{
-        GroupId = $GroupId
-        MemberType = $MemberType
-        MemberId = $MemberId
-        DisplayName = $DisplayName
-        PrimarySmtpAddress = $PrimarySmtpAddress
-        UserPrincipalName = $UserPrincipalName
-        UserType = $UserType
-        IsNested = [int]$IsNested
-        Path = $Path
     }
 
     Invoke-SqlCommand -Sql $sql -Parameters $parameters
@@ -535,93 +482,205 @@ function Get-GroupsFromGraph {
     throw 'No groups were returned by Microsoft Graph.'
 }
 
-function Get-GroupMembersFromGraph {
-    param([string]$GroupId)
-
-    $members = @()
-
-    Write-DebugLog "Querying members for group $GroupId"
-    Write-DebugLog 'Using Microsoft Graph PowerShell cmdlets for members...'
-
-    $memberObjects = Get-MgGroupMember -GroupId $GroupId -All -ErrorAction Stop
-    foreach ($member in @($memberObjects)) {
-        # Get-MgGroupMember returns generic DirectoryObject instances: DisplayName/Mail/
-        # UserPrincipalName/UserType are not promoted to top-level properties, they live in
-        # AdditionalProperties (same reason @odata.type is read from there below).
-        $additional = $member.AdditionalProperties
-
-        $displayName = $additional['displayName']
-        if ([string]::IsNullOrWhiteSpace($displayName) -and $member.PSObject.Properties.Name -contains 'DisplayName') {
-            $displayName = $member.DisplayName
-        }
-
-        $mail = $additional['mail']
-        if ([string]::IsNullOrWhiteSpace($mail) -and $member.PSObject.Properties.Name -contains 'Mail') {
-            $mail = $member.Mail
-        }
-
-        $userPrincipalName = $additional['userPrincipalName']
-        if ([string]::IsNullOrWhiteSpace($userPrincipalName) -and $member.PSObject.Properties.Name -contains 'UserPrincipalName') {
-            $userPrincipalName = $member.UserPrincipalName
-        }
-
-        $userType = $additional['userType']
-        if ([string]::IsNullOrWhiteSpace($userType) -and $member.PSObject.Properties.Name -contains 'UserType') {
-            $userType = $member.UserType
-        }
-
-        $members += [pscustomobject]@{
-            Id = $member.Id
-            Type = $additional['@odata.type']
-            DisplayName = $displayName
-            Mail = $mail
-            UserPrincipalName = $userPrincipalName
-            UserType = $userType
-        }
-    }
-
-    return $members
+function Limit-Text {
+    # SqlBulkCopy refuses a value longer than its column instead of truncating it like an INSERT
+    # with ANSI_WARNINGS OFF would - one oversized display name would fail the whole group.
+    param([string]$Value, [int]$Max)
+    if ([string]::IsNullOrEmpty($Value)) { return $Value }
+    if ($Value.Length -le $Max) { return $Value }
+    return $Value.Substring(0, $Max)
 }
 
-function Resolve-NestedMembers {
+function Write-GroupMembers {
+    # Replaces the group's cached member rows in one transaction: delete, then one bulk insert.
+    # The old per-row MERGE never deleted anything, so members removed in M365 stayed in the cache
+    # for good; and it cost two round trips per member.
     param(
-        [string]$GroupId,
+        [guid]$GroupId,
         [string]$GroupDisplayName,
-        [string]$Path = "",
-        # Tracks groups already expanded in this top-level group's nested chain, so that a cycle
-        # (A contains B contains A) cannot recurse forever, and a diamond (C nested under both A
-        # and B) is only walked once. Left $null on the initial call; recursive calls pass the
-        # same set down so it accumulates across the whole tree.
-        [System.Collections.Generic.HashSet[string]]$VisitedGroupIds = $null
+        [object[]]$Members
     )
 
-    if ($null -eq $VisitedGroupIds) {
-        $VisitedGroupIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    }
-    if (-not $VisitedGroupIds.Add($GroupId)) {
-        Write-DebugLog "Skipping already-visited nested group '$GroupDisplayName' [$GroupId] (cycle or diamond membership)"
-        return
+    $table = New-Object System.Data.DataTable
+    foreach ($column in 'GroupId', 'MemberType', 'MemberId', 'DisplayName', 'PrimarySmtpAddress', 'UserPrincipalName', 'UserType', 'IsNested', 'Path') {
+        $type = switch ($column) { 'GroupId' { [guid] } 'IsNested' { [bool] } default { [string] } }
+        [void]$table.Columns.Add($column, $type)
     }
 
-    $members = Get-GroupMembersFromGraph -GroupId $GroupId
-    foreach ($member in $members) {
-        if ($member.Type -eq '#microsoft.graph.group') {
-            $nestedPath = if ([string]::IsNullOrWhiteSpace($Path)) { $GroupDisplayName + ' > ' + $member.DisplayName } else { $Path + ' > ' + $member.DisplayName }
-            Write-MemberRecord -GroupId ([guid]$GroupId) -MemberType 'Group' -MemberId $member.Id -DisplayName $member.DisplayName -PrimarySmtpAddress $member.Mail -UserPrincipalName '' -UserType '' -IsNested $true -Path $nestedPath
-            Resolve-NestedMembers -GroupId $member.Id -GroupDisplayName $member.DisplayName -Path $nestedPath -VisitedGroupIds $VisitedGroupIds
-        }
-        else {
-            $primaryAddress = $null
-            if (-not [string]::IsNullOrWhiteSpace($member.Mail)) {
-                $primaryAddress = $member.Mail
-            }
-            elseif (-not [string]::IsNullOrWhiteSpace($member.UserPrincipalName)) {
-                $primaryAddress = $member.UserPrincipalName
-            }
+    foreach ($member in @($Members)) {
+        if ($null -eq $member) { continue }
 
-            Write-MemberRecord -GroupId ([guid]$GroupId) -MemberType 'User' -MemberId $member.Id -DisplayName $member.DisplayName -PrimarySmtpAddress $primaryAddress -UserPrincipalName $member.UserPrincipalName -UserType $member.UserType -IsNested $false -Path $Path
+        $odataType = [string]$member['@odata.type']
+        $isGroup = $odataType -eq '#microsoft.graph.group'
+        $mail = [string]$member['mail']
+        $upn = [string]$member['userPrincipalName']
+        $displayName = [string]$member['displayName']
+        $primary = if (-not [string]::IsNullOrWhiteSpace($mail)) { $mail } elseif (-not [string]::IsNullOrWhiteSpace($upn)) { $upn } else { $null }
+
+        $row = $table.NewRow()
+        $row['GroupId'] = $GroupId
+        $row['MemberType'] = if ($isGroup) { 'Group' } else { 'User' }
+        $row['MemberId'] = Limit-Text ([string]$member['id']) 256
+        $row['DisplayName'] = Limit-Text $displayName 256
+        $row['PrimarySmtpAddress'] = if ($null -eq $primary) { [DBNull]::Value } else { Limit-Text $primary 256 }
+        $row['UserPrincipalName'] = if ($isGroup -or [string]::IsNullOrWhiteSpace($upn)) { [DBNull]::Value } else { Limit-Text $upn 256 }
+        $row['UserType'] = if ($isGroup -or [string]::IsNullOrWhiteSpace([string]$member['userType'])) { [DBNull]::Value } else { Limit-Text ([string]$member['userType']) 64 }
+        # Same meaning as before: "this member is itself a group". The app reads IsNested = 0 as the
+        # direct (user) members, e.g. for the member count on the Teams page.
+        $row['IsNested'] = $isGroup
+        $row['Path'] = if ($isGroup) { Limit-Text "$GroupDisplayName > $displayName" 2048 } else { '' }
+        $table.Rows.Add($row)
+    }
+
+    $connection = Get-SqlConnection
+    $transaction = $connection.BeginTransaction()
+    try {
+        $delete = $connection.CreateCommand()
+        $delete.Transaction = $transaction
+        $delete.CommandText = 'DELETE FROM dbo.GroupMembers WHERE GroupId = @GroupId'
+        [void]$delete.Parameters.Add('@GroupId', [System.Data.SqlDbType]::UniqueIdentifier)
+        $delete.Parameters['@GroupId'].Value = $GroupId
+        [void]$delete.ExecuteNonQuery()
+        $delete.Dispose()
+
+        if ($table.Rows.Count -gt 0) {
+            $bulk = New-Object System.Data.SqlClient.SqlBulkCopy($connection, [System.Data.SqlClient.SqlBulkCopyOptions]::Default, $transaction)
+            try {
+                $bulk.DestinationTableName = 'dbo.GroupMembers'
+                $bulk.BulkCopyTimeout = 300
+                foreach ($column in $table.Columns) {
+                    [void]$bulk.ColumnMappings.Add($column.ColumnName, $column.ColumnName)
+                }
+                # LastImportedAtUtc is not mapped - its column default (SYSUTCDATETIME) fills it.
+                $bulk.WriteToServer($table)
+            }
+            finally {
+                $bulk.Close()
+            }
+        }
+
+        $transaction.Commit()
+    }
+    catch {
+        try { $transaction.Rollback() } catch { }
+        throw
+    }
+    finally {
+        $transaction.Dispose()
+    }
+}
+
+function Set-GroupDeleted {
+    # A group deleted after the group list was read. Write-GroupRecord already stamped it as seen,
+    # so the end-of-run marking would miss it - flag it here.
+    param([guid]$GroupId)
+    Invoke-SqlCommand -Sql 'UPDATE dbo.Groups SET IsDeletedInM365 = 1, UpdatedDateTime = SYSUTCDATETIME() WHERE Id = @Id' -Parameters @{ Id = $GroupId } | Out-Null
+}
+
+function Test-IsNotFound {
+    # Graph's answer for an object deleted after the group list was read - normal in a run over
+    # ~37,000 groups, and no reason to throw the run away.
+    param($ErrorRecord)
+    $text = "$($ErrorRecord.Exception.Message) $($ErrorRecord.ErrorDetails.Message)"
+    return $text -match 'Request_ResourceNotFound|ResourceNotFound|does not exist|\(404\)|NotFound'
+}
+
+function Get-MembersBatch {
+    # Direct members of up to 20 groups per Graph $batch request - ~1,900 requests for ~37,000
+    # groups instead of one each. Each group gets back one of:
+    #   @{ Status = 'ok';    Members = <member hashtables> }
+    #   @{ Status = 'gone';  Message = ... }   (deleted after the group list was read)
+    #   @{ Status = 'error'; Message = ... }
+    # Throttled (429) and transient (5xx) answers are retried for that group only, honouring
+    # Retry-After. Groups with more than 999 members continue through @odata.nextLink.
+    param([object[]]$Groups)
+
+    $results = @{}
+    $pending = @($Groups)
+    $attempt = 0
+    $maxAttempts = [Math]::Max($MaxRetries, 1) + 2
+
+    while ($pending.Count -gt 0 -and $attempt -lt $maxAttempts) {
+        $attempt++
+        $requests = @()
+        $index = 0
+        foreach ($group in $pending) {
+            $index++
+            $requests += @{
+                id     = [string]$index
+                method = 'GET'
+                url    = "/groups/$($group.id)/members?" + '$select=id,displayName,mail,userPrincipalName,userType&$top=999'
+            }
+        }
+
+        try {
+            $body = @{ requests = $requests } | ConvertTo-Json -Depth 5
+            $response = Invoke-MgGraphRequest -Method POST -Uri 'https://graph.microsoft.com/v1.0/$batch' -Body $body -ContentType 'application/json' -ErrorAction Stop
+        }
+        catch {
+            # The batch call itself failed (network, throttled as a whole): retry all of it.
+            Write-ImportLog "Graph batch request failed (attempt $attempt of $maxAttempts): $($_.Exception.Message)"
+            Start-Sleep -Seconds ([Math]::Min(60, 10 * $attempt))
+            continue
+        }
+
+        $retry = @()
+        $waitSeconds = 0
+        foreach ($answer in @($response['responses'])) {
+            $group = $pending[[int]$answer['id'] - 1]
+            $status = [int]$answer['status']
+            $answerBody = $answer['body']
+
+            if ($status -eq 200) {
+                $members = New-Object System.Collections.Generic.List[object]
+                foreach ($item in @($answerBody['value'])) { if ($null -ne $item) { $members.Add($item) } }
+                $next = $answerBody['@odata.nextLink']
+                try {
+                    while ($next) {
+                        $page = Invoke-MgGraphRequest -Method GET -Uri $next -ErrorAction Stop
+                        foreach ($item in @($page['value'])) { if ($null -ne $item) { $members.Add($item) } }
+                        $next = $page['@odata.nextLink']
+                    }
+                    $results[[string]$group.id] = @{ Status = 'ok'; Members = $members.ToArray() }
+                }
+                catch {
+                    $results[[string]$group.id] = if (Test-IsNotFound $_) {
+                        @{ Status = 'gone'; Message = $_.Exception.Message }
+                    } else {
+                        @{ Status = 'error'; Message = "reading further member pages failed: $($_.Exception.Message)" }
+                    }
+                }
+            }
+            elseif ($status -eq 404) {
+                $results[[string]$group.id] = @{ Status = 'gone'; Message = [string]$answerBody['error']['message'] }
+            }
+            elseif ($status -eq 429 -or $status -ge 500) {
+                $retry += $group
+                $after = 0
+                if ($answer['headers'] -and [int]::TryParse([string]$answer['headers']['Retry-After'], [ref]$after)) {
+                    $waitSeconds = [Math]::Max($waitSeconds, $after)
+                }
+            }
+            else {
+                $code = [string]$answerBody['error']['code']
+                $message = [string]$answerBody['error']['message']
+                $results[[string]$group.id] = @{ Status = 'error'; Message = "($status) $code $message".Trim() }
+            }
+        }
+
+        $pending = $retry
+        if ($pending.Count -gt 0) {
+            $waitSeconds = [Math]::Max($waitSeconds, 5 * $attempt)
+            Write-DebugLog "Graph throttled/busy for $($pending.Count) group(s) - retrying in $waitSeconds s."
+            Start-Sleep -Seconds ([Math]::Min(120, $waitSeconds))
         }
     }
+
+    foreach ($group in $pending) {
+        $results[[string]$group.id] = @{ Status = 'error'; Message = "Graph kept refusing the member query (throttled or unavailable) after $maxAttempts attempts." }
+    }
+
+    return $results
 }
 
 try {
@@ -655,16 +714,77 @@ try {
     $groups = Get-GroupsFromGraph -GraphContext $graphContext
 
     Write-ImportLog "Importing $($groups.Count) groups..."
-    foreach ($group in $groups) {
-        $groupId = [guid]$group.id
-        $groupKey = $groupId.ToString()
 
-        Write-DebugLog "Processing group: $($group.displayName) [$groupKey]"
-        if ($script:ImportedGroupIds.Add($groupKey)) {
-            Write-GroupRecord -Group $group -GroupKey $groupKey -GroupTypeSummary ($group.groupTypes -join ',')
+    # One group failing used to end the whole run - after hours, with nothing marked deleted. Now a
+    # group deleted meanwhile is skipped and flagged, other per-group errors are logged and counted.
+    # Many errors in one run point at something systemic (expired certificate, Graph outage), so the
+    # run still stops at this limit instead of logging the same failure 37,000 times.
+    $maxGroupErrors = 50
+    $groupErrors = 0
+    $groupsGone = 0
+    $memberRows = 0
+    $batchSize = 20          # Graph's $batch limit
+    $progressEvery = 2000
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+
+    for ($offset = 0; $offset -lt $groups.Count; $offset += $batchSize) {
+        $chunk = @($groups[$offset..([Math]::Min($offset + $batchSize, $groups.Count) - 1)])
+
+        # The group row first - the member rows reference it. A group whose row cannot be written
+        # counts as a failed group; its members are not fetched.
+        $recorded = @()
+        foreach ($group in $chunk) {
+            try {
+                Write-GroupRecord -Group $group -GroupKey ([guid]$group.id).ToString() -GroupTypeSummary ($group.groupTypes -join ',')
+                $recorded += $group
+            }
+            catch {
+                $groupErrors++
+                Write-ImportLog "ERROR in group '$($group.displayName)' [$($group.id)]: $($_.Exception.Message)"
+                if ($groupErrors -ge $maxGroupErrors) {
+                    throw "Stopped after $groupErrors failed groups - see the errors above."
+                }
+            }
         }
 
-        Resolve-NestedMembers -GroupId $group.id -GroupDisplayName $group.displayName
+        $answers = if ($recorded.Count -gt 0) { Get-MembersBatch -Groups $recorded } else { @{} }
+
+        foreach ($group in $recorded) {
+            $groupId = [guid]$group.id
+            $answer = $answers[[string]$group.id]
+            try {
+                switch ($answer.Status) {
+                    'ok' {
+                        Write-GroupMembers -GroupId $groupId -GroupDisplayName $group.displayName -Members $answer.Members
+                        $memberRows += @($answer.Members).Count
+                    }
+                    'gone' {
+                        $groupsGone++
+                        Write-ImportLog "Group '$($group.displayName)' [$groupId] was deleted during the run - marked as deleted."
+                        Set-GroupDeleted -GroupId $groupId
+                    }
+                    default {
+                        throw $(if ($answer) { $answer.Message } else { 'no answer from Graph for this group' })
+                    }
+                }
+            }
+            catch {
+                $groupErrors++
+                Write-ImportLog "ERROR in group '$($group.displayName)' [$groupId]: $($_.Exception.Message)"
+                if ($groupErrors -ge $maxGroupErrors) {
+                    throw "Stopped after $groupErrors failed groups - see the errors above."
+                }
+            }
+        }
+
+        $done = [Math]::Min($offset + $batchSize, $groups.Count)
+        if ($done % $progressEvery -lt $batchSize -or $done -eq $groups.Count) {
+            Write-ImportLog ("{0} of {1} groups done, {2} member rows, {3:hh\:mm\:ss} elapsed." -f $done, $groups.Count, $memberRows, $watch.Elapsed)
+        }
+    }
+
+    if ($groupsGone -gt 0) {
+        Write-ImportLog "$groupsGone group(s) were deleted in M365 while the run was going."
     }
 
     Write-ImportLog 'Marking groups not seen in this run as deleted in M365...'
@@ -686,10 +806,19 @@ WHERE IsDeletedInM365 = 0
         Write-ImportLog "$marked group(s) newly marked as deleted in M365."
     }
 
+    if ($groupErrors -gt 0) {
+        # Finished and saved, but not clean - exit 1 so the task history shows it.
+        Write-ImportLog "Import completed with $groupErrors failed group(s) - see the errors above."
+        exit 1
+    }
+
     Write-ImportLog 'Import completed successfully.'
     exit 0
 }
 catch {
     Write-ImportLog "Import failed: $($_.Exception.Message)"
     exit 1
+}
+finally {
+    if ($null -ne $script:SqlConnection) { $script:SqlConnection.Dispose() }
 }

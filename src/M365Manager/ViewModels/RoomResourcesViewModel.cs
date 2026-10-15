@@ -16,6 +16,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
     [ObservableProperty] private int _selectedTabIndex;
 
     private readonly IRoomResourceService _rooms;
+    private readonly IRoomTelephonyService _telephony;
     private readonly IDialogService _dialogs;
 
     // --- Create form ---
@@ -119,9 +120,10 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
     /// <summary>Backs the PowerShell console on this page - see PowerShellConsole.</summary>
     public IPowerShellTranscript Transcript { get; }
 
-    public RoomResourcesViewModel(IRoomResourceService rooms, IPowerShellTranscript transcript, IDialogService dialogs)
+    public RoomResourcesViewModel(IRoomResourceService rooms, IRoomTelephonyService telephony, IPowerShellTranscript transcript, IDialogService dialogs)
     {
         _rooms = rooms;
+        _telephony = telephony;
         _dialogs = dialogs;
         Transcript = transcript;
 
@@ -144,6 +146,8 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
     partial void OnKindChanged(ResourceKind value)
     {
         OnPropertyChanged(nameof(IsRoom));
+        if (value != ResourceKind.Room)
+            CreateWithTelephony = false; // equipment gets no number
         _ = RefreshPreviewAsync(debounce: false);
     }
 
@@ -171,6 +175,8 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
         UserMembers = UserMembers.Trim(),
         MailboxDomain = MailboxDomainOverride.Trim(),
         GroupDomain = GroupDomainOverride.Trim(),
+        Telephony = BuildCreateTelephony(),
+        Licence = BuildCreateLicence(),
     };
 
     private BookingPolicy BuildCustomPolicy() => new(
@@ -224,6 +230,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
                   (string.IsNullOrWhiteSpace(preview.RegionalAdminGroup) ? "" : $" · {preview.RegionalAdminGroup}")
                 : "";
             PreviewProblems = string.Join("\n", preview.Errors);
+            OnPreviewSiteCodeChanged(preview.Names.SiteCode);
         }
         catch
         {
@@ -273,17 +280,40 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
             return;
         }
 
+        // Telephony complete, and the licence confirmed - before anything is created.
+        if (!ConfirmCreateTelephony())
+            return;
+
         IsBusy = true;
         StatusMessage = "Starting creation...";
+        CreatedPassword = "";
+        CreatedAccountUpn = "";
+        CreatedDisplayName = "";
+        CreatedPhoneNumber = "";
+        CreateTelephonyResult = "";
         Transcript.BeginOperation($"Create {Kind}: {PreviewDisplayName}");
         try
         {
-            var result = await _rooms.CreateAsync(BuildRequest(), msg => StatusMessage = msg);
+            var kind = Kind;
+            var request = BuildRequest();
+            var result = await _rooms.CreateAsync(request, msg => StatusMessage = msg);
+            RememberCreatedRoom(result, kind, TaskNumber.Trim());
+            ShowCreateTelephonyResult(result.Licence, result.Telephony);
+
+            // Shown once, to copy into the device setup - it is not stored anywhere.
+            CreatedPassword = result.Password ?? "";
+            CreatedAccountUpn = result.UserPrincipalName ?? "";
+            CreatedDisplayName = result.DisplayName ?? "";
+            CreatedPhoneNumber = result.Telephony is { Succeeded: true } && request.Telephony is { } assigned
+                ? assigned.PhoneNumber
+                : "";
+
             StatusSeverity = !result.Succeeded ? AlertSeverity.Error
                 : result.WarningMessage is null ? AlertSeverity.Success
                 : AlertSeverity.Warning;
             StatusMessage = result.Succeeded
                 ? $"'{result.DisplayName}' ({result.PrimarySmtpAddress}) created successfully."
+                  + (result.Telephony is { Succeeded: true } && request.Telephony is { } phone ? $" Phone number: {phone.PhoneNumber}." : "")
                   + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}")
                 : $"Creation failed: {result.ErrorMessage}";
 
@@ -314,6 +344,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
         DelegateMembers = "";
         UserMembers = "";
         ClearPreview();
+        ClearCreateTelephony();
     }
 
     // --- overview ---
@@ -398,6 +429,8 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
     {
         CurrentMembers = "";
         ManageStatusMessage = "";
+        ResetTelephony();
+        ClearManagePassword();
 
         if (value is null)
             return;

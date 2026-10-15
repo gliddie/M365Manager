@@ -56,9 +56,13 @@ public interface IActiveDirectoryService
     /// One result per attribute, in the order attempted; a failure on one does not stop the rest,
     /// because a partially configured account still needs the remaining values to be consistent.
     /// </summary>
+    /// <param name="lineUri">
+    /// Null leaves msRTCSIP-Line alone - for an Operator Connect number, which is managed in Teams
+    /// and cannot be assigned while the account carries an on-premises line URI.
+    /// </param>
     Task<IReadOnlyList<AdAttributeResult>> WriteTelephonyAttributesAsync(
         AdUser user,
-        string lineUri,
+        string? lineUri,
         string sipAddress,
         string deploymentLocator,
         CancellationToken ct = default);

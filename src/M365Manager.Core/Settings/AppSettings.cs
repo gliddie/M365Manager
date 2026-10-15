@@ -101,18 +101,10 @@ public sealed class NewHireSettings
 
     public const string DefaultDeploymentLocator = "sipfed.online.lync.com";
 
-    /// <summary>
-    /// Passed to Set-CsPhoneNumberAssignment. "DirectRouting" for numbers from your own SBC,
-    /// "CallingPlan" or "OperatorConnect" when Microsoft supplies them.
-    /// </summary>
-    public string PhoneNumberType { get; set; } = DefaultPhoneNumberType;
-
-    public const string DefaultPhoneNumberType = "DirectRouting";
-
-    /// <summary>Granted to every new hire. Legacy: "UpgradeToTeams".</summary>
-    public string TeamsUpgradePolicyName { get; set; } = DefaultTeamsUpgradePolicyName;
-
-    public const string DefaultTeamsUpgradePolicyName = "UpgradeToTeams";
+    // No PhoneNumberType here any more: the number block decides (dbo.did.TeamsNumberType), since a
+    // site can have Direct Routing and Operator Connect blocks side by side. No TeamsUpgradePolicyName
+    // either: the tenant is Teams Only, so no upgrade policy is granted. An old settings.json that
+    // still carries either field loads fine - unknown properties are ignored.
 
     /// <summary>
     /// Send the employee a mail once they are enabled, telling them their new number. Legacy did

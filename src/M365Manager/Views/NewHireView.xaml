@@ -67,7 +67,7 @@
         <StackPanel Margin="28,20,28,32" MaxWidth="{StaticResource ContentWidth}" HorizontalAlignment="Left">
 
             <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,20"
-                       Text="Enables a new employee for Teams telephony: finds their account and site, hands out a free number from the site's DID ranges, writes it to on-premises AD so the Entra Connect sync agrees with Teams, then grants the site's voice policies." />
+                       Text="Enables a new employee for Teams telephony: finds their account and site, hands out a free number from the site's DID ranges, writes the SIP address (and for Direct Routing the line URI) to on-premises AD so the Entra Connect sync agrees with Teams, then grants the site's voice policies. The number block decides Direct Routing or Operator Connect." />
 
             <!-- Stepper -->
             <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
@@ -314,7 +314,7 @@
                 <StackPanel>
                     <TextBlock Style="{StaticResource H2}" Text="Pick a number" Margin="0,0,0,8" />
                     <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,16"
-                               Text="Blocks are listed least-used first. Searching a block lists the numbers not already assigned to an endpoint or explicitly blocked, and proposes one at random." />
+                               Text="Blocks are listed least-used first. Searching a block lists the numbers not already assigned to an endpoint or explicitly blocked, and proposes one at random. The block's type decides the rest: Direct Routing gets all four site policies and the line URI in AD; Operator Connect gets the dial plan only." />
 
                     <Border Style="{StaticResource Card}" Padding="0" Margin="0,0,0,16">
                         <DataGrid Style="{StaticResource ModernDataGrid}"
@@ -325,6 +325,7 @@
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="From" Width="150" Binding="{Binding DidStart}" />
                                 <DataGridTextColumn Header="To" Width="150" Binding="{Binding DidEnd}" />
+                                <DataGridTextColumn Header="Type" Width="130" Binding="{Binding TypeLabel}" />
                                 <DataGridTextColumn Header="Used %" Width="76" Binding="{Binding Utilization}" />
                                 <DataGridTextColumn Header="Notes" Width="*" Binding="{Binding Notes}" />
                             </DataGrid.Columns>
@@ -378,6 +379,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Employee" />
@@ -393,14 +395,17 @@
                             <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource ReviewValue}"
                                        FontWeight="SemiBold" Text="{Binding ReviewNumber}" />
 
-                            <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="SIP address" />
-                            <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewSipAddress}" />
+                            <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Number type" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewNumberType}" />
 
-                            <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Policies" />
-                            <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewPolicies}" />
+                            <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="SIP address" />
+                            <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewSipAddress}" />
 
-                            <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Directory" />
-                            <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewAdStep}" />
+                            <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Policies" />
+                            <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewPolicies}" />
+
+                            <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource ReviewLabel}" Text="Directory" />
+                            <TextBlock Grid.Row="7" Grid.Column="1" Style="{StaticResource ReviewValue}" Text="{Binding ReviewAdStep}" />
                         </Grid>
                     </Border>
 

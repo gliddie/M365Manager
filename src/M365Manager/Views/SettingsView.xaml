@@ -371,18 +371,6 @@
                                 <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
                                            Text="Written to msRTCSIP-DeploymentLocator, which marks the account as homed online. Example: sipfed.online.lync.com" />
 
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="Phone number type" />
-                                <TextBox AutomationProperties.Name="Phone number type" Style="{StaticResource ModernTextBox}" Width="260" HorizontalAlignment="Left"
-                                         Text="{Binding NewHirePhoneNumberType, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
-                                           Text="Passed to Set-CsPhoneNumberAssignment: DirectRouting, CallingPlan or OperatorConnect. DirectRouting for numbers from your own SBC." />
-
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="Teams upgrade policy" />
-                                <TextBox AutomationProperties.Name="Teams upgrade policy" Style="{StaticResource ModernTextBox}" Width="260" HorizontalAlignment="Left"
-                                         Text="{Binding NewHireTeamsUpgradePolicyName, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
-                                           Text="Granted to every new hire, e.g. UpgradeToTeams. The four voice policies are not configured here - they are always named after the site&apos;s location code." />
-
                                 <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,16"
                                           Content="Tell the employee their new number by e-mail"
                                           IsChecked="{Binding NewHireNotifyEmployee}" />

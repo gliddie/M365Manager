@@ -45,6 +45,20 @@ public interface IRoomResourceService
     /// </summary>
     Task<RoomRenameResult> RenameAsync(RoomRenameRequest request, Action<string>? onProgress = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// After telephony was set up on the Telephony tab: mails the requester the room's details with
+    /// its new number. Returns a warning for the UI, or null when sent (or no requester was given).
+    /// </summary>
+    Task<string?> SendTelephonyReadyMailAsync(RoomResourceOverviewRow room, string requesterIdentity, string taskNumber,
+        string phoneNumber, bool mentionPassword = false, CancellationToken ct = default);
+
+    /// <summary>
+    /// Enables a room's account with a new random password that never expires - for a room whose
+    /// account was never enabled, or a Teams Rooms device that needs a new password. The password
+    /// comes back once for the operator; it is never logged, stored or mailed.
+    /// </summary>
+    Task<RoomPasswordResult> SetNewAccountPasswordAsync(string roomAddress, string taskNumber, CancellationToken ct = default);
+
     /// <summary>Reads the overview grid from the SQL cache (dbo.RoomResources) - never live from M365.</summary>
     Task<IReadOnlyList<RoomResourceOverviewRow>> GetOverviewAsync(CancellationToken ct = default);
 }

@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace M365Manager.Data.NewHire;
@@ -90,12 +91,29 @@ public sealed class SqlNewHireRepository : INewHireRepository
             return Array.Empty<UcDidRange>();
 
         await using var ctx = CreateContext();
-        return await ctx.DidRanges
-            .AsNoTracking()
-            .Where(x => x.LocationCode == code && x.Sdap == 1)
-            .OrderBy(x => x.Utilization)
-            .ThenBy(x => x.DidStart)
-            .ToListAsync(ct);
+        try
+        {
+            return await ctx.DidRanges
+                .AsNoTracking()
+                .Where(x => x.LocationCode == code && x.Sdap == 1)
+                .OrderBy(x => x.Utilization)
+                .ThenBy(x => x.DidStart)
+                .ToListAsync(ct);
+        }
+        catch (SqlException ex) when (ex.Number == 207)
+        {
+            // "Invalid column name" - the TeamsNumberType column Switchboard adds is not there yet.
+            throw new InvalidOperationException(
+                "The did table has no TeamsNumberType column yet - run Switchboard's Scripts/02_DidNumberType.sql against the telephony database.", ex);
+        }
+    }
+
+    public async Task<bool> IsDidFreeAsync(string did, CancellationToken ct = default)
+    {
+        var number = (did ?? "").Trim();
+        await using var ctx = CreateContext();
+        return !await ctx.Endpoints.AsNoTracking().AnyAsync(x => x.Did == number, ct)
+            && !await ctx.BlockedDids.AsNoTracking().AnyAsync(x => x.Did == number, ct);
     }
 
     public async Task<IReadOnlyList<FreeDid>> FindFreeDidsAsync(UcDidRange range, CancellationToken ct = default)
@@ -189,11 +207,36 @@ public sealed class SqlNewHireRepository : INewHireRepository
         await ctx.SaveChangesAsync(ct);
     }
 
-    public async Task AddEndpointAsync(UcEndpoint endpoint, CancellationToken ct = default)
+    public async Task AddEndpointAsync(UcEndpoint endpoint, string? phoneNumberType = null, string? usageLocation = null, CancellationToken ct = default)
     {
         await using var ctx = CreateContext();
         ctx.Endpoints.Add(endpoint);
         await ctx.SaveChangesAsync(ct);
+
+        // PhoneNumberType and UsageLocation are newer columns (Import-UCData.ps1 / Switchboard's
+        // Scripts/03_EndpointsUsageLocation.sql) and deliberately not mapped, so the insert above
+        // works on either schema. Filled only where the column exists - through sp_executesql,
+        // because a statement naming a missing column would not even compile inside the IF.
+        await SetIfColumnExistsAsync(ctx, SetPhoneNumberTypeSql, phoneNumberType, endpoint.Id, ct);
+        await SetIfColumnExistsAsync(ctx, SetUsageLocationSql, usageLocation, endpoint.Id, ct);
+    }
+
+    private const string SetPhoneNumberTypeSql =
+        "IF COL_LENGTH(N'dbo.endpoints', N'PhoneNumberType') IS NOT NULL " +
+        "EXEC sp_executesql N'UPDATE dbo.endpoints SET PhoneNumberType = @value WHERE ID = @id', " +
+        "N'@value nvarchar(64), @id int', @value = {0}, @id = {1}";
+
+    private const string SetUsageLocationSql =
+        "IF COL_LENGTH(N'dbo.endpoints', N'UsageLocation') IS NOT NULL " +
+        "EXEC sp_executesql N'UPDATE dbo.endpoints SET UsageLocation = @value WHERE ID = @id', " +
+        "N'@value nvarchar(64), @id int', @value = {0}, @id = {1}";
+
+    private static Task SetIfColumnExistsAsync(UcHelperDbContext ctx, string sql, string? value, int id, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.CompletedTask;
+
+        return ctx.Database.ExecuteSqlRawAsync(sql, new object[] { value.Trim(), id }, ct);
     }
 
     /// <summary>The legacy columns are narrow and not nullable; an over-long value would fail the insert.</summary>

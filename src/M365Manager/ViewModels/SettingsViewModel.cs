@@ -74,8 +74,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _newHireAdUserName = "";
     [ObservableProperty] private string _newHireAdPassword = "";
     [ObservableProperty] private string _newHireDeploymentLocator = "";
-    [ObservableProperty] private string _newHirePhoneNumberType = "";
-    [ObservableProperty] private string _newHireTeamsUpgradePolicyName = "";
     [ObservableProperty] private bool _newHireNotifyEmployee = true;
     [ObservableProperty] private string _newHireAdminNotificationAddress = "";
     [ObservableProperty] private string _newHireStatusMessage = "";
@@ -158,8 +156,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         NewHireAdUserName = s.NewHire.AdUserName;
         NewHireAdPassword = s.NewHire.AdPassword;
         NewHireDeploymentLocator = s.NewHire.DeploymentLocator;
-        NewHirePhoneNumberType = s.NewHire.PhoneNumberType;
-        NewHireTeamsUpgradePolicyName = s.NewHire.TeamsUpgradePolicyName;
         NewHireNotifyEmployee = s.NewHire.NotifyEmployee;
         NewHireAdminNotificationAddress = s.NewHire.AdminNotificationAddress;
         TraceCompanyName = s.Trace.CompanyName;
@@ -417,8 +413,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         s.NewHire.AdUserName = NewHireAdUserName.Trim();
         s.NewHire.AdPassword = NewHireAdPassword;
         s.NewHire.DeploymentLocator = NewHireDeploymentLocator.Trim();
-        s.NewHire.PhoneNumberType = NewHirePhoneNumberType.Trim();
-        s.NewHire.TeamsUpgradePolicyName = NewHireTeamsUpgradePolicyName.Trim();
         s.NewHire.NotifyEmployee = NewHireNotifyEmployee;
         s.NewHire.AdminNotificationAddress = NewHireAdminNotificationAddress.Trim();
         s.Trace.CompanyName = TraceCompanyName.Trim();

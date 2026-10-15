@@ -15,6 +15,13 @@ public interface IDialogService
     /// <param name="confirmLabel">Verb on the confirm button: "Delete group", not "OK".</param>
     /// <param name="detail">Optional extra context - what else goes with it, what is logged first.</param>
     bool ConfirmDestructive(string title, string message, string confirmLabel, string? detail = null);
+
+    /// <summary>
+    /// Asks the operator to confirm something that is not destructive but should not happen by
+    /// accident - e.g. assigning a paid licence. Same dialog, without the red. Cancel stays the
+    /// default focus.
+    /// </summary>
+    bool Confirm(string title, string message, string confirmLabel, string? detail = null);
 }
 
 /// <summary>
@@ -29,6 +36,16 @@ public sealed class DialogService : IDialogService
     public bool ConfirmDestructive(string title, string message, string confirmLabel, string? detail = null)
     {
         var dialog = new ConfirmDialog(title, message, confirmLabel, detail)
+        {
+            Owner = ActiveWindow(),
+        };
+
+        return dialog.ShowDialog() == true;
+    }
+
+    public bool Confirm(string title, string message, string confirmLabel, string? detail = null)
+    {
+        var dialog = new ConfirmDialog(title, message, confirmLabel, detail, destructive: false)
         {
             Owner = ActiveWindow(),
         };

@@ -243,8 +243,6 @@ public sealed class SettingsService : ISettingsService
                 AdUserName = settings.NewHire.AdUserName,
                 AdPassword = SecretProtector.Protect(settings.NewHire.AdPassword) ?? "",
                 DeploymentLocator = settings.NewHire.DeploymentLocator,
-                PhoneNumberType = settings.NewHire.PhoneNumberType,
-                TeamsUpgradePolicyName = settings.NewHire.TeamsUpgradePolicyName,
                 NotifyEmployee = settings.NewHire.NotifyEmployee,
                 AdminNotificationAddress = settings.NewHire.AdminNotificationAddress,
             },

@@ -48,6 +48,15 @@ public sealed class RoomResourceCreationRequest
 
     /// <summary>Overrides Settings' room group domain when non-empty.</summary>
     public string GroupDomain { get; init; } = "";
+
+    /// <summary>
+    /// Rooms only: also give the room a number (and a licence, if asked) in the same run. The
+    /// requester's mail then waits until the telephony is done, so they get one mail, not two.
+    /// </summary>
+    public RoomCreateTelephony? Telephony { get; init; }
+
+    /// <summary>Rooms only: assign a Teams Rooms licence in the same run - with or without telephony.</summary>
+    public RoomCreateLicence? Licence { get; init; }
 }
 
 /// <summary>
@@ -102,6 +111,21 @@ public sealed class RoomResourceCreationResult
     public string? WarningMessage { get; init; }
 
     public Guid CorrelationId { get; init; }
+
+    /// <summary>The telephony part of the run, when one was requested; null otherwise.</summary>
+    public RoomTelephonyResult? Telephony { get; init; }
+
+    /// <summary>The licence part of the run, when one was requested; null otherwise.</summary>
+    public RoomTelephonyResult? Licence { get; init; }
+
+    /// <summary>
+    /// The room account's new password (rooms only), for the operator to copy once. Never logged,
+    /// never stored, never mailed. Null when it could not be set - see <see cref="WarningMessage"/>.
+    /// </summary>
+    public string? Password { get; init; }
+
+    /// <summary>The account's sign-in name, shown next to the password.</summary>
+    public string? UserPrincipalName { get; init; }
 
     public static RoomResourceCreationResult Failed(Guid correlationId, string error) => new()
     {
@@ -226,6 +250,22 @@ public sealed class RoomRemovalResult
         ErrorMessage = error,
         CorrelationId = correlationId,
     };
+}
+
+/// <summary>Outcome of <see cref="IRoomResourceService.SetNewAccountPasswordAsync"/>.</summary>
+public sealed class RoomPasswordResult
+{
+    public required bool Succeeded { get; init; }
+    public string? ErrorMessage { get; init; }
+
+    /// <summary>Set when the password works but could not be set to never expire.</summary>
+    public string? WarningMessage { get; init; }
+
+    public string DisplayName { get; init; } = "";
+    public string UserPrincipalName { get; init; } = "";
+
+    /// <summary>Shown once to copy; never logged, stored or mailed.</summary>
+    public string Password { get; init; } = "";
 }
 
 /// <summary>One row of the Rooms &amp; Resources overview grid - read from the SQL cache (dbo.RoomResources), never live from M365.</summary>

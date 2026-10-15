@@ -23,6 +23,10 @@ namespace M365Manager.Core.RoomResources;
 /// </summary>
 internal static class RoomNotificationMail
 {
+    /// <param name="phone">
+    /// Set when the room was also set up for telephony in the same run - the number goes into the one
+    /// mail the requester gets, instead of a second mail after the telephony step.
+    /// </param>
     public static (string Subject, string Html) Creation(
         RoomNames names,
         ResourceKind kind,
@@ -31,18 +35,90 @@ internal static class RoomNotificationMail
         BookingPolicy policy,
         IReadOnlyList<string> delegateNames,
         IReadOnlyList<string> userNames,
-        string taskNumber)
+        string taskNumber,
+        RoomPhoneDetails? phone = null,
+        string? passwordContact = null)
     {
         var restricted = accessModel == RoomAccessModel.Restricted;
 
-        return (newRoomList, restricted) switch
+        var (subject, html) = (newRoomList, restricted) switch
         {
             (true, false) => NewSiteGeneralUse(names, policy, delegateNames, taskNumber),
             (true, true) => NewSiteRestricted(names, policy, delegateNames, userNames, taskNumber),
             (false, false) => AdditionGeneralUse(names, kind, taskNumber),
             (false, true) => AdditionRestricted(names, policy, delegateNames, userNames, taskNumber),
         };
+
+        var extra = (phone is null ? "" : PhoneBlock(phone))
+                    + (passwordContact is null ? "" : PasswordBlock(passwordContact, taskNumber));
+        return (subject, BeforeClosing(html, extra));
     }
+
+    /// <summary>
+    /// The room account was enabled with a password for a Teams Rooms device. The password itself
+    /// never goes into a mail - the requester is pointed at the admin who has it. Named, not mailed:
+    /// the admin accounts have no mailbox.
+    /// </summary>
+    private static string PasswordBlock(string contact, string taskNumber) => $"""
+        <p><b>Room account</b><br>
+        The room account has been enabled so that a Teams Rooms device can sign in with it. For security
+        reasons the password is not included in this e-mail. Please contact <b>{E(contact)}</b>, who
+        handled this request (ticket {E(taskNumber)}), to receive the password.</p>
+        """;
+
+    /// <summary>
+    /// Telephony set up on an existing room (the Telephony tab) - including a room whose telephony
+    /// failed during creation, where the creation mail was held back. So it carries all of the room's
+    /// details, not just the number: it may be the only mail the requester gets. New wording; there
+    /// is no legacy template for room telephony.
+    /// </summary>
+    public static (string Subject, string Html) TelephonyReady(RoomMailDetails room, RoomPhoneDetails phone, string taskNumber, string? passwordContact = null)
+    {
+        static string Row(string label, string value) =>
+            string.IsNullOrWhiteSpace(value) ? "" : $"<tr><td style=\"padding-right:16px\"><b>{E(label)}</b></td><td>{E(value)}</td></tr>";
+
+        var html = $"""
+            <p>The room <b>{E(room.DisplayName)}</b> has been set up for Teams telephony.</p>
+
+            <table>
+              {Row("Room", room.DisplayName)}
+              {Row("E-mail address", room.Address)}
+              {Row("Phone number", phone.Number)}
+              {Row("Room list", room.RoomListName)}
+              {Row("Location", room.Office)}
+              {Row("Capacity", room.Capacity)}
+              {Row("Booking", room.AccessDescription)}
+              {Row("Room delegates", room.Delegates)}
+              {Row("Authorized users", room.AuthorizedUsers)}
+              {Row("Booking policy", room.PolicyDescription)}
+            </table>
+
+            {PhoneBlock(phone)}
+            {(passwordContact is null ? "" : PasswordBlock(passwordContact, taskNumber))}
+
+            <p>With this information this ticket will be closed.</p>
+            """;
+
+        return ($"{room.DisplayName} - Phone Number {phone.Number} - {taskNumber}", html);
+    }
+
+    /// <summary>Inserts extra paragraphs before the closing line every creation template ends with.</summary>
+    private static string BeforeClosing(string html, string extra)
+    {
+        if (extra.Length == 0)
+            return html;
+
+        const string closing = "<p>With this information this ticket will be closed.</p>";
+        var index = html.LastIndexOf(closing, StringComparison.Ordinal);
+        return index < 0 ? html + extra : html.Insert(index, extra + "\n\n");
+    }
+
+    private static string PhoneBlock(RoomPhoneDetails phone) => $"""
+        <p><b>Telephony</b><br>
+        The room has been set up for Teams telephony and can be reached at <b>{E(phone.Number)}</b>.
+        Calls to this number ring on the room's Teams Rooms device once it is signed in with the room
+        account.</p>
+        """;
 
     // ----- creation, new room list -----
 
@@ -280,3 +356,19 @@ internal static class RoomNotificationMail
 
     private static string E(string value) => WebUtility.HtmlEncode(value);
 }
+
+/// <summary>The number a room got, for the requester's mail.</summary>
+/// <param name="Number">E.164, e.g. "+4942112345042".</param>
+public sealed record RoomPhoneDetails(string Number);
+
+/// <summary>A room's details as the telephony mail lists them; empty values are left out.</summary>
+public sealed record RoomMailDetails(
+    string DisplayName,
+    string Address,
+    string RoomListName,
+    string Office,
+    string Capacity,
+    string AccessDescription,
+    string Delegates,
+    string AuthorizedUsers,
+    string PolicyDescription);

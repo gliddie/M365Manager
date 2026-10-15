@@ -65,6 +65,13 @@ public sealed partial class RoomResourceService : IRoomResourceService
     private readonly IConnectionStringProvider _connectionStrings;
     private readonly INotificationMailService _mail;
     private readonly GraphRestClient _graph;
+    private readonly IRoomTelephonyService _telephony;
+    private readonly IRoomAccountService _accounts;
+
+    /// <summary>Who the requester should ask for the room password - the admin running the app.</summary>
+    private string PasswordContact => _auth.CurrentUser is { } me
+        ? (me.DisplayName.Length > 0 ? me.DisplayName : me.Upn)
+        : Environment.UserName;
 
     public RoomResourceService(
         PowerShellHost host,
@@ -75,8 +82,12 @@ public sealed partial class RoomResourceService : IRoomResourceService
         ILogService log,
         IConnectionStringProvider connectionStrings,
         INotificationMailService mail,
-        GraphRestClient graph)
+        GraphRestClient graph,
+        IRoomTelephonyService telephony,
+        IRoomAccountService accounts)
     {
+        _telephony = telephony;
+        _accounts = accounts;
         _host = host;
         _auth = auth;
         _settings = settings;
@@ -126,17 +137,20 @@ public sealed partial class RoomResourceService : IRoomResourceService
     /// </summary>
     private async Task<string> ResolveRequesterAddressAsync(string identity, CancellationToken ct)
     {
-        var candidate = AppendDomain(identity.Trim());
-
-        var recipient = await _host.InvokeAsync(ps => ps
-            .AddCommand("Get-Recipient")
-            .AddParameter("Identity", candidate)
-            .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
-
-        if (recipient.Count > 0)
+        // As typed first: Get-Recipient finds a SamAccountName or alias directly, and an address
+        // anyway. Only then with the tenant domain appended - a SamAccountName is not always the
+        // UPN prefix, so appending first could miss someone who is there.
+        var typed = identity.Trim();
+        var candidate = AppendDomain(typed);
+        foreach (var attempt in typed == candidate ? new[] { typed } : new[] { typed, candidate })
         {
-            var smtp = Str(recipient[0], "PrimarySmtpAddress");
-            if (smtp.Length > 0)
+            var recipient = await _host.InvokeAsync(ps => ps
+                .AddCommand("Get-Recipient")
+                .AddParameter("Identity", attempt)
+                .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
+
+            // More than one hit is ambiguous - do not guess who gets the mail.
+            if (recipient.Count == 1 && Str(recipient[0], "PrimarySmtpAddress") is { Length: > 0 } smtp)
                 return smtp;
         }
 
@@ -145,6 +159,87 @@ public sealed partial class RoomResourceService : IRoomResourceService
             return candidate;
 
         throw new InvalidOperationException($"'{identity}' could not be resolved to an e-mail address.");
+    }
+
+    public async Task<RoomPasswordResult> SetNewAccountPasswordAsync(string roomAddress, string taskNumber, CancellationToken ct = default)
+    {
+        var correlationId = Guid.NewGuid();
+        if (string.IsNullOrWhiteSpace(taskNumber))
+            return new RoomPasswordResult { Succeeded = false, ErrorMessage = "Enter the ticket/task number authorizing this change." };
+
+        try
+        {
+            await LogAsync(correlationId, "Account", "STAR", $"New room account password for {roomAddress} has started", taskNumber, Severity.Info);
+
+            var account = await _accounts.FindAsync(roomAddress, ct)
+                          ?? throw new InvalidOperationException($"No Entra account found for {roomAddress}.");
+            var upn = Telephony.TeamsLicenseReader.Text(account, "userPrincipalName");
+            var displayName = Telephony.TeamsLicenseReader.Text(account, "displayName");
+
+            var enabled = await _accounts.EnableWithPasswordAsync(roomAddress, upn, ct);
+
+            // The password itself is never written anywhere - only that one was set.
+            await LogAsync(correlationId, "Account", "DONE",
+                $"Room account {upn} enabled with a new password" + (enabled.ExpiryWarning is null ? " that never expires" : "")
+                + " (shown to the operator, not logged)", taskNumber, Severity.Success);
+            if (enabled.ExpiryWarning is not null)
+                await LogAsync(correlationId, "Account", "WARN", enabled.ExpiryWarning, taskNumber, Severity.Warning);
+
+            return new RoomPasswordResult
+            {
+                Succeeded = true,
+                WarningMessage = enabled.ExpiryWarning,
+                DisplayName = displayName,
+                UserPrincipalName = upn,
+                Password = enabled.Password,
+            };
+        }
+        catch (Exception ex)
+        {
+            await LogAsync(correlationId, "Account", "FAIL", $"New room account password for {roomAddress} failed: {ex.Message}", taskNumber, Severity.Error);
+            return new RoomPasswordResult { Succeeded = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    public async Task<string?> SendTelephonyReadyMailAsync(RoomResourceOverviewRow room, string requesterIdentity, string taskNumber,
+        string phoneNumber, bool mentionPassword = false, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(requesterIdentity))
+            return null;
+
+        // Live members rather than the cache: the mail names the people the requester should talk to.
+        var delegates = string.IsNullOrWhiteSpace(room.DelegateGroup)
+            ? Array.Empty<string>()
+            : await TryGetGroupMembersAsync(room.DelegateGroup, ct);
+        var users = room.HasUsersGroup
+            ? await TryGetGroupMembersAsync(room.UsersGroup, ct)
+            : Array.Empty<string>();
+
+        var access = room.AccessModel switch
+        {
+            nameof(RoomAccessModel.Restricted) => "Restricted - only the authorized users below can book it",
+            "" => "",
+            _ => "General use - anyone can book it; the room delegates approve requests outside the booking policy",
+        };
+        var policy = room.BookingWindowInDays is { } days && room.MaximumDurationInMinutes is { } minutes
+            ? $"{days} days booking window, no meeting longer than {minutes / 60} hr"
+              + (room.AllowRecurringMeetings == false ? ", no recurring meetings" : "")
+            : "";
+
+        var details = new RoomMailDetails(
+            room.DisplayName,
+            room.PrimarySmtpAddress,
+            room.RoomListName,
+            room.Office,
+            room.Capacity?.ToString() ?? "",
+            access,
+            string.Join(", ", delegates.Select(StripAddress).Where(n => n.Length > 0)),
+            string.Join(", ", users.Select(StripAddress).Where(n => n.Length > 0)),
+            policy);
+
+        return await NotifyRequesterAsync(Guid.NewGuid(), "Telephony", requesterIdentity, taskNumber,
+            RoomNotificationMail.TelephonyReady(details, new RoomPhoneDetails(phoneNumber), taskNumber,
+                mentionPassword ? PasswordContact : null), ct);
     }
 
     // ----- preview / validation -----
@@ -186,6 +281,28 @@ public sealed partial class RoomResourceService : IRoomResourceService
 
         if (mailboxExists == true)
             errors.Add($"A mailbox already exists at {names.Address}.");
+
+        // Telephony is checked before anything is created, so a bad choice does not leave a room
+        // behind that then fails halfway through.
+        if (request.Telephony is { } phone)
+        {
+            if (request.Kind != ResourceKind.Room)
+                errors.Add("Only rooms can be set up for telephony, not equipment mailboxes.");
+            else if (_telephony.CheckLocation(phone.Location) is { } siteProblem)
+                errors.Add(siteProblem);
+            else if (phone.Range.Type == Data.NewHire.TeamsNumberType.Unknown)
+                errors.Add("The chosen number block has no type (Direct Routing or Operator Connect) in the telephony database.");
+            else if (string.IsNullOrWhiteSpace(phone.Did))
+                errors.Add("Pick a phone number for the room.");
+        }
+
+        if (request.Licence is { } licence)
+        {
+            if (request.Kind != ResourceKind.Room)
+                errors.Add("Only rooms get a Teams Rooms licence, not equipment mailboxes.");
+            else if (_telephony.CheckUsageLocation(licence.Location) is { } usageProblem)
+                errors.Add(usageProblem);
+        }
 
         return new RoomCreationPreview
         {
@@ -409,11 +526,151 @@ public sealed partial class RoomResourceService : IRoomResourceService
                 }
             }
 
+            // 10. Rooms: the Entra account, once, for everything below. Exchange created it; Entra
+            //     may not show it for a moment.
+            string? password = null;
+            string? upn = null;
+            var usageLocation = "";
+            string? accountWarning = null;
+            if (request.Kind == ResourceKind.Room)
+            {
+                Progress(onProgress, "Waiting for the room account to appear in Entra...");
+                try
+                {
+                    if (await _accounts.WaitForAsync(names.Address, TimeSpan.FromMinutes(5), ct) is { } account)
+                    {
+                        upn = Telephony.TeamsLicenseReader.Text(account, "userPrincipalName");
+                        usageLocation = Telephony.TeamsLicenseReader.Text(account, "usageLocation");
+                    }
+                }
+                catch
+                {
+                    // handled below as "not found"
+                }
+
+                if (upn is null)
+                {
+                    accountWarning = "The room account did not appear in Entra within 5 minutes, so it was not enabled"
+                                     + (request.Licence is not null ? ", licensed" : "")
+                                     + (request.Telephony is not null ? " or set up for telephony" : "")
+                                     + ". Finish it on the Account and Telephony tabs.";
+                    await LogAsync(correlationId, "Create", "WARN", accountWarning, request.TaskNumber, Severity.Warning);
+                }
+            }
+
+            // 11. Enable the account with a password that never expires, so a Teams Rooms device can
+            //     sign in. Returned to the operator once - never logged, stored or mailed. A failure
+            //     is a warning: the room itself is fine.
+            if (upn is not null)
+            {
+                Progress(onProgress, "Enabling the room account with a password...");
+                try
+                {
+                    var enabled = await _accounts.EnableWithPasswordAsync(names.Address, upn, ct);
+                    password = enabled.Password;
+                    accountWarning = enabled.ExpiryWarning;
+                    await LogAsync(correlationId, "Create", "CFG",
+                        $"Room account {upn} enabled with a password" + (enabled.ExpiryWarning is null ? " that never expires" : "")
+                        + " (password shown to the operator, not logged)",
+                        request.TaskNumber, Severity.Success);
+                    if (enabled.ExpiryWarning is not null)
+                        await LogAsync(correlationId, "Create", "WARN", enabled.ExpiryWarning, request.TaskNumber, Severity.Warning);
+                }
+                catch (Exception ex)
+                {
+                    accountWarning = $"The room account could not be enabled with a password: {ex.Message} "
+                                     + "Use the Account tab to try again.";
+                    await LogAsync(correlationId, "Create", "WARN", accountWarning, request.TaskNumber, Severity.Warning);
+                }
+            }
+
+            // 12. Teams Rooms licence, when asked for and confirmed - independent of telephony.
+            RoomTelephonyResult? licence = null;
+            if (request.Licence is { } wanted)
+            {
+                if (upn is null)
+                {
+                    licence = RoomTelephonyResult.Failed(correlationId, "The room account was not found in Entra.");
+                }
+                else
+                {
+                    Progress(onProgress, $"Assigning {wanted.Offer.DisplayName}...");
+                    try
+                    {
+                        licence = await _telephony.AssignLicenceAsync(new RoomLicenceRequest
+                        {
+                            TaskNumber = request.TaskNumber,
+                            UserPrincipalName = upn,
+                            CurrentUsageLocation = usageLocation,
+                            Location = wanted.Location,
+                            Offer = wanted.Offer,
+                        }, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        licence = RoomTelephonyResult.Failed(correlationId, ex.Message);
+                    }
+
+                    if (licence.Succeeded)
+                        usageLocation = Telephony.UsageLocationResolver.Resolve(wanted.Location.Country, wanted.Location.Name).Code ?? usageLocation;
+                }
+
+                if (!licence.Succeeded)
+                {
+                    var licenceWarning = $"The licence could not be assigned: {licence.ErrorMessage}";
+                    accountWarning = accountWarning is null ? licenceWarning : $"{accountWarning} {licenceWarning}";
+                    await LogAsync(correlationId, "Create", "WARN", licenceWarning, request.TaskNumber, Severity.Warning);
+                }
+            }
+
+            // 13. Telephony, when asked for: number, policies, inventory. Before the mail on purpose -
+            //     the requester gets one mail with everything, not one now and another later.
+            RoomTelephonyResult? telephony = null;
+            if (request.Telephony is { } phone)
+            {
+                Progress(onProgress, $"Setting the room up for telephony on {phone.PhoneNumber}...");
+                if (upn is null)
+                    telephony = RoomTelephonyResult.Failed(correlationId, "The room account was not found in Entra.");
+                else if (licence is { Succeeded: false })
+                    telephony = RoomTelephonyResult.Failed(correlationId, "Skipped - the licence it needs could not be assigned.");
+                else
+                {
+                    try
+                    {
+                        // Retries while Teams picks a fresh licence up (AccountType 'IneligibleUser').
+                        telephony = await _telephony.ConfigureAsync(new RoomTelephonyRequest
+                        {
+                            TaskNumber = request.TaskNumber,
+                            UserPrincipalName = upn,
+                            DisplayName = names.DisplayName,
+                            CurrentUsageLocation = usageLocation,
+                            Location = phone.Location,
+                            Range = phone.Range,
+                            Did = phone.Did,
+                        }, onProgress, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        telephony = RoomTelephonyResult.Failed(correlationId, ex.Message);
+                    }
+                }
+
+                await LogAsync(correlationId, "Create", telephony.Succeeded ? "CFG" : "WARN",
+                    telephony.Succeeded
+                        ? $"Telephony set up on {phone.PhoneNumber}"
+                        : $"Telephony failed - the room exists, finish it on the Telephony tab: {telephony.ErrorMessage}",
+                    request.TaskNumber, telephony.Succeeded ? Severity.Success : Severity.Warning);
+            }
+
             // The confirmation e-mail's wording depends on whether this created the site's room list
             // or joined an existing one - preview.RoomListExists was probed before anything was
             // written, so it still describes the state we found.
+            //
+            // Held back when the telephony failed: the Telephony tab sends the requester the room's
+            // full details with the number once it is done, so they still get one mail only.
             string? mailWarning = null;
-            if (!string.IsNullOrWhiteSpace(request.RequesterIdentity))
+            var telephonyFailed = telephony is { Succeeded: false };
+            if (!string.IsNullOrWhiteSpace(request.RequesterIdentity) && !telephonyFailed)
             {
                 Progress(onProgress, $"Sending confirmation e-mail as {_mail.SenderDescription}...");
 
@@ -425,7 +682,9 @@ public sealed partial class RoomResourceService : IRoomResourceService
                 var newRoomList = preview.RoomListRequired && preview.RoomListExists != true;
                 var message = RoomNotificationMail.Creation(
                     names, request.Kind, request.AccessModel, newRoomList, policy,
-                    delegateNames, userNames, request.TaskNumber);
+                    delegateNames, userNames, request.TaskNumber,
+                    telephony is { Succeeded: true } && request.Telephony is { } done ? new RoomPhoneDetails(done.PhoneNumber) : null,
+                    password is null ? null : PasswordContact);
 
                 mailWarning = await NotifyRequesterAsync(
                     correlationId, "Create", request.RequesterIdentity, request.TaskNumber, message, ct);
@@ -438,13 +697,24 @@ public sealed partial class RoomResourceService : IRoomResourceService
 
             await UpsertCacheAsync(names, request, policy, preview.TimeZone ?? "", ct);
 
+            if (telephonyFailed)
+                mailWarning = $"The room was created, but its telephony failed: {telephony!.ErrorMessage} "
+                              + "Finish it on the Telephony tab"
+                              + (string.IsNullOrWhiteSpace(request.RequesterIdentity) ? "." : " - the requester's e-mail is sent from there, with all the room's details.");
+
+            var warnings = new[] { accountWarning, mailWarning }.Where(w => w is not null).ToArray();
+
             return new RoomResourceCreationResult
             {
                 Succeeded = true,
                 DisplayName = names.DisplayName,
                 PrimarySmtpAddress = names.Address,
                 CorrelationId = correlationId,
-                WarningMessage = mailWarning,
+                WarningMessage = warnings.Length == 0 ? null : string.Join(" ", warnings),
+                Telephony = telephony,
+                Licence = licence,
+                Password = password,
+                UserPrincipalName = upn,
             };
         }
         catch (Exception ex)

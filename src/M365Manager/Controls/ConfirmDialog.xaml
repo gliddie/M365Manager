@@ -8,7 +8,8 @@
 
     <!-- Destructive confirmation. This is the ONLY place solid red appears on a button: inside a
          modal whose whole purpose is the warning, so it cannot be mistaken for the brand accent
-         that marks primary actions and the active nav item. -->
+         that marks primary actions and the active nav item. The non-destructive variant (a
+         licence that costs money, say) swaps icon and button in code-behind - no red there. -->
     <Border Style="{StaticResource DialogSurface}" MaxWidth="560" Margin="16">
         <StackPanel>
             <Grid Margin="0,0,0,12">
@@ -17,9 +18,9 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Width="34" Height="34" CornerRadius="17"
+                <Border x:Name="IconDisc" Grid.Column="0" Width="34" Height="34" CornerRadius="17"
                         Background="{DynamicResource DangerSoftBrush}" VerticalAlignment="Top">
-                    <TextBlock Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="16"
+                    <TextBlock x:Name="IconGlyph" Text="&#xE7BA;" FontFamily="Segoe MDL2 Assets" FontSize="16"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                Foreground="{DynamicResource DangerBrush}" />
                 </Border>

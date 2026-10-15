@@ -47,10 +47,13 @@
                 </StackPanel>
 
                 <Grid Grid.Row="1">
+                    <!-- Proportional rather than a fixed 430: the four-column grid does not need
+                         two thirds of a wide screen, and at 430 the manage tabs wrapped onto two
+                         rows and the tab content got only what was left under two stacked cards. -->
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="3*" MinWidth="420" />
                         <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="430" />
+                        <ColumnDefinition Width="2*" MinWidth="430" />
                     </Grid.ColumnDefinitions>
 
                     <Border Grid.Column="0" Style="{StaticResource Card}" Padding="0">
@@ -131,9 +134,13 @@
                                 <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,12"
                                            Text="{Binding SelectedRoom.PrimarySmtpAddress}" />
 
+                                <!-- Two label/value pairs per row: four rows instead of seven, so the
+                                     manage tabs below keep their height. -->
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="104" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Grid.RowDefinitions>
@@ -141,55 +148,67 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
+                                    <Grid.Resources>
+                                        <Style x:Key="DetailLabel" TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                            <Setter Property="Margin" Value="0,0,12,4" />
+                                        </Style>
+                                        <Style x:Key="DetailValue" TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                            <Setter Property="Margin" Value="0,0,16,4" />
+                                            <Setter Property="TextWrapping" Value="Wrap" />
+                                        </Style>
+                                    </Grid.Resources>
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Muted}" Text="Location" />
-                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.Office}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource DetailLabel}" Text="Location" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource DetailValue}" Text="{Binding SelectedRoom.Office}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource DetailLabel}" Text="Time zone" />
+                                    <TextBlock Grid.Row="0" Grid.Column="3" Style="{StaticResource DetailValue}" Text="{Binding SelectedRoom.TimeZone}" />
 
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Muted}" Text="Access" />
-                                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.AccessModel}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource DetailLabel}" Text="Access" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource DetailValue}" Text="{Binding SelectedRoom.AccessModel}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource DetailLabel}" Text="Policy" />
+                                    <TextBlock Grid.Row="1" Grid.Column="3" Style="{StaticResource DetailValue}" Text="{Binding SelectedRoom.BookingPolicy}" />
 
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource Muted}" Text="Policy" />
-                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.BookingPolicy}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource DetailLabel}" Text="Room list" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource DetailValue}" Text="{Binding SelectedRoom.RoomListName}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource DetailLabel}" Text="Delegates" />
+                                    <TextBlock Grid.Row="2" Grid.Column="3" Style="{StaticResource DetailValue}" Text="{Binding SelectedRoom.DelegateGroup}" />
 
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource Muted}" Text="Room list" />
-                                    <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.RoomListName}" />
-
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource Muted}" Text="Delegates" />
-                                    <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.DelegateGroup}" />
-
-                                    <TextBlock Grid.Row="5" Grid.Column="0" Style="{StaticResource Muted}" Text="Users group" />
-                                    <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.UsersGroup}" />
-
-                                    <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource Muted}" Text="Time zone" />
-                                    <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedRoom.TimeZone}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource DetailLabel}" Text="Users group" />
+                                    <TextBlock Grid.Row="3" Grid.Column="3" Style="{StaticResource DetailValue}" Text="{Binding SelectedRoom.UsersGroup}" />
                                 </Grid>
                             </StackPanel>
                         </Border>
 
-                        <!-- Ticket + requester apply to all three actions below -->
+                        <!-- Ticket + requester apply to every action below; side by side to save height. -->
                         <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,12">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
-                                <TextBox Style="{StaticResource ModernTextBox}"
-                                         AutomationProperties.Name="Ticket or task number"
-                                         Text="{Binding ManageTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,12"
-                                           Text="Required for every action below." />
-
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
-                                <TextBox AutomationProperties.Name="Requester (optional)" Style="{StaticResource ModernTextBox}"
-                                         Text="{Binding ManageRequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Style="{StaticResource FieldHint}"
-                                           Text="Gets the confirmation e-mail for a detail change, a removal, or users added to a restricted room. Leave empty to send none." />
-                            </StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ticket / task number" />
+                                    <TextBox Style="{StaticResource ModernTextBox}"
+                                             AutomationProperties.Name="Ticket or task number"
+                                             Text="{Binding ManageTaskNumber, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,0"
+                                               Text="Required for every action below." />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Requester (optional)" />
+                                    <TextBox AutomationProperties.Name="Requester (optional)" Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding ManageRequesterIdentity, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,0"
+                                               Text="Gets the confirmation e-mail. Empty sends none." />
+                                </StackPanel>
+                            </Grid>
                         </Border>
 
                         <Border Grid.Row="2" Style="{StaticResource Card}" Padding="0">
-                            <TabControl Style="{StaticResource TabStrip}" Margin="16,4,16,12">
+                            <TabControl Style="{StaticResource TabStrip}" Margin="16,4,16,12"
+                                        SelectedIndex="{Binding ManageTabIndex, Mode=TwoWay}">
                                 <TabControl.Resources>
                                     <Style TargetType="TabItem" BasedOn="{StaticResource TabStripItem}" />
                                 </TabControl.Resources>
@@ -260,6 +279,165 @@
                                                     HorizontalAlignment="Left"
                                                     Command="{Binding ChangeMembershipCommand}"
                                                     IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <!-- Index 2 - RoomResourcesViewModel.TelephonyTabIndex jumps here from the Create tab. -->
+                                <TabItem Header="Telephony">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource Muted}" Margin="{DynamicResource GapField}"
+                                                       Text="Gives the room a number from its site's blocks and the site's voice policies. Direct Routing: voice routing, dial plan and both emergency policies. Operator Connect: the dial plan only. The room needs a licence with Teams Phone (Teams Rooms Pro)." />
+
+                                            <Button Style="{StaticResource SecondaryButton}" Content="_Look up room"
+                                                    HorizontalAlignment="Left" Margin="{DynamicResource GapField}"
+                                                    Command="{Binding LookUpTelephonyCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+
+                                            <!-- Only meaningful once the room account has been read. -->
+                                            <StackPanel Visibility="{Binding TelephonyAccountSummary, Converter={StaticResource EmptyToCollapsed}}">
+                                                <Border Style="{StaticResource Inset}" Margin="0,0,0,12">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource Body}" Text="{Binding TelephonyAccountSummary}" />
+                                                        <TextBlock Style="{StaticResource Muted}" Margin="0,4,0,0"
+                                                                   Text="{Binding TelephonyLicenceSummary}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <!-- A blocker stops the run; a warning does not. -->
+                                                <controls:AlertBox Margin="0,0,0,12" Text="{Binding TelephonyBlocker}" Severity="Error" />
+                                                <controls:AlertBox Margin="0,0,0,12" Text="{Binding TelephonyWarnings}" Severity="Warning" />
+
+                                                <TextBlock Style="{StaticResource FieldLabel}" Text="Site" />
+                                                <ComboBox Style="{StaticResource ModernComboBox}"
+                                                          AutomationProperties.Name="Site"
+                                                          ItemsSource="{Binding TelephonyLocations}"
+                                                          SelectedItem="{Binding SelectedTelephonyLocation, Mode=TwoWay}"
+                                                          DisplayMemberPath="Label" />
+                                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,12"
+                                                           Text="Matched from the room's site code. Decides the number blocks, the policy names and the usage location (the site's country)." />
+
+                                                <!-- Offered only when the room lacks Teams Phone and a Teams Rooms
+                                                     licence is free; assigned only after the confirm dialog. -->
+                                                <Border Style="{StaticResource Inset}" Margin="0,0,0,12"
+                                                        Visibility="{Binding HasTelephonyLicenceOffer, Converter={StaticResource BoolToVisible}}">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Licence" />
+                                                        <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
+                                                                   Text="{Binding TelephonyLicenceOffer.StockText}" />
+                                                        <StackPanel IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}"
+                                                                    HorizontalAlignment="Left">
+                                                            <Button Style="{StaticResource SecondaryButton}" Content="Assign licen_ce"
+                                                                    Command="{Binding AssignTelephonyLicenceCommand}"
+                                                                    IsEnabled="{Binding CanAssignTelephonyLicence}" />
+                                                        </StackPanel>
+                                                        <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,0"
+                                                                   Text="Asks for confirmation first. Sets the usage location to the site's country, which Entra needs before any licence." />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <TextBlock Style="{StaticResource FieldLabel}" Text="Number block" />
+                                                <ComboBox Style="{StaticResource ModernComboBox}"
+                                                          AutomationProperties.Name="Number block"
+                                                          ItemsSource="{Binding TelephonyRanges}"
+                                                          SelectedItem="{Binding SelectedTelephonyRange, Mode=TwoWay}"
+                                                          DisplayMemberPath="Label"
+                                                          IsEnabled="{Binding CanPickTelephonyNumber}" />
+                                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,12"
+                                                           Text="Least-used first. The block's type decides Direct Routing or Operator Connect." />
+
+                                                <Button Style="{StaticResource SecondaryButton}" Content="Find _free numbers"
+                                                        HorizontalAlignment="Left" Margin="0,0,0,12"
+                                                        Command="{Binding FindTelephonyNumbersCommand}"
+                                                        IsEnabled="{Binding CanPickTelephonyNumber}" />
+
+                                                <TextBlock Style="{StaticResource FieldLabel}" Text="Number" />
+                                                <ComboBox Style="{StaticResource ModernComboBox}" Width="240" HorizontalAlignment="Left"
+                                                          Margin="{DynamicResource GapField}"
+                                                          AutomationProperties.Name="Number"
+                                                          ItemsSource="{Binding TelephonyFreeDids}"
+                                                          SelectedItem="{Binding SelectedTelephonyDid, Mode=TwoWay}"
+                                                          IsEnabled="{Binding CanPickTelephonyNumber}" />
+
+                                                <Border Style="{StaticResource Inset}" Margin="0,0,0,16"
+                                                        Visibility="{Binding TelephonyPlan, Converter={StaticResource EmptyToCollapsed}}">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Will be set" />
+                                                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
+                                                                   Text="{Binding TelephonyPlan}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <!-- Two conditions: the panel is idle, and there is something to assign. -->
+                                                <StackPanel IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}"
+                                                            HorizontalAlignment="Left" Margin="0,0,0,12">
+                                                    <Button Style="{StaticResource PrimaryButton}" Content="_Assign number"
+                                                            Command="{Binding AssignTelephonyNumberCommand}"
+                                                            IsEnabled="{Binding CanAssignTelephonyNumber}" />
+                                                </StackPanel>
+
+                                                <controls:AlertBox Text="{Binding TelephonyResult}" Severity="{Binding TelephonyResultSeverity}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <TabItem Header="Account">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource Muted}" Margin="{DynamicResource GapField}"
+                                                       Text="Enables the room account with a new random password that never expires, so a Teams Rooms device can sign in. Use it for a room whose account was never enabled, or when a device needs a new password - a device signed in with the old one is signed out." />
+
+                                            <Button Style="{StaticResource DangerButton}" Content="Set _new password"
+                                                    HorizontalAlignment="Left" Margin="0,0,0,16"
+                                                    Command="{Binding SetNewAccountPasswordCommand}"
+                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
+
+                                            <!-- Shown once, cleared when another room is selected. -->
+                                            <Border Style="{StaticResource Inset}"
+                                                    Visibility="{Binding HasManagePassword, Converter={StaticResource BoolToVisible}}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+
+                                                    <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabel}"
+                                                               VerticalAlignment="Center" Margin="0,0,16,8" Text="Display name" />
+                                                    <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource ModernTextBox}" IsReadOnly="True"
+                                                             Margin="0,0,0,8" AutomationProperties.Name="Room display name"
+                                                             Text="{Binding ManagePasswordDisplayName, Mode=OneWay}" />
+                                                    <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Copy na_me"
+                                                            Margin="12,0,0,8" Command="{Binding CopyManageDisplayNameCommand}" />
+
+                                                    <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource FieldLabel}"
+                                                               VerticalAlignment="Center" Margin="0,0,16,8" Text="Sign-in name (UPN)" />
+                                                    <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource ModernTextBox}" IsReadOnly="True"
+                                                             Margin="0,0,0,8" AutomationProperties.Name="Room sign-in name"
+                                                             Text="{Binding ManagePasswordUpn, Mode=OneWay}" />
+                                                    <Button Grid.Row="1" Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Copy U_PN"
+                                                            Margin="12,0,0,8" Command="{Binding CopyManageUpnCommand}" />
+
+                                                    <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource FieldLabel}"
+                                                               VerticalAlignment="Center" Margin="0,0,16,0" Text="Password" />
+                                                    <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource ModernTextBox}" IsReadOnly="True"
+                                                             FontFamily="Consolas" AutomationProperties.Name="Room account password"
+                                                             Text="{Binding ManagePassword, Mode=OneWay}" />
+                                                    <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Copy pass_word"
+                                                            Margin="12,0,0,0" Command="{Binding CopyManagePasswordCommand}" />
+
+                                                    <TextBlock Grid.Row="3" Grid.ColumnSpan="3" Style="{StaticResource FieldHint}" Margin="0,8,0,0"
+                                                               Text="Shown only now - not stored, logged or mailed. Cleared when you select another room." />
+                                                </Grid>
+                                            </Border>
                                         </StackPanel>
                                     </ScrollViewer>
                                 </TabItem>
@@ -394,6 +572,68 @@
                             <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
                                        Text="Start with the three-letter site code, then the room name - e.g. &quot;NBK Meeting Room 1&quot;." />
 
+                            <!-- Decided up front, each on its own: a Teams Rooms licence and a phone
+                                 number. Both run in the same Create, and the requester gets one mail
+                                 once all of it is done. Rooms only. -->
+                            <StackPanel Visibility="{Binding IsRoom, Converter={StaticResource BoolToVisible}}">
+                                <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,4"
+                                          Content="Assign a Teams Rooms Pro licence"
+                                          AutomationProperties.Name="Assign a Teams Rooms Pro licence"
+                                          IsChecked="{Binding CreateAssignLicence}" />
+                                <TextBlock Style="{StaticResource FieldHint}" Margin="24,0,0,8"
+                                           Text="{Binding CreateLicenceText}"
+                                           Visibility="{Binding CreateLicenceText, Converter={StaticResource EmptyToCollapsed}}" />
+
+                                <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,4,0,8"
+                                          Content="Set up Teams telephony - the room gets a phone number"
+                                          AutomationProperties.Name="Set up Teams telephony"
+                                          IsChecked="{Binding CreateWithTelephony}" />
+
+                                <Border Style="{StaticResource Inset}" Margin="0,0,0,16"
+                                        Visibility="{Binding ShowCreateSite, Converter={StaticResource BoolToVisible}}">
+                                    <StackPanel>
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Site" />
+                                        <ComboBox Style="{StaticResource ModernComboBox}" Width="420" HorizontalAlignment="Left"
+                                                  AutomationProperties.Name="Site for licence and telephony"
+                                                  ItemsSource="{Binding TelephonyLocations}"
+                                                  SelectedItem="{Binding CreateTelephonyLocation, Mode=TwoWay}"
+                                                  DisplayMemberPath="Label" />
+                                        <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,12"
+                                                   Text="Matched from the name's site code. Its country becomes the usage location (needed for the licence); for telephony it also decides the number blocks and policy names." />
+
+                                        <controls:AlertBox Margin="0,0,0,12" Text="{Binding CreateTelephonySiteProblem}" Severity="Error" />
+
+                                        <StackPanel Visibility="{Binding CreateWithTelephony, Converter={StaticResource BoolToVisible}}">
+                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Number block" />
+                                            <ComboBox Style="{StaticResource ModernComboBox}" HorizontalAlignment="Stretch"
+                                                      AutomationProperties.Name="Number block"
+                                                      ItemsSource="{Binding CreateTelephonyRanges}"
+                                                      SelectedItem="{Binding CreateTelephonyRange, Mode=TwoWay}"
+                                                      DisplayMemberPath="Label"
+                                                      IsEnabled="{Binding CanPickCreateNumber}" />
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,12"
+                                                       Text="Least-used first. The block's type decides Direct Routing (four policies) or Operator Connect (dial plan only)." />
+
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                                <Button Style="{StaticResource SecondaryButton}" Content="Find _free numbers"
+                                                        Command="{Binding FindCreateTelephonyNumbersCommand}"
+                                                        IsEnabled="{Binding CanPickCreateNumber}" />
+                                                <ComboBox Style="{StaticResource ModernComboBox}" Width="240"
+                                                          Margin="{DynamicResource GapInline}"
+                                                          AutomationProperties.Name="Phone number"
+                                                          ItemsSource="{Binding CreateTelephonyFreeDids}"
+                                                          SelectedItem="{Binding CreateTelephonyDid, Mode=TwoWay}"
+                                                          IsEnabled="{Binding CanPickCreateNumber}" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
+                                                   Text="{Binding CreateTelephonyPlan}"
+                                                   Visibility="{Binding CreateTelephonyPlan, Converter={StaticResource EmptyToCollapsed}}" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
                             <StackPanel Visibility="{Binding IsRoom, Converter={StaticResource BoolToVisible}}">
                                 <StackPanel Orientation="Horizontal">
                                     <StackPanel Margin="0,0,16,0">
@@ -512,6 +752,90 @@
 
                     <controls:AlertBox Margin="0,16,0,0"
                                        Text="{Binding StatusMessage}" Severity="{Binding StatusSeverity}" />
+
+                    <controls:AlertBox Margin="0,12,0,0"
+                                       Text="{Binding CreateTelephonyResult}" Severity="{Binding CreateTelephonyResultSeverity}" />
+
+                    <!-- The room account's password: shown once, to copy into the Teams Rooms device
+                         setup. Not stored, not logged, not mailed - the requester is told to ask. -->
+                    <Border Style="{StaticResource Card}" Margin="0,12,0,0"
+                            Visibility="{Binding HasCreatedAccountCard, Converter={StaticResource BoolToVisible}}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource H3}" Text="Room account" Margin="0,0,0,12" />
+
+                            <!-- Label, read-only value (selectable for Ctrl+C), copy button - one row each.
+                                 The number and password rows only show when there is one. -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabel}"
+                                           VerticalAlignment="Center" Margin="0,0,16,8" Text="Display name" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource ModernTextBox}" IsReadOnly="True"
+                                         Margin="0,0,0,8"
+                                         AutomationProperties.Name="Room display name"
+                                         Text="{Binding CreatedDisplayName, Mode=OneWay}" />
+                                <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Copy na_me"
+                                        Margin="12,0,0,8"
+                                        Command="{Binding CopyCreatedDisplayNameCommand}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource FieldLabel}"
+                                           VerticalAlignment="Center" Margin="0,0,16,8" Text="Sign-in name (UPN)" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource ModernTextBox}" IsReadOnly="True"
+                                         Margin="0,0,0,8"
+                                         AutomationProperties.Name="Room sign-in name"
+                                         Text="{Binding CreatedAccountUpn, Mode=OneWay}" />
+                                <Button Grid.Row="1" Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Copy U_PN"
+                                        Margin="12,0,0,8"
+                                        Command="{Binding CopyCreatedUpnCommand}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource FieldLabel}"
+                                           VerticalAlignment="Center" Margin="0,0,16,8" Text="Phone number"
+                                           Visibility="{Binding CreatedPhoneNumber, Converter={StaticResource EmptyToCollapsed}}" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource ModernTextBox}" IsReadOnly="True"
+                                         Margin="0,0,0,8"
+                                         AutomationProperties.Name="Room phone number"
+                                         Text="{Binding CreatedPhoneNumber, Mode=OneWay}"
+                                         Visibility="{Binding CreatedPhoneNumber, Converter={StaticResource EmptyToCollapsed}}" />
+                                <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Copy num_ber"
+                                        Margin="12,0,0,8"
+                                        Command="{Binding CopyCreatedPhoneNumberCommand}"
+                                        Visibility="{Binding CreatedPhoneNumber, Converter={StaticResource EmptyToCollapsed}}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource FieldLabel}"
+                                           VerticalAlignment="Center" Margin="0,0,16,0" Text="Password"
+                                           Visibility="{Binding HasCreatedPassword, Converter={StaticResource BoolToVisible}}" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource ModernTextBox}" IsReadOnly="True"
+                                         FontFamily="Consolas"
+                                         AutomationProperties.Name="Room account password"
+                                         Text="{Binding CreatedPassword, Mode=OneWay}"
+                                         Visibility="{Binding HasCreatedPassword, Converter={StaticResource BoolToVisible}}" />
+                                <Button Grid.Row="3" Grid.Column="2" Style="{StaticResource SecondaryButton}" Content="Copy pass_word"
+                                        Margin="12,0,0,0"
+                                        Command="{Binding CopyCreatedPasswordCommand}"
+                                        Visibility="{Binding HasCreatedPassword, Converter={StaticResource BoolToVisible}}" />
+                            </Grid>
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,0"
+                                       Visibility="{Binding HasCreatedPassword, Converter={StaticResource BoolToVisible}}"
+                                       Text="The password never expires. Shown only now - it is not stored anywhere. The requester's e-mail asks them to contact you for it." />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- A new room has no licence yet, so telephony cannot run as part of Create;
+                         this opens the room on its Telephony tab once it is licensed. -->
+                    <Button Style="{StaticResource GhostButton}" Content="Set up _telephony for this room"
+                            HorizontalAlignment="Left" Margin="0,12,0,0"
+                            Command="{Binding SetUpTelephonyForCreatedRoomCommand}"
+                            Visibility="{Binding HasLastCreatedRoom, Converter={StaticResource BoolToVisible}}" />
                 </StackPanel>
             </ScrollViewer>
         </TabItem>

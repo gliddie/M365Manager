@@ -109,6 +109,11 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IActiveDirectoryService, ActiveDirectoryService>();
         services.AddSingleton<INewHireService, NewHireService>();
 
+        // Room telephony: number + voice policies for a room account, from the same telephony
+        // catalog as New Hire. Cloud-only accounts, so no AD write.
+        services.AddSingleton<IRoomAccountService, RoomAccountService>();
+        services.AddSingleton<IRoomTelephonyService, RoomTelephonyService>();
+
         return services;
     }
 }

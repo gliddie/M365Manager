@@ -50,6 +50,7 @@ public sealed class UcHelperDbContext : DbContext
         did.Property(x => x.Notes).HasColumnName("Notes");
         did.Property(x => x.Sdap).HasColumnName("SDAP");
         did.Property(x => x.Provider).HasColumnName("PROVIDER");
+        did.Property(x => x.TeamsNumberType).HasColumnName("TeamsNumberType");
 
         var endpoint = modelBuilder.Entity<UcEndpoint>();
         endpoint.ToTable("endpoints");

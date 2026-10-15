@@ -95,12 +95,38 @@ public sealed class GraphRestClient
 
         try
         {
-            var json = JsonSerializer.Serialize(body, new JsonSerializerOptions { WriteIndented = true });
+            // Secrets are masked before anything reaches the console - a room account's new password
+            // once appeared here in clear text (2026-10-15).
+            var node = JsonSerializer.SerializeToNode(body);
+            MaskSecrets(node);
+            var json = node?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "null";
             _transcript.Write(TranscriptLineKind.Output, json.Length > 2000 ? json[..2000] + "\n... (truncated)" : json);
         }
         catch
         {
             // A body that will not serialize for display must not stop the call itself.
+        }
+    }
+
+    /// <summary>Replaces the value of every property whose name contains "password" or "secret".</summary>
+    private static void MaskSecrets(System.Text.Json.Nodes.JsonNode? node)
+    {
+        switch (node)
+        {
+            case System.Text.Json.Nodes.JsonObject obj:
+                foreach (var name in obj.Select(p => p.Key).ToList())
+                {
+                    if (name.Contains("password", StringComparison.OrdinalIgnoreCase) && obj[name] is System.Text.Json.Nodes.JsonValue
+                        || name.Contains("secret", StringComparison.OrdinalIgnoreCase))
+                        obj[name] = "********";
+                    else
+                        MaskSecrets(obj[name]);
+                }
+                break;
+            case System.Text.Json.Nodes.JsonArray array:
+                foreach (var item in array)
+                    MaskSecrets(item);
+                break;
         }
     }
 

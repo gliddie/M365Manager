@@ -1,5 +1,6 @@
 using M365Manager.Core.ActiveDirectory;
 using M365Manager.Core.Teams;
+using M365Manager.Core.Telephony;
 using M365Manager.Data.NewHire;
 
 namespace M365Manager.Core.NewHire;
@@ -35,47 +36,6 @@ public sealed class NewHireLookup
     public static NewHireLookup Failed(string error) => new() { ErrorMessage = error };
 }
 
-/// <summary>
-/// The employee's licensing as Entra reports it, read live from
-/// <c>/users/{upn}/licenseDetails</c> rather than from the telephony database's nightly
-/// <c>e3licensed</c> import - that table only ever knew about E3, which this tenant has since
-/// replaced with E5.
-///
-/// The decisive fact is not which SKU someone holds but whether it grants the <b>MCOEV</b> service
-/// plan (Microsoft 365 Phone System / Teams Phone). E5, the Teams Phone Standard add-on and Teams
-/// Phone with Calling Plan all grant it; E3 never did. Checking the service plan instead of the SKU
-/// means this keeps working through the next licensing rename.
-/// </summary>
-public sealed class TeamsLicenseState
-{
-    /// <summary>False when the Graph call itself failed - then nothing below means anything.</summary>
-    public bool Checked { get; init; }
-
-    /// <summary>Why the lookup failed, when <see cref="Checked"/> is false.</summary>
-    public string? Error { get; init; }
-
-    /// <summary>MCOEV is assigned and fully provisioned - the user can be given a number.</summary>
-    public bool HasTeamsPhone { get; init; }
-
-    /// <summary>
-    /// MCOEV is assigned but Microsoft has not finished provisioning it. Worth flagging, but not
-    /// worth blocking on: it usually completes within minutes.
-    /// </summary>
-    public bool TeamsPhonePending { get; init; }
-
-    /// <summary>The SKUs found, e.g. "SPE_E5" - shown so the operator can see what they actually have.</summary>
-    public IReadOnlyList<string> Skus { get; init; } = Array.Empty<string>();
-
-    /// <summary>How the licensing reads on the lookup card.</summary>
-    public string Summary =>
-        !Checked ? $"Licence check failed: {Error}"
-        : HasTeamsPhone ? $"Teams Phone licensed{SkuSuffix}"
-        : TeamsPhonePending ? $"Teams Phone licence still provisioning{SkuSuffix}"
-        : $"No Teams Phone licence{SkuSuffix}";
-
-    private string SkuSuffix => Skus.Count == 0 ? " (no licences assigned)" : $" ({string.Join(", ", Skus)})";
-}
-
 /// <summary>Everything the operator has assembled by the end of step 3, ready to be applied.</summary>
 public sealed class NewHireRequest
 {
@@ -86,8 +46,20 @@ public sealed class NewHireRequest
 
     public required UcLocation Location { get; init; }
 
+    /// <summary>
+    /// The block the number comes from. Its type (dbo.did.TeamsNumberType) decides Direct Routing
+    /// or Operator Connect - and with it whether msRTCSIP-Line is written and which policies are
+    /// granted. Same rule as Switchboard's New Hire.
+    /// </summary>
+    public required UcDidRange Range { get; init; }
+
     /// <summary>The number chosen in step 2, bare digits without "+".</summary>
     public required string Did { get; init; }
+
+    public bool IsOperatorConnect => Range.IsOperatorConnect;
+
+    /// <summary>The voice policies this number gets: all four for Direct Routing, the dial plan for Operator Connect.</summary>
+    public IReadOnlyList<(string Name, string Cmdlet)> VoicePolicies => PhonePolicyPlan.For(Range.Type);
 
     /// <summary>tel:+&lt;did&gt; - what goes into msRTCSIP-Line.</summary>
     public string LineUri => $"tel:+{Did}";
@@ -99,8 +71,8 @@ public sealed class NewHireRequest
     public string SipAddress => $"sip:{User.Mail}";
 
     /// <summary>
-    /// All four voice policies are named after the site code - that is the convention in the tenant
-    /// and how the legacy script granted them.
+    /// The voice policies are named after the site code - that is the convention in the tenant and
+    /// how the legacy script granted them.
     /// </summary>
     public string PolicyName => Location.LocationCode;
 }

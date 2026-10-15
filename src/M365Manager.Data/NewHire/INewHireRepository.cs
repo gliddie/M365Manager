@@ -84,6 +84,12 @@ public interface INewHireRepository
     Task<IReadOnlyList<FreeDid>> FindFreeDidsAsync(UcDidRange range, CancellationToken ct = default);
 
     /// <summary>
+    /// True when no endpoint holds the number and it is not blocked - re-checked right before a
+    /// number is assigned, because the list on screen may be minutes old.
+    /// </summary>
+    Task<bool> IsDidFreeAsync(string did, CancellationToken ct = default);
+
+    /// <summary>
     /// Opens a run in "newhirelog" before anything is changed and returns its id, so a run that dies
     /// halfway still leaves a trace. Every step outcome is written back against this id.
     /// </summary>
@@ -97,5 +103,7 @@ public interface INewHireRepository
     /// import would eventually do this too, but not before the next operator has already handed the
     /// same number to somebody else.
     /// </summary>
-    Task AddEndpointAsync(UcEndpoint endpoint, CancellationToken ct = default);
+    /// <param name="phoneNumberType">"DirectRouting"/"OperatorConnect"; written only where dbo.endpoints has the column.</param>
+    /// <param name="usageLocation">ISO country code; written only where dbo.endpoints has the column.</param>
+    Task AddEndpointAsync(UcEndpoint endpoint, string? phoneNumberType = null, string? usageLocation = null, CancellationToken ct = default);
 }

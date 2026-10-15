@@ -99,9 +99,39 @@ public sealed class TeamsPowerShellService : ITeamsPowerShellService, IM365Conne
             .AddParameter("ErrorAction", "Stop"), ct: ct);
 
         var user = results.FirstOrDefault();
-        if (user is null)
-            return new TeamsVoiceState();
+        return user is null ? new TeamsVoiceState() : ToVoiceState(user);
+    }
 
+    public async Task<TeamsVoiceState?> TryGetVoiceStateAsync(string upn, CancellationToken ct = default)
+    {
+        EnsureConnected();
+
+        // SilentlyContinue: "not found" is an expected answer here, not an error for the console.
+        var results = await _host.InvokeAsync(ps => ps
+            .AddCommand("Get-CsOnlineUser")
+            .AddParameter("Identity", upn)
+            .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
+
+        var user = results.FirstOrDefault();
+        return user is null ? null : ToVoiceState(user);
+    }
+
+    public async Task<string?> GetNumberHolderAsync(string e164, CancellationToken ct = default)
+    {
+        EnsureConnected();
+
+        var results = await _host.InvokeAsync(ps => ps
+            .AddCommand("Get-CsPhoneNumberAssignment")
+            .AddParameter("TelephoneNumber", e164)
+            .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
+
+        var assignment = results.FirstOrDefault();
+        var target = assignment is null ? "" : Text(assignment, "AssignedPstnTargetId");
+        return target.Length == 0 ? null : target;
+    }
+
+    private static TeamsVoiceState ToVoiceState(PSObject user)
+    {
         return new TeamsVoiceState
         {
             LineUri = Text(user, "LineUri"),
@@ -111,6 +141,7 @@ public sealed class TeamsPowerShellService : ITeamsPowerShellService, IM365Conne
             TeamsEmergencyCallingPolicy = PolicyName(user, "TeamsEmergencyCallingPolicy"),
             TeamsEmergencyCallRoutingPolicy = PolicyName(user, "TeamsEmergencyCallRoutingPolicy"),
             TeamsUpgradeEffectiveMode = Text(user, "TeamsUpgradeEffectiveMode"),
+            AccountType = Text(user, "AccountType"),
         };
     }
 

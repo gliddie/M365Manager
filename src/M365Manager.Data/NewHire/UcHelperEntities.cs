@@ -25,6 +25,9 @@ public sealed class UcLocation
 
     /// <summary>1 = the site is live on Teams voice, 2 = explicitly not enabled, null/0 = never configured.</summary>
     public byte? TeamsVoiceEnabled { get; set; }
+
+    /// <summary>For pickers: "BRM - Germany - Bremen". Get-only, so EF does not map it.</summary>
+    public string Label => $"{LocationCode} - {Name}";
 }
 
 /// <summary>
@@ -52,6 +55,68 @@ public sealed class UcDidRange
     public byte Sdap { get; set; }
 
     public string? Provider { get; set; }
+
+    /// <summary>
+    /// "DirectRouting", "OperatorConnect" or null (column dbo.did.TeamsNumberType). Added and
+    /// maintained by Switchboard (its Scripts/02_DidNumberType.sql); the legacy UCManager does not
+    /// know the column, and its default makes the ranges it adds Direct Routing.
+    /// </summary>
+    public string? TeamsNumberType { get; set; }
+
+    /// <summary>How the block's numbers reach Teams; <see cref="NewHire.TeamsNumberType.Unknown"/> blocks are not handed out.</summary>
+    public TeamsNumberType Type => TeamsNumberTypes.Parse(TeamsNumberType);
+
+    public bool IsOperatorConnect => Type == NewHire.TeamsNumberType.OperatorConnect;
+
+    public string TypeLabel => TeamsNumberTypes.Label(Type);
+
+    /// <summary>For pickers: "+4942112345000 - +4942112345999 · Direct Routing · 23 % used · Colt".</summary>
+    public string Label
+    {
+        get
+        {
+            var parts = new List<string> { $"+{DidStart} - +{DidEnd}", TypeLabel };
+            if (Utilization is { } used)
+                parts.Add($"{used} % used");
+            if (!string.IsNullOrWhiteSpace(Provider))
+                parts.Add(Provider.Trim());
+            return string.Join(" · ", parts);
+        }
+    }
+}
+
+/// <summary>How the numbers of a range reach Teams - decides the number type and the policies granted.</summary>
+public enum TeamsNumberType
+{
+    /// <summary>Not set on the range yet - numbers from it are not handed out.</summary>
+    Unknown,
+    DirectRouting,
+    OperatorConnect,
+}
+
+public static class TeamsNumberTypes
+{
+    public static TeamsNumberType Parse(string? value) => (value ?? "").Trim() switch
+    {
+        "DirectRouting" => TeamsNumberType.DirectRouting,
+        "OperatorConnect" => TeamsNumberType.OperatorConnect,
+        _ => TeamsNumberType.Unknown,
+    };
+
+    public static string Label(TeamsNumberType type) => type switch
+    {
+        TeamsNumberType.DirectRouting => "Direct Routing",
+        TeamsNumberType.OperatorConnect => "Operator Connect",
+        _ => "type not set",
+    };
+
+    /// <summary>What Set-CsPhoneNumberAssignment -PhoneNumberType and dbo.endpoints.PhoneNumberType take.</summary>
+    public static string CmdletValue(TeamsNumberType type) => type switch
+    {
+        TeamsNumberType.DirectRouting => "DirectRouting",
+        TeamsNumberType.OperatorConnect => "OperatorConnect",
+        _ => throw new InvalidOperationException("The number range has no Teams number type."),
+    };
 }
 
 /// <summary>

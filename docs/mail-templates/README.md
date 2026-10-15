@@ -38,6 +38,7 @@ Templates that matter, per the legacy scripts:
 | `RoomResourceRemoval.oft` | `RoomResourceRemove.ps1` | **yes** → `RoomNotificationMail.Removal` |
 | `RROOPChanges.oft` | `RoomResourceOOPChanges.ps1` | **yes** → `RoomNotificationMail.UsersAuthorized` |
 | `RoomorResourceRename.oft` | `RoomResourceRename.ps1` | not exported - wording written new in `RoomNotificationMail.Renamed`, see below |
+| *(none)* | *(no legacy script - room telephony is new)* | new wording: phone/password paragraphs in `RoomNotificationMail.Creation`, and `RoomNotificationMail.TelephonyReady`, see below |
 
 The `.oft` files themselves don't need to be committed - the exported `.txt` is what the code is
 derived from.
@@ -103,3 +104,11 @@ derived from.
   repo. `RoomNotificationMail.Renamed` says old and new name, the new address with the note that the
   old one keeps working, and the new room list when the site changed. Replace it with the template's
   wording once the `.oft` is exported.
+- **Room telephony adds new wording, and the requester still gets one mail.** When a room is
+  created with telephony, the creation mail waits until the number is assigned and carries an extra
+  *Telephony* paragraph with the number. When the room account was enabled with a password, a *Room
+  account* paragraph asks the requester to contact the admin who ran the creation (named, not
+  mailed - the admin accounts have no mailbox); the password itself never goes into a mail. If the
+  telephony fails during creation, the creation mail is held back and
+  `RoomNotificationMail.TelephonyReady` is sent from the Telephony tab instead, once the number is
+  assigned - it lists all of the room's details, so it can stand in for the creation mail.

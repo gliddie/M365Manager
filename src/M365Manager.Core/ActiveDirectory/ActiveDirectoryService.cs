@@ -83,27 +83,29 @@ public sealed class ActiveDirectoryService : IActiveDirectoryService
 
     public Task<IReadOnlyList<AdAttributeResult>> WriteTelephonyAttributesAsync(
         AdUser user,
-        string lineUri,
+        string? lineUri,
         string sipAddress,
         string deploymentLocator,
         CancellationToken ct = default)
     {
         // Order matters only in that the two identity attributes - the ones Entra Connect turns into
         // the cloud number and SIP address - go first. If the run dies after those, the account is
-        // still consistent with what Teams will be told.
-        var writes = new (string Attribute, string Value)[]
+        // still consistent with what Teams will be told. No line URI for Operator Connect.
+        var writes = new List<(string Attribute, string Value)>();
+        if (lineUri is not null)
+            writes.Add(("msRTCSIP-Line", lineUri));
+        writes.AddRange(new[]
         {
-            ("msRTCSIP-Line", lineUri),
             ("msRTCSIP-PrimaryUserAddress", sipAddress),
             ("msRTCSIP-DeploymentLocator", deploymentLocator),
             ("msRTCSIP-FederationEnabled", "TRUE"),
             ("msRTCSIP-InternetAccessEnabled", "TRUE"),
             ("msRTCSIP-UserEnabled", "TRUE"),
-        };
+        });
 
         return Task.Run<IReadOnlyList<AdAttributeResult>>(() =>
         {
-            var results = new List<AdAttributeResult>(writes.Length);
+            var results = new List<AdAttributeResult>(writes.Count);
 
             using var entry = CreateEntry($"LDAP://{ServerPrefix()}{user.DistinguishedName}");
 

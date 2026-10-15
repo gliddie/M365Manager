@@ -50,6 +50,8 @@ public static class CommandRenderer
         bool b => b ? "$true" : "$false",
         SwitchParameter sw => sw.IsPresent ? "$true" : "$false",
         string s => QuoteIfNeeded(s),
+        System.Security.SecureString => "(SecureString)", // never the content
+        PSCredential => "(PSCredential)",
         IDictionary dictionary => FormatDictionary(dictionary),
         IEnumerable sequence and not string => FormatSequence(sequence),
         _ => QuoteIfNeeded(value.ToString() ?? ""),

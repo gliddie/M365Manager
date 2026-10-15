@@ -6,6 +6,7 @@ using M365Manager.Core.NewHire;
 using M365Manager.Controls;
 using M365Manager.Core.PowerShell;
 using M365Manager.Core.Settings;
+using M365Manager.Core.Telephony;
 using M365Manager.Data.NewHire;
 
 namespace M365Manager.ViewModels;
@@ -75,6 +76,7 @@ public sealed partial class NewHireViewModel : ObservableObject
     [ObservableProperty] private string _reviewAccount = "";
     [ObservableProperty] private string _reviewOffice = "";
     [ObservableProperty] private string _reviewNumber = "";
+    [ObservableProperty] private string _reviewNumberType = "";
     [ObservableProperty] private string _reviewSipAddress = "";
     [ObservableProperty] private string _reviewPolicies = "";
     [ObservableProperty] private string _reviewAdStep = "";
@@ -255,6 +257,17 @@ public sealed partial class NewHireViewModel : ObservableObject
 
     // ----- step 2 -----
 
+    /// <summary>
+    /// A different block makes the numbers found in the previous one meaningless - and with Operator
+    /// Connect in the mix, keeping one would assign it with the wrong number type.
+    /// </summary>
+    partial void OnSelectedRangeChanged(UcDidRange? value)
+    {
+        FreeDids.Clear();
+        SelectedDid = null;
+        RangeSummary = "";
+    }
+
     private async Task LoadRangesAsync()
     {
         if (SelectedLocation is null)
@@ -296,6 +309,13 @@ public sealed partial class NewHireViewModel : ObservableObject
         if (SelectedRange is null)
         {
             Status("Select a number block first.", AlertSeverity.Error);
+            return;
+        }
+
+        if (SelectedRange.Type == TeamsNumberType.Unknown)
+        {
+            Status("This block has no number type (Direct Routing or Operator Connect) in the telephony database, "
+                   + "so its numbers are not handed out. Have the type set on the range first.", AlertSeverity.Error);
             return;
         }
 
@@ -341,7 +361,7 @@ public sealed partial class NewHireViewModel : ObservableObject
     [RelayCommand]
     private void GoToReview()
     {
-        if (_user is null || SelectedLocation is null || SelectedDid is null)
+        if (_user is null || SelectedLocation is null || SelectedDid is null || SelectedRange is null)
         {
             Status("Pick a number before continuing.", AlertSeverity.Error);
             return;
@@ -350,18 +370,30 @@ public sealed partial class NewHireViewModel : ObservableObject
         var request = BuildRequest();
         var newHire = _settings.Current.NewHire;
 
+        // Caught here rather than halfway through the run: Teams refuses an Operator Connect number
+        // while the account carries an on-premises line URI.
+        if (request.IsOperatorConnect && _user.LineUri is not null)
+        {
+            Status($"{SelectedDid.E164} is an Operator Connect number, but the AD account carries a line URI ({_user.LineUri}). "
+                   + "Clear msRTCSIP-Line first, or pick a Direct Routing block.", AlertSeverity.Error);
+            return;
+        }
+
         ReviewName = _user.DisplayName;
         ReviewAccount = $"{_user.SamAccountName} ({_user.UserPrincipalName})";
         ReviewOffice = $"{SelectedLocation.Name} - {SelectedLocation.LocationCode}";
         ReviewNumber = request.PhoneNumber;
+        ReviewNumberType = SelectedRange.TypeLabel;
         ReviewSipAddress = request.SipAddress;
-        ReviewPolicies = $"Voice routing, dial plan, emergency calling and emergency call routing: "
-                         + $"{request.PolicyName}. Teams upgrade: {newHire.TeamsUpgradePolicyName}.";
-        ReviewAdStep = newHire.WriteAdAttributes
-            ? $"msRTCSIP-Line = {request.LineUri} and msRTCSIP-PrimaryUserAddress = {request.SipAddress} are written "
-              + "to the on-premises account first, so the Entra Connect sync agrees with Teams instead of overwriting it."
-            : "On-premises AD is not touched (turned off under Settings > New Hire). Only do this once the "
-              + "msRTCSIP-* attributes are no longer synchronised - otherwise the next sync can clear the number again.";
+        ReviewPolicies = PhonePolicyPlan.Describe(SelectedRange.Type, request.PolicyName) + ".";
+        ReviewAdStep = !newHire.WriteAdAttributes
+            ? "On-premises AD is not touched (turned off under Settings > New Hire). Only do this once the "
+              + "msRTCSIP-* attributes are no longer synchronised - otherwise the next sync can clear the number again."
+            : request.IsOperatorConnect
+                ? $"msRTCSIP-PrimaryUserAddress = {request.SipAddress} is written to the on-premises account first. "
+                  + "msRTCSIP-Line stays empty - an Operator Connect number is managed in Teams, not on-premises."
+                : $"msRTCSIP-Line = {request.LineUri} and msRTCSIP-PrimaryUserAddress = {request.SipAddress} are written "
+                  + "to the on-premises account first, so the Entra Connect sync agrees with Teams instead of overwriting it.";
 
         Step = 3;
         StatusMessage = "Review the summary, then apply.";
@@ -372,6 +404,7 @@ public sealed partial class NewHireViewModel : ObservableObject
         TaskNumber = TaskNumber.Trim(),
         User = _user!,
         Location = SelectedLocation!,
+        Range = SelectedRange!,
         Did = SelectedDid!.Did,
     };
 
@@ -429,7 +462,7 @@ public sealed partial class NewHireViewModel : ObservableObject
                 Status("Done.", AlertSeverity.Success);
             }
 
-            TeamsState = BuildTeamsState(result, $"tel:+{SelectedDid.Did}");
+            TeamsState = BuildTeamsState(result, $"tel:+{SelectedDid.Did}", SelectedRange?.IsOperatorConnect == true);
 
             Step = 4;
         }
@@ -448,7 +481,7 @@ public sealed partial class NewHireViewModel : ObservableObject
     /// tenant where the number arrives by directory sync it will still show the old line - saying so
     /// is the difference between "it worked, wait" and an operator re-running the wizard.
     /// </summary>
-    private static string BuildTeamsState(NewHireResult result, string expectedLineUri)
+    private static string BuildTeamsState(NewHireResult result, string expectedLineUri, bool operatorConnect)
     {
         if (result.VoiceState is null)
             return "Teams could not be read back - the changes may still have landed.";
@@ -460,9 +493,13 @@ public sealed partial class NewHireViewModel : ObservableObject
                       + $"{Or(state.TenantDialPlan, "(global)")}, mode "
                       + $"{Or(state.TeamsUpgradeEffectiveMode, "(unknown)")}.";
 
+        // Only a Direct Routing number travels through Entra Connect; an Operator Connect one is set
+        // in Teams directly, so a mismatch there is a real problem, not a sync delay.
         if (!string.Equals(state.LineUri, expectedLineUri, StringComparison.OrdinalIgnoreCase))
-            summary += " The line still shows the previous value - Entra Connect can take up to 30 minutes "
-                       + "to carry the new number across. The policies above apply immediately.";
+            summary += operatorConnect
+                ? " The line does not show the new number yet - check the 'Phone number' step above."
+                : " The line still shows the previous value - Entra Connect can take up to 30 minutes "
+                  + "to carry the new number across. The policies above apply immediately.";
 
         return summary;
     }

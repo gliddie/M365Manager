@@ -12,13 +12,26 @@ namespace M365Manager.Controls;
 /// </summary>
 public partial class ConfirmDialog : Window
 {
-    public ConfirmDialog(string title, string message, string confirmLabel, string? detail)
+    /// <param name="destructive">
+    /// False for a confirmation that is not a loss (e.g. assigning a paid licence): info icon and the
+    /// screen's primary button instead of the warning triangle and the red confirm button.
+    /// </param>
+    public ConfirmDialog(string title, string message, string confirmLabel, string? detail, bool destructive = true)
     {
         InitializeComponent();
 
         TitleText.Text = title;
         MessageText.Text = message;
         ConfirmButton.Content = confirmLabel;
+
+        if (!destructive)
+        {
+            // SetResourceReference = DynamicResource, so a theme switch still reaches the dialog.
+            IconDisc.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "InfoSoftBrush");
+            IconGlyph.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "InfoBrush");
+            IconGlyph.Text = ""; // Info
+            ConfirmButton.SetResourceReference(StyleProperty, "PrimaryButton");
+        }
 
         if (!string.IsNullOrWhiteSpace(detail))
         {

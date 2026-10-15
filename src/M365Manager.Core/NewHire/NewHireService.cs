@@ -1,9 +1,9 @@
-using System.Text.Json;
 using M365Manager.Core.ActiveDirectory;
 using M365Manager.Core.M365;
 using M365Manager.Core.Notifications;
 using M365Manager.Core.Settings;
 using M365Manager.Core.Teams;
+using M365Manager.Core.Telephony;
 using M365Manager.Data.Logging;
 using M365Manager.Data.NewHire;
 
@@ -73,7 +73,7 @@ public sealed class NewHireService : INewHireService
             return NewHireLookup.Failed($"No Active Directory account found for '{sam}'.");
 
         var state = await _repository.GetEmployeeStateAsync(user.SamAccountName, ct);
-        var license = await GetLicenseStateAsync(user.UserPrincipalName, ct);
+        var license = await TeamsLicenseReader.ReadAsync(_graph, user.UserPrincipalName, ct);
 
         // The office attribute is regularly empty or wrong on a brand-new account, so the operator
         // can pick a site instead - that override wins.
@@ -92,7 +92,8 @@ public sealed class NewHireService : INewHireService
                          + "Assigning the number may fail for another few minutes.");
 
         if (user.LineUri is not null)
-            warnings.Add($"The AD account already carries a line URI ({user.LineUri}). Continuing will replace it.");
+            warnings.Add($"The AD account already carries a line URI ({user.LineUri}). A Direct Routing number replaces it; "
+                         + "an Operator Connect number cannot be assigned while it is there.");
 
         if (string.IsNullOrWhiteSpace(user.Mail))
             warnings.Add("The AD account has no mail address, so no SIP address can be derived and no notification can be sent.");
@@ -108,76 +109,6 @@ public sealed class NewHireService : INewHireService
             Blocker = FindBlocker(user, state, license, location, officeName),
         };
     }
-
-    /// <summary>
-    /// The service plan that actually decides whether someone can hold a phone number. Granted by
-    /// E5, by Teams Phone Standard and by Teams Phone with Calling Plan - never by E3. Checking the
-    /// service plan rather than the SKU keeps this correct across licensing renames.
-    /// </summary>
-    private const string TeamsPhoneServicePlan = "MCOEV";
-
-    /// <summary>
-    /// Reads the employee's licences from Entra. The telephony database has an <c>e3licensed</c>
-    /// table filled by a nightly import, and reading it would be marginally faster - but it only
-    /// models E3, which this tenant no longer uses, so it reports every E5 user as unlicensed.
-    /// Entra is the source of truth; the import would have to be reworked before the table could be
-    /// trusted again.
-    ///
-    /// A failure here is deliberately not fatal: an unreachable Graph should not stop a run that
-    /// would otherwise succeed, and a genuinely missing licence still surfaces when Teams refuses
-    /// the number.
-    /// </summary>
-    private async Task<TeamsLicenseState> GetLicenseStateAsync(string upn, CancellationToken ct)
-    {
-        try
-        {
-            var licenses = await _graph.GetAllPagesAsync(
-                $"/users/{Uri.EscapeDataString(upn)}/licenseDetails", ct: ct);
-
-            var skus = new List<string>();
-            var provisioned = false;
-            var pending = false;
-
-            foreach (var license in licenses)
-            {
-                var sku = Text(license, "skuPartNumber");
-                if (sku.Length > 0)
-                    skus.Add(sku);
-
-                if (!license.TryGetProperty("servicePlans", out var plans) || plans.ValueKind != JsonValueKind.Array)
-                    continue;
-
-                foreach (var plan in plans.EnumerateArray())
-                {
-                    if (!string.Equals(Text(plan, "servicePlanName"), TeamsPhoneServicePlan, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    // The same plan can appear under several SKUs; one provisioned copy is enough.
-                    if (string.Equals(Text(plan, "provisioningStatus"), "Success", StringComparison.OrdinalIgnoreCase))
-                        provisioned = true;
-                    else
-                        pending = true;
-                }
-            }
-
-            return new TeamsLicenseState
-            {
-                Checked = true,
-                HasTeamsPhone = provisioned,
-                TeamsPhonePending = pending && !provisioned,
-                Skus = skus,
-            };
-        }
-        catch (Exception ex)
-        {
-            return new TeamsLicenseState { Checked = false, Error = ex.Message };
-        }
-    }
-
-    private static string Text(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString() ?? ""
-            : "";
 
     /// <summary>
     /// The one reason this employee cannot be enabled, in the order that matters. The legacy tool
@@ -242,10 +173,27 @@ public sealed class NewHireService : INewHireService
             return await FailAsync(correlationId, request,
                 "The AD account has no mail address, so no SIP address can be derived. Fix the account first.");
 
+        if (request.Range.Type == TeamsNumberType.Unknown)
+            return await FailAsync(correlationId, request,
+                $"The range of {request.PhoneNumber} has no number type (Direct Routing or Operator Connect) in the telephony database.");
+
+        // An Operator Connect number is managed in Teams only; Teams refuses it while the account
+        // still carries an on-premises line URI that Entra Connect syncs up.
+        if (request.IsOperatorConnect && request.User.LineUri is not null)
+            return await FailAsync(correlationId, request,
+                $"The AD account carries a line URI ({request.User.LineUri}). An Operator Connect number cannot be managed on-premises - clear msRTCSIP-Line first.");
+
+        // Re-checked right before the change: the list on screen may be minutes old.
+        var stillFree = await CheckStillFreeAsync(request.Did, ct);
+        if (stillFree is not null)
+            return await FailAsync(correlationId, request, stillFree);
+
+        var typeName = TeamsNumberTypes.CmdletValue(request.Range.Type);
+
         await LogAsync(correlationId, "STAR", "New hire telephony setup has started", request, Severity.Info);
         await LogAsync(correlationId, "INPUT",
             $"User={request.User.UserPrincipalName}; Office={request.Location.Name} ({request.Location.LocationCode}); "
-            + $"Number={request.PhoneNumber}; WriteAd={newHire.WriteAdAttributes}",
+            + $"Number={request.PhoneNumber}; Type={typeName}; WriteAd={newHire.WriteAdAttributes}",
             request, Severity.Info);
 
         // The run is recorded before anything changes, so a run that dies halfway still leaves a
@@ -268,18 +216,23 @@ public sealed class NewHireService : INewHireService
         //
         // Where Entra Connect still synchronises the msRTCSIP-* attributes, on-premises is the
         // authoritative source: a number set only in Teams is overwritten - or cleared - on the next
-        // sync. Writing the same values here first makes that sync a no-op.
+        // sync. Writing the same values here first makes that sync a no-op. An Operator Connect
+        // number gets no msRTCSIP-Line: it is managed in Teams, and a synced line would block it.
         var adResults = new List<AdAttributeResult>();
         if (newHire.WriteAdAttributes)
         {
-            Report(onProgress, "Writing the SIP address and line URI to Active Directory...");
+            Report(onProgress, "Writing the SIP address" + (request.IsOperatorConnect ? "" : " and line URI") + " to Active Directory...");
             try
             {
+                var lineUri = request.IsOperatorConnect ? null : request.LineUri;
                 adResults.AddRange(await _directory.WriteTelephonyAttributesAsync(
-                    request.User, request.LineUri, request.SipAddress, newHire.DeploymentLocator, ct));
+                    request.User, lineUri, request.SipAddress, newHire.DeploymentLocator, ct));
 
                 foreach (var result in adResults)
                     steps.Add(new NewHireStep($"AD {result.Attribute}", result.Value, result.Error));
+
+                if (request.IsOperatorConnect)
+                    steps.Add(NewHireStep.Ok("AD msRTCSIP-Line", "left empty - Operator Connect numbers are managed in Teams"));
             }
             catch (Exception ex)
             {
@@ -293,33 +246,28 @@ public sealed class NewHireService : INewHireService
         }
 
         // --- Teams ---
-        Report(onProgress, $"Assigning {request.PhoneNumber} in Teams...");
-        steps.Add(await TryStepAsync("Phone number", request.PhoneNumber,
-            () => _teams.AssignPhoneNumberAsync(request.User.UserPrincipalName, request.PhoneNumber, newHire.PhoneNumberType, ct)));
+        Report(onProgress, $"Assigning {request.PhoneNumber} ({request.Range.TypeLabel}) in Teams...");
+        steps.Add(await TryStepAsync("Phone number", $"{request.PhoneNumber} ({request.Range.TypeLabel})",
+            () => _teams.AssignPhoneNumberAsync(request.User.UserPrincipalName, request.PhoneNumber, typeName, ct)));
 
-        // All four site policies carry the location code as their name - that is the tenant's naming
-        // convention and how the legacy script granted them.
-        var policies = new (string Name, string Cmdlet, string PolicyName)[]
-        {
-            ("Voice routing policy", "Grant-CsOnlineVoiceRoutingPolicy", request.PolicyName),
-            ("Dial plan", "Grant-CsTenantDialPlan", request.PolicyName),
-            ("Emergency calling policy", "Grant-CsTeamsEmergencyCallingPolicy", request.PolicyName),
-            ("Emergency call routing policy", "Grant-CsTeamsEmergencyCallRoutingPolicy", request.PolicyName),
-            ("Teams upgrade policy", "Grant-CsTeamsUpgradePolicy", newHire.TeamsUpgradePolicyName),
-        };
-
-        foreach (var (name, cmdlet, policyName) in policies)
+        // The site policies carry the location code as their name - the tenant's naming convention
+        // and how the legacy script granted them. Direct Routing gets all four, Operator Connect the
+        // dial plan only (PhonePolicyPlan). No Teams upgrade policy any more: the tenant is Teams
+        // Only and Skype for Business is retired (dropped as in Switchboard, user 2026-10-15).
+        foreach (var (name, cmdlet) in request.VoicePolicies)
         {
             ct.ThrowIfCancellationRequested();
-            Report(onProgress, $"Granting {name} '{policyName}'...");
-            steps.Add(await TryStepAsync(name, policyName,
-                () => _teams.GrantPolicyAsync(cmdlet, request.User.UserPrincipalName, policyName, ct)));
+            Report(onProgress, $"Granting {name} '{request.PolicyName}'...");
+            steps.Add(await TryStepAsync(name, request.PolicyName,
+                () => _teams.GrantPolicyAsync(cmdlet, request.User.UserPrincipalName, request.PolicyName, ct)));
         }
 
         // --- record the endpoint ---
         //
         // The nightly import would eventually pick this up, but not before the next operator has
-        // already handed the same number to somebody else.
+        // already handed the same number to somebody else. Only the policies actually granted are
+        // recorded, so an Operator Connect row does not claim a voice routing policy it never got.
+        string Granted(string cmdlet) => PhonePolicyPlan.Grants(request.Range.Type, cmdlet) ? request.PolicyName : "";
         Report(onProgress, "Recording the endpoint in the telephony database...");
         steps.Add(await TryStepAsync("Telephony inventory", request.PhoneNumber, () =>
             _repository.AddEndpointAsync(new UcEndpoint
@@ -330,14 +278,14 @@ public sealed class NewHireService : INewHireService
                 LineUri = request.LineUri,
                 Did = request.Did,
                 Type = "CsUser",
-                VoicePolicy = request.PolicyName,
-                DialPlan = request.PolicyName,
+                VoicePolicy = Granted(PhonePolicyPlan.VoiceRoutingCmdlet),
+                DialPlan = Granted(PhonePolicyPlan.DialPlanCmdlet),
                 EnterpriseVoiceEnabled = "true",
                 HostedVoiceMail = "true",
-                EmergencyCallingPolicy = request.PolicyName,
-                EmergencyCallRoutingPolicy = request.PolicyName,
+                EmergencyCallingPolicy = Granted(PhonePolicyPlan.EmergencyCallingCmdlet),
+                EmergencyCallRoutingPolicy = Granted(PhonePolicyPlan.EmergencyCallRoutingCmdlet),
                 Office = request.Location.Name,
-            }, ct)));
+            }, typeName, ct: ct)));
 
         // --- read back what Teams actually holds ---
         Report(onProgress, "Reading the configuration back from Teams...");
@@ -359,10 +307,11 @@ public sealed class NewHireService : INewHireService
         // assignment because the number is "managed on-premises". That is not a failed run: the AD
         // write above already put the number where the sync picks it up, so the employee does get
         // their number - it just arrives on the next sync cycle rather than immediately. So the
-        // number counts as delivered if either side accepted it.
+        // number counts as delivered if either side accepted it. Operator Connect has no such
+        // second path - the AD line is deliberately left empty.
         var employeeNotified = false;
         var numberStep = steps.First(s => s.Name == "Phone number");
-        var adLineWritten = steps.Any(s => s.Name == "AD msRTCSIP-Line" && s.Succeeded);
+        var adLineWritten = !request.IsOperatorConnect && steps.Any(s => s.Name == "AD msRTCSIP-Line" && s.Succeeded);
         var numberDelivered = numberStep.Succeeded || adLineWritten;
 
         if (newHire.NotifyEmployee && numberDelivered)
@@ -492,6 +441,17 @@ public sealed class NewHireService : INewHireService
         void Teams(string name, Action<int, string> assign)
         {
             var step = steps.FirstOrDefault(s => s.Name == name);
+
+            // Operator Connect leaves out every policy but the dial plan on purpose; 0 in this table
+            // means "failed", which would send the reports chasing a problem that is not there.
+            var leftOut = PhonePolicyPlan.For(TeamsNumberType.DirectRouting).Any(p => p.Name == name)
+                          && request.VoicePolicies.All(p => p.Name != name);
+            if (step is null && leftOut)
+            {
+                assign(1, "not needed - Operator Connect");
+                return;
+            }
+
             assign(step?.Succeeded == true ? 1 : 0, step?.Error ?? "not attempted");
         }
 
@@ -499,11 +459,34 @@ public sealed class NewHireService : INewHireService
         Teams("Dial plan", (ok, err) => { row.DialPlan = ok; row.DialPlanError = err; });
         Teams("Emergency calling policy", (ok, err) => { row.EmergencyCallingPolicy = ok; row.EmergencyCallingPolicyError = err; });
         Teams("Emergency call routing policy", (ok, err) => { row.EmergencyCallRoutingPolicy = ok; row.EmergencyCallRoutingPolicyError = err; });
-        Teams("Teams upgrade policy", (ok, err) => { row.TeamsUpgradePolicy = ok; row.TeamsUpgradePolicyError = err; });
+        // No longer granted (tenant is Teams Only); 1 so the legacy reports don't count it as failed.
+        row.TeamsUpgradePolicy = 1;
+        row.TeamsUpgradePolicyError = "not needed - tenant is Teams Only";
 
         // "EVEnabled" in the legacy schema means "the user can make calls", which is now the phone
         // number assignment - Set-CsPhoneNumberAssignment enables enterprise voice as part of it.
         Teams("Phone number", (ok, err) => { row.EvEnabled = ok; row.EvEnabledError = err; });
+    }
+
+    /// <summary>
+    /// Null when the number is still free in both the telephony database and Teams, otherwise why
+    /// not. The free list on screen can be minutes old, and an Operator Connect number can sit in
+    /// Teams already assigned while the inventory has not caught up.
+    /// </summary>
+    private async Task<string?> CheckStillFreeAsync(string did, CancellationToken ct)
+    {
+        try
+        {
+            if (!await _repository.IsDidFreeAsync(did, ct))
+                return $"+{did} has been taken in the meantime - go back and choose another number.";
+            if (await _teams.GetNumberHolderAsync($"+{did}", ct) is { } holder)
+                return $"+{did} is already assigned in Teams ({holder}) although the telephony database shows it as free.";
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return $"Could not check whether +{did} is still free: {ex.Message}";
+        }
     }
 
     private static string[] SplitAddresses(string value) =>

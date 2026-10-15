@@ -162,6 +162,14 @@ public sealed class GroupListChangeRequest
 
     /// <summary>Set for Microsoft 365 groups, which use the UnifiedGroupLinks cmdlets for owners.</summary>
     public bool IsUnifiedGroup { get; init; }
+
+    /// <summary>
+    /// Owner Replace only: the current owners to take out (their <see cref="Exchange.OwnerEntry.Identity"/>).
+    /// <see cref="Identities"/> are put in their place; every owner not listed here stays. Required
+    /// for Replace - an owner replace never silently clears the whole list any more (team request
+    /// 2026-10-15).
+    /// </summary>
+    public IReadOnlyList<string> ReplaceIdentities { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>Input for <see cref="IGroupAdminService.RenameAsync"/>.</summary>

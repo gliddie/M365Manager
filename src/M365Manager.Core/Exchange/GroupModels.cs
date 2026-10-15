@@ -1,5 +1,18 @@
 namespace M365Manager.Core.Exchange;
 
+/// <summary>
+/// One current owner of a group: how to show it, and an identity Exchange resolves unambiguously
+/// (primary SMTP address where there is one) - so "replace these owners" names exactly who goes.
+/// </summary>
+/// <param name="DisplayName">"First Last".</param>
+/// <param name="Identity">Primary SMTP address or UPN; the raw ManagedBy value as a last resort.</param>
+public sealed record OwnerEntry(string DisplayName, string Identity)
+{
+    public string Label => string.Equals(DisplayName, Identity, StringComparison.OrdinalIgnoreCase)
+        ? DisplayName
+        : $"{DisplayName} ({Identity})";
+}
+
 /// <summary>Summary of a distribution / security group (from Get-DistributionGroup).</summary>
 public sealed class DistributionGroupInfo
 {

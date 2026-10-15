@@ -142,24 +142,9 @@ public sealed class GroupAdminService : IGroupAdminService
                 .AddParameter("ErrorAction", "Stop"), ct: ct);
             await LogAsync(correlationId, "Create", "CREATE", $"{displayName} ({address})", request.TaskNumber, Severity.Success);
 
-            // 2. MailTip and Notes from the resolved owners.
-            var ownerMailTip = await BuildOwnerMailTipAsync(displayName, correlationId, "Create", request.TaskNumber, ct);
-            var notes = request.IsTemporary && request.RemoveOn is { } removeOn
-                ? $"{ownerMailTip} - Per: {request.TaskNumber} - Remove On: {removeOn:MM/dd/yyyy}"
-                : $"{ownerMailTip} - Per: {request.TaskNumber}";
-
-            await _host.InvokeAsync(ps => ps
-                .AddCommand("Set-DistributionGroup")
-                .AddParameter("Identity", displayName)
-                .AddParameter("MailTip", ownerMailTip)
-                .AddParameter("ErrorAction", "Stop"), ct: ct);
-
-            await _host.InvokeAsync(ps => ps
-                .AddCommand("Set-Group")
-                .AddParameter("Identity", displayName)
-                .AddParameter("Notes", notes)
-                .AddParameter("ErrorAction", "Stop"), ct: ct);
-            await LogAsync(correlationId, "Create", "CFG", $"MailTip and Notes set: {notes}", request.TaskNumber, Severity.Success);
+            // 2. Owner stamp - MailTip, Description and Notes - from the resolved owners.
+            await ApplyOwnerStampAsync(displayName, correlationId, "Create", request.TaskNumber,
+                request.IsTemporary ? request.RemoveOn : null, ct);
 
             // 3. Sender authentication, provenance stamp and any extra aliases.
             await _host.InvokeAsync(ps =>
@@ -357,15 +342,26 @@ public sealed class GroupAdminService : IGroupAdminService
 
             var results = new List<MemberOperationResult>();
 
+            // Replace takes out only the owners the operator picked and puts the new ones in their
+            // place; everyone else stays. It used to overwrite the whole list without saying so.
+            var replaced = request.ReplaceIdentities
+                .Where(i => !string.IsNullOrWhiteSpace(i))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (request.Mode == ListChangeMode.Replace)
+            {
+                if (replaced.Length == 0)
+                    return await FailAsync(correlationId, "ChangeOwners", request.TaskNumber,
+                        "Pick the current owner(s) to replace.");
+                await LogAsync(correlationId, "ChangeOwners", "INPUT",
+                    $"Replacing {string.Join(", ", replaced)} with {string.Join(", ", identities)}", request.TaskNumber, Severity.Info);
+            }
+
             if (request.IsUnifiedGroup)
             {
-                // M365 groups keep owners as links, not as a ManagedBy list.
-                if (request.Mode == ListChangeMode.Replace)
-                    return await FailAsync(correlationId, "ChangeOwners", request.TaskNumber,
-                        "Replace is not supported for Microsoft 365 groups - add the new owners, then remove the old ones.");
-
-                var command = request.Mode == ListChangeMode.Add ? "Add-UnifiedGroupLinks" : "Remove-UnifiedGroupLinks";
-                foreach (var identity in identities)
+                // M365 groups keep owners as links, not as a ManagedBy list: Replace is the new
+                // links first, then the picked ones out - so the group is never left ownerless.
+                async Task LinkAsync(string command, string identity, bool isReplaced)
                 {
                     try
                     {
@@ -376,40 +372,69 @@ public sealed class GroupAdminService : IGroupAdminService
                             .AddParameter("Links", identity)
                             .AddParameter("Confirm", false)
                             .AddParameter("ErrorAction", "Stop"), ct: ct);
-                        results.Add(new MemberOperationResult(identity, true, null));
+                        results.Add(new MemberOperationResult(isReplaced ? $"{identity} (removed)" : identity, true, null));
                     }
                     catch (Exception ex)
                     {
-                        results.Add(new MemberOperationResult(identity, false, ex.Message));
+                        results.Add(new MemberOperationResult(isReplaced ? $"{identity} (removed)" : identity, false, ex.Message));
                     }
                 }
-            }
-            else
-            {
-                results.AddRange(await ApplyListAsync(request.GroupIdentity, "ManagedBy", request.Mode, identities, isDynamic: false, ct));
 
-                // Keep the MailTip/Notes in step with the new owner list, as the legacy scripts did.
+                var command = request.Mode == ListChangeMode.Remove ? "Remove-UnifiedGroupLinks" : "Add-UnifiedGroupLinks";
+                foreach (var identity in identities)
+                    await LinkAsync(command, identity, isReplaced: false);
+
+                if (request.Mode == ListChangeMode.Replace && results.Any(r => r.Succeeded))
+                    foreach (var identity in replaced)
+                        await LinkAsync("Remove-UnifiedGroupLinks", identity, isReplaced: true);
+            }
+            else if (request.Mode == ListChangeMode.Replace)
+            {
+                // One call with add and remove together: Exchange applies both at once, so the
+                // group never passes through an empty or half-changed owner list.
                 try
                 {
-                    var mailTip = await BuildOwnerMailTipAsync(request.GroupIdentity, correlationId, "ChangeOwners", request.TaskNumber, ct);
                     await _host.InvokeAsync(ps => ps
                         .AddCommand("Set-DistributionGroup")
                         .AddParameter("Identity", request.GroupIdentity)
-                        .AddParameter("MailTip", mailTip)
+                        .AddParameter("ManagedBy", new Hashtable { ["add"] = identities, ["remove"] = replaced })
                         .AddParameter("BypassSecurityGroupManagerCheck", true)
                         .AddParameter("ErrorAction", "Stop"), ct: ct);
-                    await LogAsync(correlationId, "ChangeOwners", "UPGTIP", $"MailTip updated to '{mailTip}'", request.TaskNumber, Severity.Success);
+                    results.AddRange(identities.Select(i => new MemberOperationResult(i, true, null)));
+                    results.AddRange(replaced.Select(i => new MemberOperationResult($"{i} (removed)", true, null)));
                 }
                 catch (Exception ex)
                 {
-                    await LogAsync(correlationId, "ChangeOwners", "WARN", $"Could not refresh the MailTip: {ex.Message}", request.TaskNumber, Severity.Warning);
+                    results.AddRange(identities.Concat(replaced).Select(i => new MemberOperationResult(i, false, ex.Message)));
+                }
+            }
+
+            if (!request.IsUnifiedGroup)
+            {
+                if (request.Mode != ListChangeMode.Replace)
+                    results.AddRange(await ApplyListAsync(request.GroupIdentity, "ManagedBy", request.Mode, identities, isDynamic: false, ct));
+
+                // Keep MailTip, Description and Notes in step with the new owner list. The remove
+                // date of a temporary group lives in the Notes only and is not known here, so it is
+                // carried over from the current Notes.
+                try
+                {
+                    var current = await GetDetailsAsync(request.GroupIdentity, ct);
+                    await ApplyOwnerStampAsync(request.GroupIdentity, correlationId, "ChangeOwners", request.TaskNumber,
+                        RemoveOnFromNotes(current?.Notes), ct);
+                }
+                catch (Exception ex)
+                {
+                    await LogAsync(correlationId, "ChangeOwners", "WARN", $"Could not refresh MailTip, Description and Notes: {ex.Message}", request.TaskNumber, Severity.Warning);
                 }
             }
 
             await LogResultsAsync(correlationId, "ChangeOwners", "CHGOWN", "owner", results, request.TaskNumber);
 
-            // Only the owners that actually changed belong in the mail.
-            var changed = results.Where(r => r.Succeeded).Select(r => r.Identity).ToArray();
+            // Only the owners that actually changed belong in the mail - for Replace, the new ones.
+            var changed = results
+                .Where(r => r.Succeeded && !r.Identity.EndsWith(" (removed)", StringComparison.Ordinal))
+                .Select(r => r.Identity).ToArray();
             string? mailWarning = null;
             if (changed.Length > 0)
             {
@@ -880,13 +905,30 @@ public sealed class GroupAdminService : IGroupAdminService
 
         var group = results[0];
 
-        // Unified groups report owners as ManagedBy too, so one path covers both.
+        // Unified groups report owners as ManagedBy too, so one path covers all three kinds. Read
+        // value by value and resolved to display names: read straight off the object, ManagedBy came
+        // back flattened or as bare recipient names (GUIDs for mailboxes here), and the owner line
+        // on the page stayed empty or unreadable (reported by the team 2026-10-15).
+        List<OwnerEntry> ownerEntries;
+        try
+        {
+            ownerEntries = (await ResolveOwnersAsync(groupIdentity, command, new List<string>(), ct))
+                .Select(o => o with { DisplayName = FirstLast(o.DisplayName) })
+                .ToList();
+        }
+        catch
+        {
+            ownerEntries = StrList(group, "ManagedBy").Select(o => new OwnerEntry(o, o)).ToList();
+        }
+        var owners = ownerEntries.Select(o => o.DisplayName).ToList();
+
         return new GroupDetails
         {
             DisplayName = Str(group, "DisplayName"),
             PrimarySmtpAddress = Str(group, "PrimarySmtpAddress"),
             RecipientTypeDetails = type,
-            Owners = StrList(group, "ManagedBy"),
+            Owners = owners,
+            OwnerEntries = ownerEntries,
             AuthorizedSenders = StrList(group, "AcceptMessagesOnlyFromSendersOrMembers"),
             Aliases = StrList(group, "EmailAddresses"),
             RequireSenderAuthenticationEnabled = Bool(group, "RequireSenderAuthenticationEnabled"),
@@ -953,17 +995,10 @@ public sealed class GroupAdminService : IGroupAdminService
                 return await FailAsync(correlationId, "RefreshMailTip", taskNumber,
                     "Microsoft 365 groups keep their owners as links rather than in ManagedBy - their MailTip is not maintained here.");
 
-            var mailTip = await BuildOwnerMailTipAsync(groupIdentity, correlationId, "RefreshMailTip", taskNumber, ct);
+            var mailTip = await ApplyOwnerStampAsync(groupIdentity, correlationId, "RefreshMailTip", taskNumber,
+                RemoveOnFromNotes(details.Notes), ct);
 
-            await _host.InvokeAsync(ps => ps
-                .AddCommand("Set-DistributionGroup")
-                .AddParameter("Identity", groupIdentity)
-                .AddParameter("MailTip", mailTip)
-                .AddParameter("BypassSecurityGroupManagerCheck", true)
-                .AddParameter("ErrorAction", "Stop"), ct: ct);
-
-            await LogAsync(correlationId, "RefreshMailTip", "UPGTIP", $"MailTip set to '{mailTip}'", taskNumber, Severity.Success);
-            await LogAsync(correlationId, "RefreshMailTip", "DONE", "MailTip refresh has completed", taskNumber, Severity.Success);
+            await LogAsync(correlationId, "RefreshMailTip", "DONE", "Owner info refresh has completed", taskNumber, Severity.Success);
 
             return new GroupOperationResult
             {
@@ -980,36 +1015,108 @@ public sealed class GroupAdminService : IGroupAdminService
         }
     }
 
-    /// <summary>"Owners: First Last, ..." from the group's current ManagedBy, capped for Exchange.</summary>
-    private async Task<string> BuildOwnerMailTipAsync(
-        string groupIdentity, Guid correlationId, string action, string taskNumber, CancellationToken ct)
+    /// <summary>
+    /// The group's owners as display names, read live from Exchange. Expanded rather than read off
+    /// the group object: ManagedBy has been observed arriving as one flattened string, and its values
+    /// are recipient names - which in this tenant are GUIDs for mailboxes - so each is resolved.
+    /// </summary>
+    /// <param name="unresolved">Owner values Exchange could not look up; they come back as-is.</param>
+    private async Task<List<string>> ResolveOwnerDisplayNamesAsync(
+        string groupIdentity, string command, List<string> unresolved, CancellationToken ct)
+        => (await ResolveOwnersAsync(groupIdentity, command, unresolved, ct)).Select(o => o.DisplayName).ToList();
+
+    /// <summary>
+    /// The group's owners with their raw display name ("Last, First") and an identity Exchange
+    /// resolves unambiguously - the primary SMTP address, which, unlike the GUID-like recipient name
+    /// ManagedBy carries here, an operator can also recognise.
+    /// </summary>
+    private async Task<List<OwnerEntry>> ResolveOwnersAsync(
+        string groupIdentity, string command, List<string> unresolved, CancellationToken ct)
     {
-        // Expanded rather than read off the group object: ManagedBy has been observed arriving as
-        // one flattened string, which then resolved to nothing and put raw values in the MailTip.
-        var managedBy = await PsValues.ExpandProperty(_host, "Get-DistributionGroup", groupIdentity, "ManagedBy", ct);
-        var names = new List<string>();
-        var unresolved = new List<string>();
+        var managedBy = await PsValues.ExpandProperty(_host, command, groupIdentity, "ManagedBy", ct);
+        var owners = new List<OwnerEntry>();
 
         foreach (var owner in managedBy)
         {
-            // ManagedBy is a recipient name/DN, not an address - resolve it for a readable tip.
             var recipient = await GetRecipientAsync(owner, ct);
             var display = recipient is not null ? Str(recipient, "DisplayName") : "";
+            var smtp = recipient is not null ? Str(recipient, "PrimarySmtpAddress") : "";
 
             if (display.Length == 0)
                 unresolved.Add(owner);
 
-            names.Add(display.Length > 0 ? display : owner.Split('/').Last());
+            owners.Add(new OwnerEntry(
+                display.Length > 0 ? display : owner.Split('/').Last(),
+                smtp.Length > 0 ? smtp : owner));
         }
+
+        return owners;
+    }
+
+    /// <summary>
+    /// "Last, First" (how display names are kept here) becomes "First Last", so a comma-separated
+    /// owner list stays readable - as the team's own script does it (2026-10-15).
+    /// </summary>
+    internal static string FirstLast(string displayName)
+    {
+        var parts = displayName.Split(", ", 2, StringSplitOptions.TrimEntries);
+        return parts.Length == 2 && parts[0].Length > 0 && parts[1].Length > 0 ? $"{parts[1]} {parts[0]}" : displayName.Trim();
+    }
+
+    /// <summary>"Owners: First Last, First Last" from the group's current ManagedBy.</summary>
+    private async Task<string> BuildOwnersTextAsync(
+        string groupIdentity, Guid correlationId, string action, string taskNumber, CancellationToken ct)
+    {
+        var unresolved = new List<string>();
+        var names = await ResolveOwnerDisplayNamesAsync(groupIdentity, "Get-DistributionGroup", unresolved, ct);
 
         // An owner that Exchange itself cannot look up means the value we read is not a usable
         // identity - the symptom that hid the flattened-ManagedBy bug for as long as it did.
         if (unresolved.Count > 0)
             await LogAsync(correlationId, action, "WARN",
-                $"MailTip: {unresolved.Count} of {managedBy.Count} owner value(s) did not resolve to a recipient "
+                $"Owner stamp: {unresolved.Count} of {names.Count} owner value(s) did not resolve to a recipient "
                 + $"and were used as-is: {string.Join(" | ", unresolved)}", taskNumber, Severity.Warning);
 
-        return Truncate("Owners: " + string.Join(", ", names), MailTipLimit);
+        return "Owners: " + string.Join(", ", names.Select(FirstLast));
+    }
+
+    /// <summary>
+    /// Writes the owner stamp - "Owners: First Last, ... - Per: TASK" - into the MailTip, the
+    /// Description and the Notes, as the team's script does it. Before 2026-10-15 an owner change
+    /// only rewrote the MailTip, so Description and Notes went stale.
+    /// </summary>
+    /// <param name="removeOn">Temporary groups: appended to the Notes only, as before.</param>
+    /// <returns>The text written to Description/Notes (without the remove date).</returns>
+    private async Task<string> ApplyOwnerStampAsync(
+        string groupIdentity, Guid correlationId, string action, string taskNumber, DateTime? removeOn, CancellationToken ct)
+    {
+        var owners = await BuildOwnersTextAsync(groupIdentity, correlationId, action, taskNumber, ct);
+        var suffix = $" - Per: {taskNumber}";
+        var stamp = owners + suffix;
+
+        // Exchange truncates a MailTip beyond its limit - shorten the owner list, never the ticket.
+        var mailTip = stamp.Length <= MailTipLimit
+            ? stamp
+            : owners[..Math.Max(0, MailTipLimit - suffix.Length - 3)].TrimEnd(' ', ',') + "..." + suffix;
+
+        await _host.InvokeAsync(ps => ps
+            .AddCommand("Set-DistributionGroup")
+            .AddParameter("Identity", groupIdentity)
+            .AddParameter("MailTip", mailTip)
+            .AddParameter("Description", stamp)
+            .AddParameter("BypassSecurityGroupManagerCheck", true)
+            .AddParameter("ErrorAction", "Stop"), ct: ct);
+
+        var notes = removeOn is { } date ? $"{stamp} - Remove On: {date:MM/dd/yyyy}" : stamp;
+        await _host.InvokeAsync(ps => ps
+            .AddCommand("Set-Group")
+            .AddParameter("Identity", groupIdentity)
+            .AddParameter("Notes", notes)
+            .AddParameter("BypassSecurityGroupManagerCheck", true)
+            .AddParameter("ErrorAction", "Stop"), ct: ct);
+
+        await LogAsync(correlationId, action, "UPGTIP", $"MailTip, Description and Notes set: {notes}", taskNumber, Severity.Success);
+        return stamp;
     }
 
     // ----- SQL cache -----
@@ -1183,6 +1290,16 @@ public sealed class GroupAdminService : IGroupAdminService
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private static string Truncate(string value, int max) => value.Length > max ? value[..max] : value;
+
+    /// <summary>The "Remove On: MM/dd/yyyy" a temporary group carries in its Notes, or null.</summary>
+    private static DateTime? RemoveOnFromNotes(string? notes)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(notes ?? "", @"Remove On:\s*(\d{1,2}/\d{1,2}/\d{4})");
+        return match.Success && DateTime.TryParseExact(match.Groups[1].Value, "M/d/yyyy",
+            System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date)
+            ? date
+            : null;
+    }
 
     private static void Progress(Action<string>? onProgress, string message) => onProgress?.Invoke(message);
 

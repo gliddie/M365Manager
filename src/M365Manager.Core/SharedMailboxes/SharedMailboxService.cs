@@ -97,6 +97,13 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
             var alias = ExchangeNaming.ToAliasSafe(address[..atIndex]);
             Progress(onProgress, $"Mailbox name: {displayName} ({address})");
 
+            // Checked before anything is created: a typo in an extra address must not leave a
+            // half-finished mailbox behind.
+            var extraAddresses = SplitAddresses(request.AdditionalAddresses);
+            var badAddresses = extraAddresses.Where(a => !SmtpPattern().IsMatch(a)).ToList();
+            if (badAddresses.Count > 0)
+                return await FailAsync(correlationId, request.TaskNumber, $"Not an e-mail address: {string.Join(", ", badAddresses)}.");
+
             var existing = await _host.InvokeAsync(ps => ps
                 .AddCommand("Get-Mailbox")
                 .AddParameter("Identity", address)
@@ -161,6 +168,26 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
                 }
             }
 
+            // Extra addresses - the same path as the Aliases tab, so each address is checked against
+            // other recipients and fails alone. A failure is a warning: the mailbox itself is fine.
+            var warnings = new List<string>();
+            if (extraAddresses.Count > 0)
+            {
+                Progress(onProgress, $"Adding {extraAddresses.Count} additional e-mail address(es)...");
+                var aliasResult = await ChangeAliasesAsync(new ChangeSharedMailboxAliasesRequest
+                {
+                    TaskNumber = request.TaskNumber,
+                    MailboxIdentity = address,
+                    Mode = AliasChangeMode.Add,
+                    Addresses = string.Join(", ", extraAddresses),
+                }, ct);
+
+                if (!aliasResult.Succeeded && aliasResult.Failed.Count == 0)
+                    warnings.Add($"The additional addresses could not be added: {aliasResult.ErrorMessage}");
+                else if (aliasResult.Failed.Count > 0)
+                    warnings.Add($"Not every additional address could be added: {string.Join("; ", aliasResult.Failed)}. Use the Aliases tab.");
+            }
+
             // Best-effort: a mailbox that exists but whose owners weren't told is still a success.
             // The failure is reported all the way back to the caller though - it used to be logged
             // only, so a relay/mailbox problem went unnoticed for as long as nobody read the log.
@@ -188,13 +215,16 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
                 edGroupAddress, auGroupAddress, reGroupAddress, string.Join("; ", ownerUpns),
                 !request.AllowExternalSenders, ct);
 
+            if (mailWarning is not null)
+                warnings.Add(mailWarning);
+
             return new SharedMailboxCreationResult
             {
                 Succeeded = true,
                 DisplayName = displayName,
                 PrimarySmtpAddress = address,
                 CorrelationId = correlationId,
-                WarningMessage = mailWarning,
+                WarningMessage = warnings.Count == 0 ? null : string.Join(" ", warnings),
             };
         }
         catch (Exception ex)
@@ -241,6 +271,13 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
             if (newOwnerUpns.Length == 0)
                 return await FailChangeAsync(correlationId, request.TaskNumber, "Enter at least one owner identity.");
 
+            var replacedUpns = request.ReplaceOwnerUpns
+                .Where(u => !string.IsNullOrWhiteSpace(u))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (request.Mode == OwnerChangeMode.Replace && replacedUpns.Length == 0)
+                return await FailChangeAsync(correlationId, request.TaskNumber, "Pick the current owner(s) to replace.");
+
             await LogAsync(correlationId, "ChangeOwner", "INPUT",
                 $"Mailbox={address}; Mode={request.Mode}; Owners={string.Join(", ", newOwnerUpns)}", request.TaskNumber, Severity.Info);
 
@@ -268,9 +305,20 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
                 if (!accessGroups.TryGetValue(tier, out var groupName))
                     continue;
 
-                await ApplyOwnerChangeAsync(groupName, request.Mode, newOwnerUpns, ct);
-                await LogAsync(correlationId, "ChangeOwner", "CHGOWN",
-                    $"{request.Mode} owner(s) {string.Join(", ", newOwnerUpns)} on {groupName}", request.TaskNumber, Severity.Success);
+                if (request.Mode == OwnerChangeMode.Replace)
+                {
+                    var swap = await ReplacePickedOwnersAsync(groupName, replacedUpns, newOwnerUpns, ct);
+                    await LogAsync(correlationId, "ChangeOwner", "CHGOWN",
+                        $"Replaced {(swap.Removed.Count == 0 ? "(none of the picked owners were on this group)" : string.Join(", ", swap.Removed))} "
+                        + $"with {(swap.Added.Count == 0 ? "(already owners)" : string.Join(", ", swap.Added))} on {groupName}",
+                        request.TaskNumber, Severity.Success);
+                }
+                else
+                {
+                    await ApplyOwnerChangeAsync(groupName, request.Mode, newOwnerUpns, ct);
+                    await LogAsync(correlationId, "ChangeOwner", "CHGOWN",
+                        $"{request.Mode} owner(s) {string.Join(", ", newOwnerUpns)} on {groupName}", request.TaskNumber, Severity.Success);
+                }
 
                 // Expanded rather than read off the group object - each value is used as an
                 // identity below, and the property has been seen arriving flattened into one string.
@@ -899,6 +947,67 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
         }
 
         return value.ToString() ?? "";
+    }
+
+    public async Task<IReadOnlyList<Exchange.OwnerEntry>> GetOwnersAsync(string mailboxIdentity, CancellationToken ct = default)
+    {
+        var identity = (mailboxIdentity ?? "").Trim();
+        if (identity.Length == 0)
+            throw new InvalidOperationException("Enter the shared mailbox's display name or address.");
+
+        var (mailbox, error) = await ResolveMailboxAsync(identity, ct);
+        if (mailbox is null)
+            throw new InvalidOperationException(error);
+
+        var displayName = Str(mailbox, "DisplayName");
+        var address = Str(mailbox, "PrimarySmtpAddress");
+        var domain = address.Contains('@') ? address[(address.IndexOf('@') + 1)..] : "";
+
+        var groups = await DiscoverAccessGroupsAsync(address, displayName, domain, ct);
+        var groupName = groups.TryGetValue("ED", out var ed) ? ed : groups.Values.FirstOrDefault()
+            ?? throw new InvalidOperationException($"No .ED/.AU/.RE access group found for '{address}'.");
+
+        var managedBy = await PsValues.ExpandProperty(_host, "Get-DistributionGroup", groupName, "ManagedBy", ct);
+        return (await ResolveOwnerIdentitiesAsync(managedBy, ct))
+            .Select(o => new Exchange.OwnerEntry(Groups.GroupAdminService.FirstLast(o.DisplayName), o.Upn))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Takes the picked owners off one access group and puts the new ones on, in a single call so the
+    /// group never passes through an empty owner list. Only touches what is actually there: an
+    /// access group whose owners differ from .ED loses only the picked ones it really has.
+    /// </summary>
+    private async Task<(List<string> Removed, List<string> Added)> ReplacePickedOwnersAsync(
+        string groupName, IReadOnlyList<string> replacedUpns, string[] newOwnerUpns, CancellationToken ct)
+    {
+        var managedBy = await PsValues.ExpandProperty(_host, "Get-DistributionGroup", groupName, "ManagedBy", ct);
+        var current = await ResolveOwnerIdentitiesAsync(managedBy, ct);
+
+        bool Matches((string Upn, string DisplayName, string Mail) owner, string value) =>
+            string.Equals(owner.Upn, value, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(owner.Mail, value, StringComparison.OrdinalIgnoreCase);
+
+        var removed = current.Where(o => replacedUpns.Any(r => Matches(o, r))).Select(o => o.Upn).ToList();
+        var added = newOwnerUpns.Where(n => !current.Any(o => Matches(o, n))).ToList();
+
+        if (removed.Count > 0 || added.Count > 0)
+        {
+            var change = new Hashtable();
+            if (added.Count > 0)
+                change["add"] = added.ToArray();
+            if (removed.Count > 0)
+                change["remove"] = removed.ToArray();
+
+            await _host.InvokeAsync(ps => ps
+                .AddCommand("Set-DistributionGroup")
+                .AddParameter("Identity", groupName)
+                .AddParameter("ManagedBy", change)
+                .AddParameter("BypassSecurityGroupManagerCheck", true)
+                .AddParameter("ErrorAction", "Stop"), ct: ct);
+        }
+
+        return (removed, added);
     }
 
     private async Task ApplyOwnerChangeAsync(string groupName, OwnerChangeMode mode, string[] owners, CancellationToken ct)

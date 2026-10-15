@@ -17,6 +17,13 @@ public interface ISharedMailboxService
     Task<ChangeSharedMailboxOwnerResult> ChangeOwnerAsync(ChangeSharedMailboxOwnerRequest request, CancellationToken ct = default);
 
     /// <summary>
+    /// The mailbox's current owners - the ManagedBy of its .ED group, the authoritative owner list -
+    /// for picking which to replace. Throws with an operator-facing message when the mailbox or its
+    /// groups cannot be found.
+    /// </summary>
+    Task<IReadOnlyList<Exchange.OwnerEntry>> GetOwnersAsync(string mailboxIdentity, CancellationToken ct = default);
+
+    /// <summary>
     /// Reads back what a rename would touch - the mailbox's current name/address/alias and the
     /// .ED/.AU/.RE access groups it actually has - without changing anything. The rename form shows
     /// this before the operator confirms, the way the legacy script's second dialog did.

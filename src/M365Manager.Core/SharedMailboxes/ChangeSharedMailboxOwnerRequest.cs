@@ -22,6 +22,14 @@ public sealed class ChangeSharedMailboxOwnerRequest
 
     public required OwnerChangeMode Mode { get; init; }
 
-    /// <summary>Comma-separated owner identities (SamAccountName, UPN or e-mail) to add, remove, or replace the current owners with.</summary>
+    /// <summary>Comma-separated owner identities (SamAccountName, UPN or e-mail) to add, remove, or replace the picked owners with.</summary>
     public required string OwnerIdentities { get; init; }
+
+    /// <summary>
+    /// Replace only: the current owners (UPNs, from <see cref="ISharedMailboxService.GetOwnersAsync"/>)
+    /// to take out on every access group; <see cref="OwnerIdentities"/> go in their place and every
+    /// other owner stays. Required for Replace - it used to overwrite the whole owner list on all
+    /// groups without saying so (team request 2026-10-15).
+    /// </summary>
+    public IReadOnlyList<string> ReplaceOwnerUpns { get; init; } = Array.Empty<string>();
 }

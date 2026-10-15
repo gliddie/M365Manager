@@ -281,14 +281,53 @@
                                                          Text="{Binding OwnerIdentities, UpdateSourceTrigger=PropertyChanged}" />
                                             </StackPanel>
                                             <TextBlock Style="{StaticResource FieldHint}" Margin="0,0,0,12"
-                                                       Text="Comma-separated SamAccountName, UPN or e-mail address." />
+                                                       Text="Comma-separated SamAccountName, UPN or e-mail address. Add and Remove change only the owners you type; Replace swaps the owners you tick below for them." />
+
+                                            <!-- Replace: which current owners go. Ticked ones are taken out, the typed
+                                                 ones put in their place, everyone else stays (team request 2026-10-15 -
+                                                 it used to replace every owner without saying so). -->
+                                            <StackPanel Visibility="{Binding IsOwnerReplace, Converter={StaticResource BoolToVisible}}"
+                                                        Margin="0,0,0,12">
+                                                <TextBlock Style="{StaticResource FieldLabel}" Text="Owners to replace" />
+                                                <Border Style="{StaticResource Inset}" Padding="12">
+                                                    <Grid>
+                                                        <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto">
+                                                            <ItemsControl ItemsSource="{Binding OwnerReplaceChoices}"
+                                                                          AutomationProperties.Name="Owners to replace">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,4"
+                                                                                  Content="{Binding Label}"
+                                                                                  AutomationProperties.Name="{Binding Label}"
+                                                                                  IsChecked="{Binding IsSelected}" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </ScrollViewer>
+                                                        <TextBlock Text="(the group has no owners to replace)">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding OwnerReplaceChoices.Count}" Value="0">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Grid>
+                                                </Border>
+                                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,0"
+                                                           Text="Tick one or more. Unticked owners stay owners. You are asked to confirm before anything changes." />
+                                            </StackPanel>
                                             <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
                                                 <Button Style="{StaticResource PrimaryButton}" Content="App_ly owner change"
                                                         Command="{Binding ChangeOwnersCommand}"
                                                         IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
-                                                <Button Style="{StaticResource GhostButton}" Content="Refresh _MailTip"
+                                                <Button Style="{StaticResource GhostButton}" Content="Refresh owner _info"
                                                         Margin="{DynamicResource GapInline}"
-                                                        ToolTip="Rebuilds the MailTip from the current owners. Repairs one that still shows raw directory values."
+                                                        ToolTip="Rewrites MailTip, Description and Notes as 'Owners: First Last, ... - Per: TASK' from the current owners. An owner change does this automatically."
                                                         Command="{Binding RefreshMailTipCommand}"
                                                         IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
                                             </StackPanel>

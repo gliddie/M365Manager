@@ -31,6 +31,9 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
     [ObservableProperty] private string _readerMembers = "";
     [ObservableProperty] private bool _allowExternalSenders;
 
+    /// <summary>Extra SMTP addresses for the new mailbox, comma-separated (team request 2026-10-15).</summary>
+    [ObservableProperty] private string _additionalAddresses = "";
+
     [ObservableProperty] private string _previewName = "";
     [ObservableProperty] private string _previewAddress = "";
 
@@ -210,6 +213,8 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
             : value.PrimarySmtpAddress;
 
         ChangeOwnerMailboxAddress = identity;
+        if (ChangeOwnerMode == OwnerChangeMode.Replace)
+            _ = LoadChangeOwnerOwnersAsync(); // a row pick is deliberate - show who could be replaced
         AliasMailboxIdentity = identity;
         RenameMailboxIdentity = identity;
         RemoveMailboxIdentity = identity;
@@ -436,6 +441,7 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
             // operator's correction of it.
             DisplayNameOverride = PreviewName.Trim(),
             AddressOverride = PreviewAddress.Trim(),
+            AdditionalAddresses = AdditionalAddresses.Trim(),
         };
 
         IsBusy = true;
@@ -489,6 +495,7 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
         AuthorMembers = "";
         ReaderMembers = "";
         AllowExternalSenders = false;
+        AdditionalAddresses = "";
         IsPreviewNameEdited = false;
         IsPreviewAddressEdited = false;
         ApplyPreview("", "");
@@ -513,12 +520,38 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
             return;
         }
 
+        // Replace names exactly who goes: the ticked owners. Everyone else stays.
+        var replaced = ChangeOwnerReplaceChoices.Where(o => o.IsSelected).Select(o => o.Owner).ToList();
+        if (ChangeOwnerMode == OwnerChangeMode.Replace)
+        {
+            if (replaced.Count == 0)
+            {
+                ChangeOwnerStatus(ChangeOwnerReplaceChoices.Count == 0
+                        ? "Load the current owners first, then tick the one(s) to replace."
+                        : "Tick the current owner(s) to replace.",
+                    AlertSeverity.Error);
+                return;
+            }
+
+            var staying = ChangeOwnerReplaceChoices.Where(o => !o.IsSelected).Select(o => o.Owner.DisplayName).ToList();
+            if (!_dialogs.ConfirmDestructive(
+                    $"Replace {replaced.Count} owner(s) of {ChangeOwnerMailboxAddress.Trim()}?",
+                    $"{string.Join(", ", replaced.Select(o => o.DisplayName))} will no longer be owner(s) of the mailbox's "
+                    + $".ED/.AU/.RE access groups. {ChangeOwnerIdentities.Trim()} will be added.",
+                    "Replace owners",
+                    staying.Count == 0 ? "No other owner stays." : $"Staying owner(s): {string.Join(", ", staying)}"))
+                return;
+        }
+
         var request = new ChangeSharedMailboxOwnerRequest
         {
             TaskNumber = ChangeOwnerTaskNumber.Trim(),
             MailboxAddress = ChangeOwnerMailboxAddress.Trim(),
             Mode = ChangeOwnerMode,
             OwnerIdentities = ChangeOwnerIdentities.Trim(),
+            ReplaceOwnerUpns = ChangeOwnerMode == OwnerChangeMode.Replace
+                ? replaced.Select(o => o.Identity).ToList()
+                : Array.Empty<string>(),
         };
 
         IsChangingOwner = true;
@@ -537,11 +570,68 @@ public sealed partial class SharedMailboxesViewModel : ObservableObject, ITabbed
             {
                 ChangeOwnerIdentities = "";
                 _ = RefreshOverviewAsync();
+                if (ChangeOwnerMode == OwnerChangeMode.Replace)
+                    _ = LoadChangeOwnerOwnersAsync(); // show the owner list as it is now
             }
         }
         catch (Exception ex)
         {
             ChangeOwnerStatus($"Owner change failed: {ex.Message}", AlertSeverity.Error);
+        }
+        finally
+        {
+            IsChangingOwner = false;
+        }
+    }
+
+    // ----- Owner replace: which owners go -----
+
+    /// <summary>The mailbox's current owners (its .ED group), ticked = taken out by Replace.</summary>
+    public ObservableCollection<SelectableOwner> ChangeOwnerReplaceChoices { get; } = new();
+
+    public bool IsChangeOwnerReplace => ChangeOwnerMode == OwnerChangeMode.Replace;
+
+    partial void OnChangeOwnerModeChanged(OwnerChangeMode value)
+    {
+        OnPropertyChanged(nameof(IsChangeOwnerReplace));
+        if (value == OwnerChangeMode.Replace && ChangeOwnerReplaceChoices.Count == 0
+            && !string.IsNullOrWhiteSpace(ChangeOwnerMailboxAddress))
+            _ = LoadChangeOwnerOwnersAsync();
+    }
+
+    /// <summary>A list loaded for one mailbox must never be applied to another.</summary>
+    partial void OnChangeOwnerMailboxAddressChanged(string value) => ChangeOwnerReplaceChoices.Clear();
+
+    [RelayCommand]
+    private async Task LoadChangeOwnerOwnersAsync()
+    {
+        var mailbox = ChangeOwnerMailboxAddress.Trim();
+        if (mailbox.Length == 0)
+        {
+            ChangeOwnerStatus("Enter the shared mailbox's display name or address.", AlertSeverity.Error);
+            return;
+        }
+
+        IsChangingOwner = true;
+        ChangeOwnerStatusMessage = $"Reading the current owners of {mailbox}...";
+        try
+        {
+            var owners = await _sharedMailboxes.GetOwnersAsync(mailbox);
+            if (!string.Equals(mailbox, ChangeOwnerMailboxAddress.Trim(), StringComparison.OrdinalIgnoreCase))
+                return; // the operator moved on to another mailbox
+
+            ChangeOwnerReplaceChoices.Clear();
+            foreach (var owner in owners)
+                ChangeOwnerReplaceChoices.Add(new SelectableOwner(owner));
+
+            ChangeOwnerStatus(owners.Count == 0
+                    ? $"{mailbox} has no owners on its .ED group."
+                    : $"{owners.Count} current owner(s). Tick the one(s) to replace.",
+                owners.Count == 0 ? AlertSeverity.Warning : AlertSeverity.Info);
+        }
+        catch (Exception ex)
+        {
+            ChangeOwnerStatus($"Could not read the owners: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {

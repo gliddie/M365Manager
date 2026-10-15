@@ -111,6 +111,13 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
     [ObservableProperty] private string _manageStatusMessage = "";
 
     [ObservableProperty] private ListChangeMode _ownerChangeMode = ListChangeMode.Add;
+
+    /// <summary>The selected group's current owners, ticked = taken out by Replace.</summary>
+    public ObservableCollection<SelectableOwner> OwnerReplaceChoices { get; } = new();
+
+    public bool IsOwnerReplace => OwnerChangeMode == ListChangeMode.Replace;
+
+    partial void OnOwnerChangeModeChanged(ListChangeMode value) => OnPropertyChanged(nameof(IsOwnerReplace));
     [ObservableProperty] private string _ownerIdentities = "";
 
     [ObservableProperty] private ListChangeMode _senderChangeMode = ListChangeMode.Add;
@@ -236,6 +243,7 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
         OwnersText = "";
         NewMemberAddress = "";
         MemberFilterText = "";
+        ClearTicketFields();
 
         IsBusy = true;
         StatusMessage = $"Searching for '{SearchText}'...";
@@ -271,7 +279,19 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
         NewMemberAddress = "";
         MemberFilterText = "";
         _selectedMembers = Array.Empty<GroupMemberInfo>();
+        ClearTicketFields();
         StatusMessage = "Search cleared.";
+    }
+
+    /// <summary>
+    /// A new search is a new ticket: the previous task number and requester must not carry over
+    /// into the next group's changes and audit entries (requested by the team 2026-10-15). Kept
+    /// while working on one search, so several changes for the same ticket need it typed once.
+    /// </summary>
+    private void ClearTicketFields()
+    {
+        ManageTaskNumber = "";
+        ManageRequesterIdentity = "";
     }
 
     partial void OnSelectedGroupChanged(DistributionGroupInfo? value)
@@ -777,6 +797,7 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
         CurrentAliases = "";
         RenameNewName = "";
         RenameNewAddress = "";
+        OwnerReplaceChoices.Clear();
 
         if (group is null)
             return;
@@ -798,6 +819,16 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
 
             RenameNewName = details.DisplayName;
             RenameNewAddress = details.PrimarySmtpAddress;
+
+            // Live from Exchange, resolved to names - the cached ManagedBy shown on selection can be
+            // empty or hold raw recipient names (reported by the team 2026-10-15).
+            if (ReferenceEquals(group, SelectedGroup))
+            {
+                OwnersText = details.Owners.Count == 0 ? "(none)" : string.Join(", ", details.Owners);
+                OwnerReplaceChoices.Clear();
+                foreach (var owner in details.OwnerEntries)
+                    OwnerReplaceChoices.Add(new SelectableOwner(owner));
+            }
         }
         catch (Exception ex)
         {
@@ -848,12 +879,45 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
         if (!ValidateManage(out var error)) { ManageStatusMessage = error; return; }
         if (string.IsNullOrWhiteSpace(OwnerIdentities)) { ManageStatusMessage = "Enter at least one owner."; return; }
 
+        // Replace names exactly who goes: the ticked owners. Everyone else stays.
+        var replaced = OwnerReplaceChoices.Where(o => o.IsSelected).Select(o => o.Owner).ToList();
+        if (OwnerChangeMode == ListChangeMode.Replace)
+        {
+            if (replaced.Count == 0)
+            {
+                ManageStatus("Tick the current owner(s) to replace.", AlertSeverity.Error);
+                return;
+            }
+
+            var staying = OwnerReplaceChoices.Where(o => !o.IsSelected).Select(o => o.Owner.DisplayName).ToList();
+            if (!_dialogs.ConfirmDestructive(
+                    $"Replace {replaced.Count} owner(s) of {SelectedGroup!.DisplayName}?",
+                    $"{string.Join(", ", replaced.Select(o => o.DisplayName))} will no longer be owner(s). "
+                    + $"{OwnerIdentities.Trim()} will be added.",
+                    "Replace owners",
+                    staying.Count == 0 ? "No other owner stays." : $"Staying owner(s): {string.Join(", ", staying)}"))
+                return;
+        }
+
         IsManageBusy = true;
         ManageStatusMessage = "Applying owner change...";
         Transcript.BeginOperation($"{OwnerChangeMode} owner(s) on {SelectedGroup!.DisplayName}");
         try
         {
-            var result = await _groupAdmin.ChangeOwnersAsync(BuildListRequest(OwnerChangeMode, OwnerIdentities));
+            var request = BuildListRequest(OwnerChangeMode, OwnerIdentities);
+            if (OwnerChangeMode == ListChangeMode.Replace)
+                request = new GroupListChangeRequest
+                {
+                    TaskNumber = request.TaskNumber,
+                    RequesterIdentity = request.RequesterIdentity,
+                    GroupIdentity = request.GroupIdentity,
+                    Mode = request.Mode,
+                    Identities = request.Identities,
+                    IsUnifiedGroup = request.IsUnifiedGroup,
+                    ReplaceIdentities = replaced.Select(o => o.Identity).ToList(),
+                };
+
+            var result = await _groupAdmin.ChangeOwnersAsync(request);
             ReportManage(result, $"Owners updated ({OwnerChangeMode}).");
             if (result.Succeeded)
             {
@@ -984,8 +1048,8 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
         if (!ValidateManage(out var error)) { ManageStatusMessage = error; return; }
 
         IsManageBusy = true;
-        ManageStatusMessage = "Rebuilding the MailTip from the current owners...";
-        Transcript.BeginOperation($"Refresh MailTip: {SelectedGroup!.DisplayName}");
+        ManageStatusMessage = "Rewriting MailTip, Description and Notes from the current owners...";
+        Transcript.BeginOperation($"Refresh owner info: {SelectedGroup!.DisplayName}");
         try
         {
             var result = await _groupAdmin.RefreshMailTipAsync(
@@ -994,12 +1058,14 @@ public sealed partial class GroupsViewModel : ObservableObject, ITabbedPage
             ManageStatusSeverity = result.Succeeded ? AlertSeverity.Success : AlertSeverity.Error;
 
             ManageStatusMessage = result.Succeeded
-                ? $"MailTip is now: {result.Info}"
-                : $"MailTip refresh failed: {result.ErrorMessage}";
+                ? $"MailTip, Description and Notes are now: {result.Info}"
+                : $"Owner info refresh failed: {result.ErrorMessage}";
+            if (result.Succeeded)
+                await LoadGroupDetailsAsync(SelectedGroup);
         }
         catch (Exception ex)
         {
-            ManageStatus($"MailTip refresh failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
+            ManageStatus($"Owner info refresh failed: {ErrorText.Describe(ex)}", AlertSeverity.Error);
         }
         finally
         {

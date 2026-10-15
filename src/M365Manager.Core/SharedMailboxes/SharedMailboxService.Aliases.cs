@@ -40,13 +40,7 @@ public sealed partial class SharedMailboxService
             if (string.IsNullOrWhiteSpace(request.TaskNumber))
                 return await FailAliasesAsync(correlationId, request.TaskNumber, "Enter the ticket/task number authorizing this change.");
 
-            var addresses = (request.Addresses ?? "")
-                .Split(new[] { ',', ';', ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(a => a.Trim().TrimStart('<').TrimEnd('>'))
-                .Select(a => a.StartsWith("smtp:", StringComparison.OrdinalIgnoreCase) ? a[5..] : a)
-                .Where(a => a.Length > 0)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var addresses = SplitAddresses(request.Addresses);
 
             if (addresses.Count == 0)
                 return await FailAliasesAsync(correlationId, request.TaskNumber, "Enter at least one e-mail address.");
@@ -252,6 +246,19 @@ public sealed partial class SharedMailboxService
 
     [GeneratedRegex(@"^[^@\s]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$")]
     private static partial Regex SmtpPattern();
+
+    /// <summary>
+    /// Addresses as typed or pasted: separated by commas, semicolons, spaces or line breaks; an
+    /// Outlook-style "&lt;a@b&gt;" or an "smtp:" prefix is stripped. Shared by the Aliases tab and
+    /// the creation form, so both read input the same way.
+    /// </summary>
+    private static List<string> SplitAddresses(string? text) => (text ?? "")
+        .Split(new[] { ',', ';', ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+        .Select(a => a.Trim().TrimStart('<').TrimEnd('>'))
+        .Select(a => a.StartsWith("smtp:", StringComparison.OrdinalIgnoreCase) ? a[5..] : a)
+        .Where(a => a.Length > 0)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
 
     private async Task<ChangeSharedMailboxAliasesResult> FailAliasesAsync(Guid correlationId, string taskNumber, string message)
     {

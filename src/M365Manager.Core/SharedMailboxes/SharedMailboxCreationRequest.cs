@@ -57,4 +57,11 @@ public sealed class SharedMailboxCreationRequest
     /// computed one". The alias is always derived from this address and sanitized.
     /// </summary>
     public string AddressOverride { get; init; } = "";
+
+    /// <summary>
+    /// Extra SMTP addresses (aliases) for the new mailbox, comma-separated - added right after it is
+    /// created, through the same checks as the Aliases tab (format, "already used by"). Requested
+    /// by the team 2026-10-15. Empty adds none.
+    /// </summary>
+    public string AdditionalAddresses { get; init; } = "";
 }

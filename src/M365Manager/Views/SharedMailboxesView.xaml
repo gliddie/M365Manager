@@ -210,13 +210,56 @@
                                                       ItemsSource="{Binding Source={StaticResource OwnerChangeModes}}"
                                                       SelectedItem="{Binding ChangeOwnerMode}" />
 
+                                            <!-- Replace: which current owners go. Ticked ones are taken out, the typed
+                                                 ones put in their place, everyone else stays (team request 2026-10-15 -
+                                                 it used to replace every owner on every access group without saying so). -->
+                                            <StackPanel Visibility="{Binding IsChangeOwnerReplace, Converter={StaticResource BoolToVisible}}"
+                                                        Margin="{DynamicResource GapField}">
+                                                <TextBlock Style="{StaticResource FieldLabel}" Text="Owners to replace" />
+                                                <Border Style="{StaticResource Inset}" Padding="12" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto">
+                                                            <ItemsControl ItemsSource="{Binding ChangeOwnerReplaceChoices}"
+                                                                          AutomationProperties.Name="Owners to replace">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,4"
+                                                                                  Content="{Binding Label}"
+                                                                                  AutomationProperties.Name="{Binding Label}"
+                                                                                  IsChecked="{Binding IsSelected}" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </ScrollViewer>
+                                                        <TextBlock Text="(not loaded yet - pick a mailbox on the left or click Load current owners)">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding ChangeOwnerReplaceChoices.Count}" Value="0">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Grid>
+                                                </Border>
+                                                <Button Style="{StaticResource SecondaryButton}" Content="Load current _owners"
+                                                        HorizontalAlignment="Left"
+                                                        Command="{Binding LoadChangeOwnerOwnersCommand}"
+                                                        IsEnabled="{Binding IsChangingOwner, Converter={StaticResource InverseBool}}" />
+                                                <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,0"
+                                                           Text="Read from the mailbox's .ED group. Tick one or more: they are replaced on every access group by the owner(s) above; unticked owners stay. You are asked to confirm first." />
+                                            </StackPanel>
+
                                             <Button Style="{StaticResource PrimaryButton}" Content="_Change owner"
                                                     HorizontalAlignment="Left"
                                                     Command="{Binding ChangeOwnerCommand}"
                                                     IsEnabled="{Binding IsChangingOwner, Converter={StaticResource InverseBool}}" />
 
                                             <TextBlock Style="{StaticResource FieldHint}" Margin="0,12,0,0"
-                                                       Text="Applies to whichever of the mailbox's .ED/.AU/.RE access groups exist, then refreshes their MailTip and notifies the resulting owners." />
+                                                       Text="Applies to whichever of the mailbox's .ED/.AU/.RE access groups exist, then refreshes their MailTip and notifies the resulting owners. Add and Remove change only the owners you type; Replace swaps the owners you tick." />
 
                                             <ProgressBar Style="{StaticResource BusyBar}" Margin="0,12,0,0"
                                                          Visibility="{Binding IsChangingOwner, Converter={StaticResource BoolToVisible}}" />
@@ -536,6 +579,12 @@
                                      Text="{Binding ReaderMembers, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
                                        Text="Only created when you name at least one member." />
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Additional e-mail addresses (optional)" />
+                            <TextBox AutomationProperties.Name="Additional e-mail addresses" Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding AdditionalAddresses, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                       Text="Comma-separated full addresses, e.g. sales@ul.com. Added as aliases right after the mailbox is created; an address another recipient already uses is reported, not taken." />
 
                             <CheckBox Style="{StaticResource ModernCheckBox}" Margin="0,0,0,20"
                                       Content="Allow external senders"

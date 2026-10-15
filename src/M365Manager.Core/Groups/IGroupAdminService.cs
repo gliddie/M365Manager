@@ -1,3 +1,5 @@
+using M365Manager.Core.Exchange;
+
 namespace M365Manager.Core.Groups;
 
 /// <summary>
@@ -57,6 +59,10 @@ public sealed class GroupDetails
     public string PrimarySmtpAddress { get; init; } = "";
     public string RecipientTypeDetails { get; init; } = "";
     public IReadOnlyList<string> Owners { get; init; } = Array.Empty<string>();
+
+    /// <summary>The same owners with an identity Exchange resolves - for picking which to replace.</summary>
+    public IReadOnlyList<OwnerEntry> OwnerEntries { get; init; } = Array.Empty<OwnerEntry>();
+
     public IReadOnlyList<string> AuthorizedSenders { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> Aliases { get; init; } = Array.Empty<string>();
     public bool RequireSenderAuthenticationEnabled { get; init; }

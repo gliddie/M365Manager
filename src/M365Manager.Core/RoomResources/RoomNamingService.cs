@@ -17,6 +17,28 @@ public sealed class RoomNamingService : IRoomNamingService
         _repository = repository;
     }
 
+    /// <summary>
+    /// The address, alias or UPN with its capacity segment swapped: "BRM.Flr2.MeetingRoom.10@x"
+    /// becomes "BRM.Flr2.MeetingRoom.12@x". Only the trailing ".&lt;current capacity&gt;" of the local
+    /// part is touched, unlike a rename, which rebuilds the whole address from the convention and
+    /// would rewrite older spellings ("Flr2"), the domain and the room's groups along with it.
+    /// Null when the local part does not end in the current capacity - the name carries none.
+    /// </summary>
+    public static string? WithCapacity(string identifier, int? currentCapacity, int newCapacity)
+    {
+        if (currentCapacity is null || string.IsNullOrWhiteSpace(identifier))
+            return null;
+
+        var at = identifier.IndexOf('@');
+        var local = at < 0 ? identifier : identifier[..at];
+        var domain = at < 0 ? "" : identifier[at..];
+        var suffix = "." + currentCapacity.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (!local.EndsWith(suffix, StringComparison.Ordinal))
+            return null;
+
+        return local[..^suffix.Length] + "." + newCapacity.ToString(System.Globalization.CultureInfo.InvariantCulture) + domain;
+    }
+
     public async Task<RoomNames> BuildAsync(
         string rawName,
         ResourceKind kind,

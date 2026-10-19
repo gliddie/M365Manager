@@ -942,25 +942,42 @@ public sealed partial class RoomResourceService : IRoomResourceService
             if (mailbox is null)
                 return await FailUpdateAsync(correlationId, request.TaskNumber, $"No mailbox found for '{address}'.");
 
+            // The cache row is still keyed on this one until the update below rewrites it.
+            var originalAddress = address;
             var changes = new List<string>();
 
             // The audit log wants the exact values; the confirmation e-mail goes to someone who
             // just wants to know what changed, so it gets its own plain-English list.
             var readableChanges = new List<string>();
+            var warnings = new List<string>();
+            string? newAddress = null;
+            string? newAlias = null;
 
             if (request.Kind == ResourceKind.Room && !string.IsNullOrWhiteSpace(request.Capacity))
             {
-                if (!int.TryParse(request.Capacity.Trim(), out var capacity))
-                    return await FailUpdateAsync(correlationId, request.TaskNumber, "Room capacity must be a number.");
+                if (!int.TryParse(request.Capacity.Trim(), out var capacity) || capacity <= 0)
+                    return await FailUpdateAsync(correlationId, request.TaskNumber, "Room capacity must be a positive number.");
 
-                Progress(onProgress, "Updating capacity...");
-                await _host.InvokeAsync(ps => ps
-                    .AddCommand("Set-Mailbox")
-                    .AddParameter("Identity", address)
-                    .AddParameter("ResourceCapacity", capacity)
-                    .AddParameter("ErrorAction", "Stop"), ct: ct);
-                changes.Add($"capacity={capacity}");
-                readableChanges.Add($"The capacity is now {capacity} people.");
+                var currentCapacity = int.TryParse(Str(mailbox, "ResourceCapacity"), out var cc) ? cc : (int?)null;
+
+                // The form always sends the capacity it was pre-filled with, so an unchanged value
+                // is not a change - and must not touch the address below.
+                if (capacity != currentCapacity)
+                {
+                    var capacityResult = await ChangeCapacityAsync(correlationId, request.TaskNumber, mailbox, currentCapacity, capacity, onProgress, ct);
+                    if (capacityResult.Error is not null)
+                        return await FailUpdateAsync(correlationId, request.TaskNumber, capacityResult.Error);
+
+                    changes.AddRange(capacityResult.Changes);
+                    readableChanges.AddRange(capacityResult.ReadableChanges);
+                    warnings.AddRange(capacityResult.Warnings);
+                    newAddress = capacityResult.NewAddress;
+                    newAlias = capacityResult.NewAlias;
+
+                    // Everything below works on the room under its new address.
+                    if (newAddress is not null)
+                        address = newAddress;
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(request.TimeZone))
@@ -1021,7 +1038,10 @@ public sealed partial class RoomResourceService : IRoomResourceService
 
             await LogAsync(correlationId, "UpdateDetails", "DONE", "Room/resource detail change has completed", request.TaskNumber, Severity.Success);
 
-            await UpdateCacheDetailsAsync(address, request, ct);
+            await UpdateCacheDetailsAsync(originalAddress, request, newAddress, newAlias, ct);
+
+            if (mailWarning is not null)
+                warnings.Add(mailWarning);
 
             return new RoomResourceCreationResult
             {
@@ -1029,7 +1049,7 @@ public sealed partial class RoomResourceService : IRoomResourceService
                 DisplayName = displayName,
                 PrimarySmtpAddress = address,
                 CorrelationId = correlationId,
-                WarningMessage = mailWarning,
+                WarningMessage = warnings.Count == 0 ? null : string.Join(" ", warnings),
             };
         }
         catch (Exception ex)
@@ -1632,7 +1652,7 @@ public sealed partial class RoomResourceService : IRoomResourceService
         }
     }
 
-    private async Task UpdateCacheDetailsAsync(string address, RoomDetailsUpdateRequest request, CancellationToken ct)
+    private async Task UpdateCacheDetailsAsync(string address, RoomDetailsUpdateRequest request, string? newAddress, string? newAlias, CancellationToken ct)
     {
         var cs = _connectionStrings.GetConnectionString();
         if (string.IsNullOrWhiteSpace(cs))
@@ -1646,6 +1666,8 @@ public sealed partial class RoomResourceService : IRoomResourceService
             // COALESCE keeps whatever the caller left blank untouched.
             const string sql = """
                 UPDATE dbo.RoomResources SET
+                    PrimarySmtpAddress = COALESCE(@NewAddress, PrimarySmtpAddress),
+                    Alias = COALESCE(@NewAlias, Alias),
                     Capacity = COALESCE(@Capacity, Capacity),
                     TimeZone = COALESCE(@TimeZone, TimeZone),
                     BookingPolicy = COALESCE(@BookingPolicy, BookingPolicy),
@@ -1660,6 +1682,8 @@ public sealed partial class RoomResourceService : IRoomResourceService
 
             await using var cmd = new SqlCommand(sql, conn);
             cmd.Parameters.Add("@Address", SqlDbType.NVarChar, 256).Value = address;
+            cmd.Parameters.Add("@NewAddress", SqlDbType.NVarChar, 256).Value = NullableParam(newAddress);
+            cmd.Parameters.Add("@NewAlias", SqlDbType.NVarChar, 128).Value = NullableParam(newAlias);
             cmd.Parameters.Add("@Capacity", SqlDbType.Int).Value =
                 int.TryParse(request.Capacity?.Trim(), out var cap) ? cap : DBNull.Value;
             cmd.Parameters.Add("@TimeZone", SqlDbType.NVarChar, 128).Value = NullableParam(request.TimeZone);

@@ -497,18 +497,8 @@ public sealed partial class RoomResourceService
     }
 
     /// <summary>Display name of a recipient answering to <paramref name="identity"/> that is not this room, or null.</summary>
-    private async Task<string?> RecipientOtherThanAsync(string identity, RoomRenameLookup current, CancellationToken ct)
-    {
-        var matches = await _host.InvokeAsync(ps => ps
-            .AddCommand("Get-Recipient")
-            .AddParameter("Identity", identity)
-            .AddParameter("ErrorAction", "SilentlyContinue"), ct: ct);
-
-        var other = matches.FirstOrDefault(m =>
-            !string.Equals(Str(m, "ExchangeGuid"), current.ExchangeGuid.ToString(), StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(Str(m, "PrimarySmtpAddress"), current.PrimarySmtpAddress, StringComparison.OrdinalIgnoreCase));
-        return other is null ? null : Str(other, "DisplayName");
-    }
+    private Task<string?> RecipientOtherThanAsync(string identity, RoomRenameLookup current, CancellationToken ct) =>
+        RecipientOtherThanAsync(identity, current.ExchangeGuid.ToString(), current.PrimarySmtpAddress, ct);
 
     /// <summary>
     /// Renames one of the room's own groups in place: name, display name and alias, the new

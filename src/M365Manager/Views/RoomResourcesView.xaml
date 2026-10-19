@@ -49,11 +49,13 @@
                 <Grid Grid.Row="1">
                     <!-- Proportional rather than a fixed 430: the four-column grid does not need
                          two thirds of a wide screen, and at 430 the manage tabs wrapped onto two
-                         rows and the tab content got only what was left under two stacked cards. -->
+                         rows and the tab content got only what was left under two stacked cards.
+                         The minimums together must fit a laptop: at 420 + 430 the right column
+                         was cut off at its edge instead of shrinking (2026-10-19). -->
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="3*" MinWidth="420" />
+                        <ColumnDefinition Width="3*" MinWidth="280" />
                         <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="2*" MinWidth="430" />
+                        <ColumnDefinition Width="2*" MinWidth="380" />
                     </Grid.ColumnDefinitions>
 
                     <Border Grid.Column="0" Style="{StaticResource Card}" Padding="0">
@@ -109,8 +111,18 @@
                         </StackPanel>
                     </Border>
 
-                    <Grid Grid.Column="2"
-                          Visibility="{Binding SelectedRoom, Converter={StaticResource NullToCollapsed}}">
+                    <!--
+                        One scroll for the whole column. The two cards above the tabs are sized to
+                        their content, and on a laptop screen they used up all the height - the
+                        tabs got none and their buttons were unreachable, with no scrollbar
+                        (2026-10-19). The tab pages therefore have no ScrollViewer of their own: a
+                        nested one would swallow the mouse wheel. MinHeight = viewport keeps the
+                        tab card stretched to the bottom on a screen that has the room.
+                    -->
+                    <ScrollViewer x:Name="ManageScroll" Grid.Column="2"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                  Visibility="{Binding SelectedRoom, Converter={StaticResource NullToCollapsed}}">
+                    <Grid MinHeight="{Binding ViewportHeight, ElementName=ManageScroll}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -214,15 +226,17 @@
                                 </TabControl.Resources>
 
                                 <TabItem Header="Details">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                    <Border Margin="0,12,0,0">
                                         <StackPanel>
-                                            <StackPanel Orientation="Horizontal" Margin="{DynamicResource GapField}">
+                                            <StackPanel Orientation="Horizontal">
                                                 <StackPanel>
                                                     <TextBlock Style="{StaticResource FieldLabel}" Text="Capacity" />
                                                     <TextBox AutomationProperties.Name="Capacity" Style="{StaticResource ModernTextBox}" Width="90"
                                                              Text="{Binding EditCapacity, UpdateSourceTrigger=PropertyChanged}" />
                                                 </StackPanel>
                                             </StackPanel>
+                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
+                                                       Text="Part of the address: a new capacity also changes the e-mail address, alias and sign-in name (UPN). You are asked to confirm." />
 
                                             <TextBlock Style="{StaticResource FieldLabel}" Text="Time zone" />
                                             <TextBox AutomationProperties.Name="Time zone" Style="{StaticResource ModernTextBox}"
@@ -243,11 +257,11 @@
                                                     Command="{Binding UpdateDetailsCommand}"
                                                     IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
                                         </StackPanel>
-                                    </ScrollViewer>
+                                    </Border>
                                 </TabItem>
 
                                 <TabItem Header="Members">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                    <Border Margin="0,12,0,0">
                                         <StackPanel>
                                             <StackPanel Orientation="Horizontal" Margin="{DynamicResource GapField}">
                                                 <StackPanel Margin="0,0,16,0">
@@ -280,12 +294,12 @@
                                                     Command="{Binding ChangeMembershipCommand}"
                                                     IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
                                         </StackPanel>
-                                    </ScrollViewer>
+                                    </Border>
                                 </TabItem>
 
                                 <!-- Index 2 - RoomResourcesViewModel.TelephonyTabIndex jumps here from the Create tab. -->
                                 <TabItem Header="Telephony">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                    <Border Margin="0,12,0,0">
                                         <StackPanel>
                                             <TextBlock Style="{StaticResource Muted}" Margin="{DynamicResource GapField}"
                                                        Text="Gives the room a number from its site's blocks and the site's voice policies. Direct Routing: voice routing, dial plan and both emergency policies. Operator Connect: the dial plan only. The room needs a licence with Teams Phone (Teams Rooms Pro)." />
@@ -380,11 +394,11 @@
                                                 <controls:AlertBox Text="{Binding TelephonyResult}" Severity="{Binding TelephonyResultSeverity}" />
                                             </StackPanel>
                                         </StackPanel>
-                                    </ScrollViewer>
+                                    </Border>
                                 </TabItem>
 
                                 <TabItem Header="Account">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                    <Border Margin="0,12,0,0">
                                         <StackPanel>
                                             <TextBlock Style="{StaticResource Muted}" Margin="{DynamicResource GapField}"
                                                        Text="Enables the room account with a new random password that never expires, so a Teams Rooms device can sign in. Use it for a room whose account was never enabled, or when a device needs a new password - a device signed in with the old one is signed out." />
@@ -439,11 +453,11 @@
                                                 </Grid>
                                             </Border>
                                         </StackPanel>
-                                    </ScrollViewer>
+                                    </Border>
                                 </TabItem>
 
                                 <TabItem Header="Rename">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                    <Border Margin="0,12,0,0">
                                         <StackPanel>
                                             <TextBlock Style="{StaticResource FieldLabel}" Text="New name" />
                                             <TextBox AutomationProperties.Name="New name" Style="{StaticResource ModernTextBox}"
@@ -490,11 +504,11 @@
                                             <TextBlock Style="{StaticResource FieldHint}" Margin="0,12,0,0"
                                                        Text="The old address stays as an alias, and the sign-in name (UPN) moves with it. The requester above gets a confirmation e-mail." />
                                         </StackPanel>
-                                    </ScrollViewer>
+                                    </Border>
                                 </TabItem>
 
                                 <TabItem Header="Danger zone">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                                    <Border Margin="0,12,0,0">
                                         <StackPanel>
                                             <TextBlock Style="{StaticResource H3}" Text="Delete room / resource" Margin="0,0,0,8" />
                                             <TextBlock Style="{StaticResource Muted}" Margin="0,0,0,12"
@@ -511,11 +525,12 @@
                                                     Command="{Binding RemoveCommand}"
                                                     IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
                                         </StackPanel>
-                                    </ScrollViewer>
+                                    </Border>
                                 </TabItem>
                             </TabControl>
                         </Border>
                     </Grid>
+                    </ScrollViewer>
                 </Grid>
 
                 <StackPanel Grid.Row="2" Margin="0,12,0,0">

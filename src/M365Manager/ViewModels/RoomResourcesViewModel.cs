@@ -506,6 +506,21 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
             return;
         }
 
+        // The capacity is part of the address, so a new one moves the address, alias and sign-in
+        // name with it. Not destructive, but a Teams Rooms device signed in under the old name
+        // notices - so it is asked first, with the old and new address spelled out.
+        if (int.TryParse(EditCapacity.Trim(), out var newCapacity)
+            && newCapacity != SelectedRoom.Capacity
+            && RoomNamingService.WithCapacity(SelectedRoom.PrimarySmtpAddress, SelectedRoom.Capacity, newCapacity) is { } newAddress
+            && !_dialogs.Confirm(
+                $"Change the capacity of {SelectedRoom.DisplayName} to {newCapacity}?",
+                "The capacity is part of the room's address, so the e-mail address, alias and sign-in name (UPN) change with it.",
+                "Change capacity",
+                $"{SelectedRoom.PrimarySmtpAddress}\n→ {newAddress}\n\n"
+                + "The previous address stays as an alias, so mail and existing bookings keep working. "
+                + "A Teams Rooms device signed in with the old sign-in name may have to be signed in again."))
+            return;
+
         var request = new RoomDetailsUpdateRequest
         {
             TaskNumber = ManageTaskNumber.Trim(),

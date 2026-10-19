@@ -27,7 +27,7 @@ BEGIN
         EDGroupAddress                       NVARCHAR(256)    NULL,   -- Editor: FullAccess + SendAs
         AUGroupAddress                       NVARCHAR(256)    NULL,   -- Author: SendOnBehalf only
         REGroupAddress                       NVARCHAR(256)    NULL,   -- Reader: folder-level Reviewer only
-        Owners                               NVARCHAR(MAX)    NULL,   -- .ED group's ManagedBy, semicolon-joined UPNs
+        Owners                               NVARCHAR(MAX)    NULL,   -- .ED group's ManagedBy, "First Last <upn>; ..."
         RequireSenderAuthenticationEnabled   BIT              NULL,
         CreatedDateTime                      DATETIME2(3)     NULL,
         IsDeletedInM365                      BIT              NOT NULL CONSTRAINT DF_SharedMailboxes_IsDeleted DEFAULT (0),

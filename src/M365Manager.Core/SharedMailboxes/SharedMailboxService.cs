@@ -212,7 +212,7 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
             Progress(onProgress, $"Shared mailbox '{displayName}' created successfully.");
 
             await UpsertCacheAsync(created.Count > 0 ? created[0] : null, displayName, alias, address,
-                edGroupAddress, auGroupAddress, reGroupAddress, string.Join("; ", ownerUpns),
+                edGroupAddress, auGroupAddress, reGroupAddress, FormatOwnersForCache(owners.Select(o => (o.Upn, o.DisplayName))),
                 !request.AllowExternalSenders, ct);
 
             if (mailWarning is not null)
@@ -297,6 +297,7 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
             var touchedGroups = new List<string>();
             var finalDisplayNames = new List<string>();
             var finalOwnerUpns = new List<string>();
+            var finalOwnersForCache = "";
             // Kept apart from the UPNs on purpose: the UPNs go into the cache, these into the To: line.
             var finalOwnerMails = new List<string>();
 
@@ -348,6 +349,7 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
                 {
                     finalDisplayNames = displayNames;
                     finalOwnerUpns = owners.Select(o => o.Upn).ToList();
+                    finalOwnersForCache = FormatOwnersForCache(owners.Select(o => (o.Upn, o.DisplayName)));
                     finalOwnerMails = owners.Select(o => MailOrUpn(o.Upn, o.Mail)).ToList();
                 }
             }
@@ -360,9 +362,9 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
                 .AddParameter("ErrorAction", "Stop"), ct: ct);
             await LogAsync(correlationId, "ChangeOwner", "UPMTIP", $"Updated mailbox MailTip to '{mailboxMailTip}'", request.TaskNumber, Severity.Success);
 
-            // UPNs, not display names - CreateSharedMailboxAsync fills this column with UPNs and the
-            // import script writes ManagedBy addresses, so the grid must not switch format here.
-            await UpsertOwnerCacheAsync(address, string.Join("; ", finalOwnerUpns), ct);
+            // Same "Name <upn>" format as creation and the import script, so the grid does not
+            // switch format for the one row that was just changed.
+            await UpsertOwnerCacheAsync(address, finalOwnersForCache, ct);
 
             string? mailWarning = null;
             try
@@ -1879,7 +1881,7 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
                 DisplayName = reader.IsDBNull(1) ? "" : reader.GetString(1),
                 Alias = reader.IsDBNull(2) ? "" : reader.GetString(2),
                 PrimarySmtpAddress = reader.IsDBNull(3) ? "" : reader.GetString(3),
-                Owners = reader.IsDBNull(4) ? "" : reader.GetString(4).Replace(';', ',').Replace(",", ", "),
+                OwnerList = reader.IsDBNull(4) ? [] : reader.GetString(4).Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
                 EDGroupAddress = reader.IsDBNull(5) ? "" : reader.GetString(5),
                 AUGroupAddress = reader.IsDBNull(6) ? "" : reader.GetString(6),
                 REGroupAddress = reader.IsDBNull(7) ? "" : reader.GetString(7),
@@ -1942,6 +1944,18 @@ public sealed partial class SharedMailboxService : ISharedMailboxService
             // Cache write is best-effort; the scheduled import will reconcile this row regardless.
         }
     }
+
+    /// <summary>
+    /// The cache's Owners format: "First Last &lt;upn&gt;" per owner, "; "-joined - the import script
+    /// writes the same. The name is what people recognise; the UPN is what tells two people of the
+    /// same name apart and what the team types into the forms (2026-10-19, after the grid showed
+    /// only UPNs following an owner change).
+    /// </summary>
+    internal static string FormatOwnersForCache(IEnumerable<(string Upn, string DisplayName)> owners) =>
+        string.Join("; ", owners.Select(o =>
+            string.IsNullOrWhiteSpace(o.DisplayName) || string.Equals(o.DisplayName, o.Upn, StringComparison.OrdinalIgnoreCase)
+                ? o.Upn
+                : $"{Groups.GroupAdminService.FirstLast(o.DisplayName)} <{o.Upn}>"));
 
     private async Task UpsertOwnerCacheAsync(string address, string owners, CancellationToken ct)
     {

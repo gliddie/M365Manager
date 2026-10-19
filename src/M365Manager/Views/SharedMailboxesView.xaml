@@ -157,7 +157,8 @@
                                     </Grid.RowDefinitions>
 
                                     <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Muted}" Text="Owners" />
-                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedMailbox.Owners}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource Muted}" TextWrapping="Wrap"
+                                               Text="{Binding SelectedMailbox.OwnersMultiline}" />
 
                                     <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Muted}" Text="Alias" />
                                     <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Muted}" Text="{Binding SelectedMailbox.Alias}" />

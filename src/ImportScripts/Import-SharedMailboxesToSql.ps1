@@ -275,6 +275,39 @@ function Resolve-AccessGroup {
     }
 }
 
+$Script:OwnerLabelCache = @{}
+
+function Get-OwnerLabel {
+    <#
+      Turns one ManagedBy value - an Exchange recipient Name, usually the display name - into
+      "First Last <upn>", the format the app writes after creating a mailbox or changing its owners.
+      The same few people own many mailboxes, so each name is looked up once per run. A name that
+      does not resolve to exactly one user (a mail contact, an ambiguous name) is kept as-is.
+    #>
+    param([string]$Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) { return $null }
+    $key = $Name.ToLower()
+    if ($Script:OwnerLabelCache.ContainsKey($key)) { return $Script:OwnerLabelCache[$key] }
+
+    $label = $Name
+    $users = @(Get-User -Identity $Name -ErrorAction SilentlyContinue)
+    # -Identity also matches display names, so an exact Name match decides; a lone hit is trusted.
+    $exact = @($users | Where-Object { $_.Name -eq $Name })
+    $user = if ($exact.Count -eq 1) { $exact[0] } elseif ($users.Count -eq 1) { $users[0] } else { $null }
+
+    if ($user -and $user.UserPrincipalName) {
+        $display = [string]$user.DisplayName
+        # "Last, First" -> "First Last", as GroupAdminService.FirstLast does in the app.
+        $parts = $display -split ', ', 2
+        if ($parts.Count -eq 2 -and $parts[0] -and $parts[1]) { $display = "$($parts[1].Trim()) $($parts[0].Trim())" }
+        $label = if ($display) { "$display <$($user.UserPrincipalName)>" } else { $user.UserPrincipalName }
+    }
+
+    $Script:OwnerLabelCache[$key] = $label
+    return $label
+}
+
 function Get-GroupsFromMailboxPermissions {
     <#
       Returns the access groups actually granted FullAccess on the mailbox, as a hashtable of
@@ -443,7 +476,9 @@ try {
         # A mailbox with no access groups at all is perfectly normal - plenty of shared mailboxes
         # were never given the .ED/.AU/.RE structure. It is written with empty group columns, not
         # skipped.
-        $owners = if ($ed.Owners.Count -gt 0) { ($ed.Owners -join ';') } else { $null }
+        $owners = if ($ed.Owners.Count -gt 0) {
+            (@($ed.Owners | ForEach-Object { Get-OwnerLabel -Name ([string]$_) } | Where-Object { $_ }) -join '; ')
+        } else { $null }
 
         Write-SharedMailboxRecord -Mailbox ([pscustomobject]@{
             ExchangeGuid = $mailbox.ExchangeGuid

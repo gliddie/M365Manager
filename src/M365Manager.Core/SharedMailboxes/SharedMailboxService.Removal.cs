@@ -354,7 +354,7 @@ public sealed partial class SharedMailboxService
 
             var requireSenderAuth = string.Equals(Str(mailbox, "RequireSenderAuthenticationEnabled"), "True", StringComparison.OrdinalIgnoreCase);
             await UpsertCacheAsync(mailbox, displayName, Str(mailbox, "Alias"), address,
-                edGroupAddress, auGroupAddress, reGroupAddress, string.Join("; ", ownerUpns), requireSenderAuth, ct);
+                edGroupAddress, auGroupAddress, reGroupAddress, FormatOwnersForCache(owners.Select(o => (o.Upn, o.DisplayName))), requireSenderAuth, ct);
 
             var ownerMails = owners.Select(o => MailOrUpn(o.Upn, o.Mail)).ToArray();
             Progress(onProgress, $"Sending confirmation e-mail to the owner(s) as {_mail.SenderDescription}...");

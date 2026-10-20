@@ -260,39 +260,82 @@
                                     </Border>
                                 </TabItem>
 
-                                <TabItem Header="Members">
+                                <!-- The "Access Change to Restricted Room" ticket: two lists, add and remove for each. -->
+                                <TabItem Header="Access">
                                     <Border Margin="0,12,0,0">
                                         <StackPanel>
-                                            <StackPanel Orientation="Horizontal" Margin="{DynamicResource GapField}">
-                                                <StackPanel Margin="0,0,16,0">
-                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Group" />
-                                                    <ComboBox AutomationProperties.Name="Group" Style="{StaticResource ModernComboBox}" Width="140"
-                                                              ItemsSource="{Binding GroupKinds}" SelectedItem="{Binding MembershipGroupKind}" />
+                                            <controls:AlertBox Margin="{DynamicResource GapField}"
+                                                               Text="{Binding AccessLoadError}" Severity="Error" />
+
+                                            <StackPanel Visibility="{Binding IsAccessLoaded, Converter={StaticResource BoolToVisible}}">
+                                                <controls:AlertBox Margin="{DynamicResource GapField}"
+                                                                   Text="{Binding AccessNote}" Severity="Warning" />
+
+                                                <TextBlock Style="{StaticResource H3}" Text="Room delegates" />
+                                                <TextBlock Style="{StaticResource Muted}" Margin="{DynamicResource GapLabel}"
+                                                           Text="{Binding AccessDelegatesSource}" />
+                                                <Border Style="{StaticResource Inset}" Margin="{DynamicResource GapField}">
+                                                    <ScrollViewer MaxHeight="96" VerticalScrollBarVisibility="Auto">
+                                                        <TextBlock Style="{StaticResource Muted}" Text="{Binding AccessDelegatesMembers}" />
+                                                    </ScrollViewer>
+                                                </Border>
+                                                <Grid Margin="{DynamicResource GapSection}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="16" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Add delegates" />
+                                                        <TextBox AutomationProperties.Name="Add delegates" Style="{StaticResource ModernTextBoxMultiline}"
+                                                                 Text="{Binding AccessAddDelegates, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Remove delegates" />
+                                                        <TextBox AutomationProperties.Name="Remove delegates" Style="{StaticResource ModernTextBoxMultiline}"
+                                                                 Text="{Binding AccessRemoveDelegates, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <TextBlock Style="{StaticResource H3}" Text="Authorized to book" />
+                                                <TextBlock Style="{StaticResource Muted}" Margin="{DynamicResource GapField}"
+                                                           Visibility="{Binding HasBookingList, Converter={StaticResource BoolToCollapsed}}"
+                                                           Text="General use - anyone can book this room, so there is no list to change." />
+                                                <StackPanel Visibility="{Binding HasBookingList, Converter={StaticResource BoolToVisible}}">
+                                                    <TextBlock Style="{StaticResource Muted}" Margin="{DynamicResource GapLabel}"
+                                                               Text="{Binding AccessBookingSource}" />
+                                                    <Border Style="{StaticResource Inset}" Margin="{DynamicResource GapField}">
+                                                        <ScrollViewer MaxHeight="96" VerticalScrollBarVisibility="Auto">
+                                                            <TextBlock Style="{StaticResource Muted}" Text="{Binding AccessBookingMembers}" />
+                                                        </ScrollViewer>
+                                                    </Border>
+                                                    <Grid Margin="{DynamicResource GapField}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="16" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Allow to book" />
+                                                            <TextBox AutomationProperties.Name="Allow to book" Style="{StaticResource ModernTextBoxMultiline}"
+                                                                     Text="{Binding AccessAddBookingUsers, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="2">
+                                                            <TextBlock Style="{StaticResource FieldLabel}" Text="No longer allow to book" />
+                                                            <TextBox AutomationProperties.Name="No longer allow to book" Style="{StaticResource ModernTextBoxMultiline}"
+                                                                     Text="{Binding AccessRemoveBookingUsers, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Grid>
                                                 </StackPanel>
-                                                <StackPanel>
-                                                    <TextBlock Style="{StaticResource FieldLabel}" Text="Action" />
-                                                    <ComboBox AutomationProperties.Name="Action" Style="{StaticResource ModernComboBox}" Width="120"
-                                                              ItemsSource="{Binding MembershipModes}" SelectedItem="{Binding MembershipMode}" />
-                                                </StackPanel>
+
+                                                <TextBlock Style="{StaticResource Muted}" Margin="{DynamicResource GapField}"
+                                                           Text="One person per line, or separated by &quot;;&quot;. Name, e-mail address, UPN or employee number. You see who each one resolves to before anything changes." />
+
+                                                <Button Style="{StaticResource PrimaryButton}" Content="_Apply access change"
+                                                        HorizontalAlignment="Left"
+                                                        Command="{Binding ChangeAccessCommand}"
+                                                        IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
                                             </StackPanel>
-
-                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Current members" />
-                                            <Border Style="{StaticResource Inset}" Padding="12" Margin="0,0,0,16">
-                                                <ScrollViewer MaxHeight="110" VerticalScrollBarVisibility="Auto">
-                                                    <TextBlock Style="{StaticResource Muted}" Text="{Binding CurrentMembers}" />
-                                                </ScrollViewer>
-                                            </Border>
-
-                                            <TextBlock Style="{StaticResource FieldLabel}" Text="Identities" />
-                                            <TextBox AutomationProperties.Name="Identities" Style="{StaticResource ModernTextBox}"
-                                                     Text="{Binding MembershipIdentities, UpdateSourceTrigger=PropertyChanged}" />
-                                            <TextBlock Style="{StaticResource FieldHint}" Margin="0,4,0,16"
-                                                       Text="Comma-separated SamAccountName, UPN, e-mail address or group name." />
-
-                                            <Button Style="{StaticResource PrimaryButton}" Content="_Apply membership change"
-                                                    HorizontalAlignment="Left"
-                                                    Command="{Binding ChangeMembershipCommand}"
-                                                    IsEnabled="{Binding IsManageBusy, Converter={StaticResource InverseBool}}" />
                                         </StackPanel>
                                     </Border>
                                 </TabItem>

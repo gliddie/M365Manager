@@ -20,11 +20,21 @@ public interface IRoomResourceService
     /// <summary>Changes capacity/location/time zone/booking policy on an existing room. Does not touch its name or address.</summary>
     Task<RoomResourceCreationResult> UpdateDetailsAsync(RoomDetailsUpdateRequest request, Action<string>? onProgress = null, CancellationToken ct = default);
 
-    /// <summary>Adds or removes members of a room's delegate or authorized-users group.</summary>
-    Task<RoomMembershipChangeResult> ChangeMembershipAsync(RoomMembershipChangeRequest request, CancellationToken ct = default);
+    /// <summary>
+    /// Reads a room's delegates and the people allowed to book it, live from Exchange - whether the
+    /// calendar points at a group or lists people directly. Throws with an operator-readable message
+    /// when the room cannot be read.
+    /// </summary>
+    Task<RoomAccessSnapshot> GetAccessAsync(string roomAddress, CancellationToken ct = default);
 
-    /// <summary>Reads the current members of one of a room's groups, for the management panel.</summary>
-    Task<IReadOnlyList<string>> GetGroupMembersAsync(string groupIdentity, CancellationToken ct = default);
+    /// <summary>
+    /// Resolves every typed name to exactly one recipient and works out what an access change
+    /// (RoomResourceOOPChanges.ps1) would add and remove. Writes nothing.
+    /// </summary>
+    Task<RoomAccessChangePlan> PlanAccessChangeAsync(RoomAccessChangeRequest request, CancellationToken ct = default);
+
+    /// <summary>Applies a plan from <see cref="PlanAccessChangeAsync"/>: both lists, one audit trail, one confirmation mail.</summary>
+    Task<RoomAccessChangeResult> ApplyAccessChangeAsync(RoomAccessChangePlan plan, CancellationToken ct = default);
 
     /// <summary>Captures a full snapshot into the audit log, then deletes the mailbox (and optionally its orphaned groups).</summary>
     Task<RoomRemovalResult> RemoveAsync(RoomRemovalRequest request, Action<string>? onProgress = null, CancellationToken ct = default);

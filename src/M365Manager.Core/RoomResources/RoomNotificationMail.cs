@@ -12,7 +12,7 @@ namespace M365Manager.Core.RoomResources;
 ///   RoomorResourceAdditions    added to an existing room list, general use
 ///   RestrictedRoomAdditions    added to an existing room list, restricted
 ///   RoomResourceRemoval        room deleted
-///   RROOPChanges               users added to a restricted room's authorized-users group
+///   RROOPChanges               access change: delegates / people authorized to book (see AccessChanged)
 ///
 /// English only, like every notification this app sends. Each original left a blank line where the
 /// operator pasted a screenshot of the Room Finder; the room list name goes there instead, since
@@ -233,16 +233,52 @@ internal static class RoomNotificationMail
         return ($"Removal of {displayName} - {taskNumber}", html);
     }
 
-    public static (string Subject, string Html) UsersAuthorized(string roomDisplayName, IReadOnlyList<string> addedNames, string taskNumber)
+    /// <summary>
+    /// One mail for the whole "Access Change to Restricted Room" ticket. The first paragraph is
+    /// RROOPChanges.oft verbatim; the legacy form only ever mailed that one case, so the other three
+    /// sentences are new wording in the same voice. When users were only added, subject and body are
+    /// exactly the legacy mail.
+    /// </summary>
+    public static (string Subject, string Html) AccessChanged(
+        string roomDisplayName,
+        IReadOnlyList<string> addedUsers,
+        IReadOnlyList<string> removedUsers,
+        IReadOnlyList<string> addedDelegates,
+        IReadOnlyList<string> removedDelegates,
+        string taskNumber)
     {
-        var html = $"""
-            <p>Per your request {NameList(addedNames, "the requested individuals")} have been added to the list
-            of staff authorized to request reservations in <b>{E(roomDisplayName)}</b>.</p>
+        var room = $"<b>{E(roomDisplayName)}</b>";
+        var paragraphs = new List<string>();
+
+        if (addedUsers.Count > 0)
+            paragraphs.Add($"""
+                <p>Per your request {NameList(addedUsers, "the requested individuals")} have been added to the list
+                of staff authorized to request reservations in {room}.</p>
+                """);
+        if (removedUsers.Count > 0)
+            paragraphs.Add($"""
+                <p>{NameList(removedUsers, "The requested individuals")} have been removed from the list of staff
+                authorized to request reservations in {room}.</p>
+                """);
+        if (addedDelegates.Count > 0)
+            paragraphs.Add($"""
+                <p>{NameList(addedDelegates, "The requested individuals")} have been added as room delegates of {room}.
+                Room delegates approve reservation requests that fall outside the room's booking policy.</p>
+                """);
+        if (removedDelegates.Count > 0)
+            paragraphs.Add($"""
+                <p>{NameList(removedDelegates, "The requested individuals")} are no longer room delegates of {room}.</p>
+                """);
+
+        var html = string.Concat(paragraphs) + """
 
             <p>With this change being complete this ticket is being closed.</p>
             """;
 
-        return ($"Additional Users Authorized to Reserve {roomDisplayName} - {taskNumber}", html);
+        var onlyUsersAdded = removedUsers.Count == 0 && addedDelegates.Count == 0 && removedDelegates.Count == 0;
+        return (onlyUsersAdded
+            ? $"Additional Users Authorized to Reserve {roomDisplayName} - {taskNumber}"
+            : $"Access Change to {roomDisplayName} - {taskNumber}", html);
     }
 
     /// <summary>No legacy template exists for this - the wording follows the others.</summary>

@@ -164,49 +164,6 @@ public sealed class RoomDetailsUpdateRequest
     public BookingPolicy? CustomPolicy { get; init; }
 }
 
-/// <summary>
-/// Input for <see cref="IRoomResourceService.ChangeMembershipAsync"/> - the
-/// RoomResourceOOPChanges.ps1 equivalent.
-/// </summary>
-public sealed class RoomMembershipChangeRequest
-{
-    public required string TaskNumber { get; init; }
-
-    /// <summary>Who asked for the change; the confirmation e-mail goes to them. Empty sends none.</summary>
-    public string RequesterIdentity { get; init; } = "";
-
-    /// <summary>Primary SMTP address of the room/equipment mailbox (used for the audit trail).</summary>
-    public required string Address { get; init; }
-
-    /// <summary>The group to change - resolved from the cached row, so the operator never types a group name.</summary>
-    public required string GroupIdentity { get; init; }
-
-    public required RoomGroupKind GroupKind { get; init; }
-    public required MembershipChangeMode Mode { get; init; }
-
-    /// <summary>Comma-separated identities (SamAccountName, UPN, e-mail, or a group name).</summary>
-    public required string Identities { get; init; }
-}
-
-public sealed class RoomMembershipChangeResult
-{
-    public required bool Succeeded { get; init; }
-    public IReadOnlyList<MemberOperationResult> Results { get; init; } = Array.Empty<MemberOperationResult>();
-    public string? ErrorMessage { get; init; }
-
-    /// <summary>Set when the change went through but the confirmation e-mail did not go out.</summary>
-    public string? WarningMessage { get; init; }
-
-    public Guid CorrelationId { get; init; }
-
-    public static RoomMembershipChangeResult Failed(Guid correlationId, string error) => new()
-    {
-        Succeeded = false,
-        ErrorMessage = error,
-        CorrelationId = correlationId,
-    };
-}
-
 /// <summary>Input for <see cref="IRoomResourceService.RemoveAsync"/> - the RoomResourceRemove.ps1 equivalent.</summary>
 public sealed class RoomRemovalRequest
 {

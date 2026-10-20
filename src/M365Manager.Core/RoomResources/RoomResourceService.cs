@@ -810,13 +810,12 @@ public sealed partial class RoomResourceService : IRoomResourceService
         return (bracket > 0 ? member[..bracket] : member).Trim();
     }
 
-    /// <summary>Rewrites a room's MailTip from its delegate group. Best-effort, like at creation.</summary>
-    private async Task RefreshRoomMailTipAsync(Guid correlationId, string roomAddress, string delegateGroup, string taskNumber, CancellationToken ct)
+    /// <summary>Rewrites a room's MailTip from its delegates' names. Best-effort, like at creation.</summary>
+    private async Task RefreshRoomMailTipAsync(Guid correlationId, string roomAddress, IReadOnlyList<string> delegateNames, string taskNumber, CancellationToken ct)
     {
         try
         {
-            var members = await GetGroupMembersAsync(delegateGroup, ct);
-            var tip = BuildMailTip(members.Select(StripAddress).Where(n => n.Length > 0).ToList());
+            var tip = BuildMailTip(delegateNames.Where(n => n.Length > 0).ToList());
 
             await _host.InvokeAsync(ps => ps
                 .AddCommand("Set-Mailbox")
@@ -1058,100 +1057,7 @@ public sealed partial class RoomResourceService : IRoomResourceService
         }
     }
 
-    // ----- membership (the RoomResourceOOPChanges.ps1 equivalent) -----
-
-    public async Task<RoomMembershipChangeResult> ChangeMembershipAsync(RoomMembershipChangeRequest request, CancellationToken ct = default)
-    {
-        var correlationId = Guid.NewGuid();
-
-        try
-        {
-            await LogAsync(correlationId, "ChangeMembership", "STAR", "Room/resource membership change has started", request.TaskNumber, Severity.Info);
-
-            var group = (request.GroupIdentity ?? "").Trim();
-            if (group.Length == 0)
-            {
-                return await FailMembershipAsync(correlationId, request.TaskNumber,
-                    request.GroupKind == RoomGroupKind.Users
-                        ? "This is a general-use room - it has no authorized-users group."
-                        : "This room has no delegate group recorded.");
-            }
-
-            if (!await RecipientExistsAsync("Get-DistributionGroup", group, ct))
-                return await FailMembershipAsync(correlationId, request.TaskNumber, $"Group '{group}' was not found in Exchange.");
-
-            await LogAsync(correlationId, "ChangeMembership", "INPUT",
-                $"Room={request.Address}; Group={group} ({request.GroupKind}); Mode={request.Mode}; Identities={request.Identities}",
-                request.TaskNumber, Severity.Info);
-
-            var results = request.Mode == MembershipChangeMode.Add
-                ? await AddMembersAsync(group, request.Identities, ct)
-                : await RemoveMembersAsync(group, request.Identities, ct);
-
-            foreach (var result in results)
-            {
-                var verb = request.Mode == MembershipChangeMode.Add ? "Added" : "Removed";
-                await LogAsync(correlationId, "ChangeMembership", result.Succeeded ? (request.Mode == MembershipChangeMode.Add ? "ADD" : "REMO") : "FAIL",
-                    result.Succeeded
-                        ? $"{verb} {result.Identity} {(request.Mode == MembershipChangeMode.Add ? "to" : "from")} {group}"
-                        : $"Could not {verb.ToLowerInvariant()} {result.Identity}: {result.Error}",
-                    request.TaskNumber, result.Succeeded ? Severity.Success : Severity.Warning);
-            }
-
-            var changed = results.Any(r => r.Succeeded);
-
-            // Keep the group's description and, for a per-room delegate group, the room's MailTip in
-            // step with the new membership. Creation did this; changing membership did not, so both
-            // kept describing whoever was a delegate on the day the room was created.
-            if (changed)
-            {
-                var notesLabel = request.GroupKind == RoomGroupKind.Users ? "Room Users" : "Room Delegates";
-                await RefreshGroupNotesAsync(group, notesLabel, request.TaskNumber, ct);
-                await LogAsync(correlationId, "ChangeMembership", "UPNOTE",
-                    $"Refreshed the description of {group}", request.TaskNumber, Severity.Success);
-
-                // A site-wide delegate group is shared by every general-use room at that site, so no
-                // single room's MailTip describes it - only per-room groups get one.
-                if (request.GroupKind == RoomGroupKind.Delegates && !IsSiteWideDelegateGroup(group))
-                    await RefreshRoomMailTipAsync(correlationId, request.Address, group, request.TaskNumber, ct);
-            }
-
-            // Only adding people to a restricted room's authorized-users group has a template
-            // (RROOPChanges.oft, "Additional Users Authorized to Reserve ..."). Removals and
-            // delegate-group changes had none, and nothing was invented for them.
-            var added = results.Where(r => r.Succeeded).Select(r => r.Identity).ToArray();
-            string? mailWarning = null;
-            if (request.GroupKind == RoomGroupKind.Users
-                && request.Mode == MembershipChangeMode.Add
-                && added.Length > 0)
-            {
-                var mailbox = await GetOneAsync("Get-Mailbox", request.Address, ct);
-                var displayName = mailbox is null ? request.Address : Str(mailbox, "DisplayName");
-
-                // The results carry the identities as typed - resolve them so the mail names people.
-                var addedNames = await RecipientLookup.ToDisplayNamesAsync(_host, added, ct);
-
-                mailWarning = await NotifyRequesterAsync(
-                    correlationId, "ChangeMembership", request.RequesterIdentity, request.TaskNumber,
-                    RoomNotificationMail.UsersAuthorized(displayName, addedNames, request.TaskNumber), ct);
-            }
-
-            await LogAsync(correlationId, "ChangeMembership", "DONE", "Room/resource membership change has completed", request.TaskNumber, Severity.Success);
-
-            return new RoomMembershipChangeResult
-            {
-                Succeeded = results.Any(r => r.Succeeded),
-                Results = results,
-                CorrelationId = correlationId,
-                ErrorMessage = results.All(r => !r.Succeeded) && results.Count > 0 ? "No member could be changed - see the results list." : null,
-                WarningMessage = mailWarning,
-            };
-        }
-        catch (Exception ex)
-        {
-            return await FailMembershipAsync(correlationId, request.TaskNumber, ex.Message);
-        }
-    }
+    // ----- group members (access changes live in RoomResourceService.Access.cs) -----
 
     public async Task<IReadOnlyList<string>> GetGroupMembersAsync(string groupIdentity, CancellationToken ct = default)
     {
@@ -1199,31 +1105,6 @@ public sealed partial class RoomResourceService : IRoomResourceService
                     .AddParameter("Identity", group)
                     .AddParameter("Member", resolved)
                     .AddParameter("BypassSecurityGroupManagerCheck", true)
-                    .AddParameter("ErrorAction", "Stop"), ct: ct);
-                results.Add(new MemberOperationResult(raw, true, null));
-            }
-            catch (Exception ex)
-            {
-                results.Add(new MemberOperationResult(raw, false, ex.Message));
-            }
-        }
-        return results;
-    }
-
-    private async Task<IReadOnlyList<MemberOperationResult>> RemoveMembersAsync(string group, string identitiesCsv, CancellationToken ct)
-    {
-        var results = new List<MemberOperationResult>();
-        foreach (var raw in SplitIdentities(identitiesCsv))
-        {
-            var resolved = AppendDomain(raw);
-            try
-            {
-                await _host.InvokeAsync(ps => ps
-                    .AddCommand("Remove-DistributionGroupMember")
-                    .AddParameter("Identity", group)
-                    .AddParameter("Member", resolved)
-                    .AddParameter("BypassSecurityGroupManagerCheck", true)
-                    .AddParameter("Confirm", false)
                     .AddParameter("ErrorAction", "Stop"), ct: ct);
                 results.Add(new MemberOperationResult(raw, true, null));
             }
@@ -1736,12 +1617,6 @@ public sealed partial class RoomResourceService : IRoomResourceService
     {
         await LogAsync(correlationId, "UpdateDetails", "FAIL", message, taskNumber, Severity.Error);
         return RoomResourceCreationResult.Failed(correlationId, message);
-    }
-
-    private async Task<RoomMembershipChangeResult> FailMembershipAsync(Guid correlationId, string taskNumber, string message)
-    {
-        await LogAsync(correlationId, "ChangeMembership", "FAIL", message, taskNumber, Severity.Error);
-        return RoomMembershipChangeResult.Failed(correlationId, message);
     }
 
     private async Task<RoomRemovalResult> FailRemoveAsync(Guid correlationId, string taskNumber, string message)

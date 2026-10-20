@@ -63,8 +63,6 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
     public IReadOnlyList<ResourceKind> ResourceKinds { get; } = Enum.GetValues<ResourceKind>();
     public IReadOnlyList<RoomAccessModel> AccessModels { get; } = Enum.GetValues<RoomAccessModel>();
     public IReadOnlyList<BookingPolicyPreset> Presets { get; } = Enum.GetValues<BookingPolicyPreset>();
-    public IReadOnlyList<MembershipChangeMode> MembershipModes { get; } = Enum.GetValues<MembershipChangeMode>();
-    public IReadOnlyList<RoomGroupKind> GroupKinds { get; } = Enum.GetValues<RoomGroupKind>();
 
     // --- Overview grid ---
     [ObservableProperty] private string _overviewFilterText = "";
@@ -75,10 +73,10 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
     public ObservableCollection<RoomResourceOverviewRow> Rooms { get; } = new();
     public ICollectionView RoomsView { get; }
 
-    // --- Manage panel (edit details / membership / remove) ---
+    // --- Manage panel (edit details / access / remove) ---
     [ObservableProperty] private string _manageTaskNumber = "";
 
-    /// <summary>Requester for the manage panel's operations (edit / membership / remove).</summary>
+    /// <summary>Requester for the manage panel's operations (edit / access / remove).</summary>
     [ObservableProperty] private string _manageRequesterIdentity = "";
     [ObservableProperty] private string _editCapacity = "";
     [ObservableProperty] private string _editTimeZone = "";
@@ -86,11 +84,6 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
     [ObservableProperty] private BookingPolicyPreset _editPreset = BookingPolicyPreset.Standard;
     [ObservableProperty] private bool _isManageBusy;
     [ObservableProperty] private string _manageStatusMessage = "";
-
-    [ObservableProperty] private RoomGroupKind _membershipGroupKind = RoomGroupKind.Delegates;
-    [ObservableProperty] private MembershipChangeMode _membershipMode = MembershipChangeMode.Add;
-    [ObservableProperty] private string _membershipIdentities = "";
-    [ObservableProperty] private string _currentMembers = "";
 
     [ObservableProperty] private bool _removeOrphanedGroups = true;
 
@@ -427,7 +420,7 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
     /// <summary>Selecting a row pre-fills the manage panel, so nothing has to be retyped.</summary>
     partial void OnSelectedRoomChanged(RoomResourceOverviewRow? value)
     {
-        CurrentMembers = "";
+        ResetAccess();
         ManageStatusMessage = "";
         ResetTelephony();
         ClearManagePassword();
@@ -441,9 +434,8 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
         if (Enum.TryParse<BookingPolicyPreset>(value.BookingPolicy, out var preset))
             EditPreset = preset;
 
-        // A general-use room has no users group - default the membership panel to what it has.
-        MembershipGroupKind = value.HasUsersGroup ? MembershipGroupKind : RoomGroupKind.Delegates;
-        _ = LoadCurrentMembersAsync();
+        // Read live: the cache knows only the group names, not who is in them.
+        _ = LoadAccessAsync();
 
         // The rename form starts from the room as it is, so a ticket that changes one thing only
         // needs that one thing typed.
@@ -460,34 +452,6 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
             _applyingRenamePrefill = false;
         }
         InvalidateRenamePlan();
-    }
-
-    partial void OnMembershipGroupKindChanged(RoomGroupKind value) => _ = LoadCurrentMembersAsync();
-
-    private string? SelectedGroupIdentity => SelectedRoom is null
-        ? null
-        : MembershipGroupKind == RoomGroupKind.Delegates ? SelectedRoom.DelegateGroup : SelectedRoom.UsersGroup;
-
-    private async Task LoadCurrentMembersAsync()
-    {
-        var group = SelectedGroupIdentity;
-        if (string.IsNullOrWhiteSpace(group))
-        {
-            CurrentMembers = MembershipGroupKind == RoomGroupKind.Users
-                ? "(general-use room - no authorized-users group)"
-                : "";
-            return;
-        }
-
-        try
-        {
-            var members = await _rooms.GetGroupMembersAsync(group);
-            CurrentMembers = members.Count > 0 ? string.Join("\n", members) : "(no members)";
-        }
-        catch (Exception ex)
-        {
-            CurrentMembers = $"(could not read members: {ex.Message})";
-        }
     }
 
     // --- manage: edit details ---
@@ -555,72 +519,6 @@ public sealed partial class RoomResourcesViewModel : ObservableObject, ITabbedPa
         catch (Exception ex)
         {
             ManageStatus($"Update failed: {ex.Message}", AlertSeverity.Error);
-        }
-        finally
-        {
-            IsManageBusy = false;
-        }
-    }
-
-    // --- manage: membership ---
-
-    [RelayCommand]
-    private async Task ChangeMembershipAsync()
-    {
-        if (SelectedRoom is null)
-        {
-            ManageStatus("Select a room or resource in the grid first.", AlertSeverity.Error);
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(ManageTaskNumber))
-        {
-            ManageStatus("Enter the ticket/task number authorizing this change.", AlertSeverity.Error);
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(MembershipIdentities))
-        {
-            ManageStatus("Enter at least one identity to add or remove.", AlertSeverity.Error);
-            return;
-        }
-
-        var request = new RoomMembershipChangeRequest
-        {
-            TaskNumber = ManageTaskNumber.Trim(),
-            RequesterIdentity = ManageRequesterIdentity.Trim(),
-            Address = SelectedRoom.PrimarySmtpAddress,
-            GroupIdentity = SelectedGroupIdentity ?? "",
-            GroupKind = MembershipGroupKind,
-            Mode = MembershipMode,
-            Identities = MembershipIdentities.Trim(),
-        };
-
-        IsManageBusy = true;
-        ManageStatusMessage = "Applying membership change...";
-        Transcript.BeginOperation($"{MembershipMode} {MembershipGroupKind} member(s): {SelectedRoom.DisplayName}");
-        try
-        {
-            var result = await _rooms.ChangeMembershipAsync(request);
-            if (!result.Succeeded && result.Results.Count == 0)
-            {
-                ManageStatus($"Membership change failed: {result.ErrorMessage}", AlertSeverity.Error);
-            }
-            else
-            {
-                var ok = result.Results.Count(r => r.Succeeded);
-                var failed = result.Results.Where(r => !r.Succeeded).ToList();
-                ManageStatusMessage = (failed.Count == 0
-                    ? $"{ok} identity/identities {(MembershipMode == MembershipChangeMode.Add ? "added" : "removed")}."
-                    : $"{ok} succeeded, {failed.Count} failed: " +
-                      string.Join("; ", failed.Select(f => $"{f.Identity} ({f.Error})")))
-                    + (result.WarningMessage is null ? "" : $" WARNING: {result.WarningMessage}");
-
-                MembershipIdentities = "";
-                await LoadCurrentMembersAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            ManageStatus($"Membership change failed: {ex.Message}", AlertSeverity.Error);
         }
         finally
         {

@@ -36,7 +36,7 @@ Templates that matter, per the legacy scripts:
 | `RoomorResourceAdditions.oft` | `RoomResourceNewForm.ps1` | **yes** → same, existing list + general use |
 | `RestrictedRoomAdditions.oft` | `RoomResourceNewForm.ps1` | **yes** → same, existing list + restricted |
 | `RoomResourceRemoval.oft` | `RoomResourceRemove.ps1` | **yes** → `RoomNotificationMail.Removal` |
-| `RROOPChanges.oft` | `RoomResourceOOPChanges.ps1` | **yes** → `RoomNotificationMail.UsersAuthorized` |
+| `RROOPChanges.oft` | `RoomResourceOOPChanges.ps1` | **yes** → `RoomNotificationMail.AccessChanged`, extended, see below |
 | `RoomorResourceRename.oft` | `RoomResourceRename.ps1` | not exported - wording written new in `RoomNotificationMail.Renamed`, see below |
 | *(none)* | *(no legacy script - room telephony is new)* | new wording: phone/password paragraphs in `RoomNotificationMail.Creation`, and `RoomNotificationMail.TelephonyReady`, see below |
 
@@ -65,9 +65,13 @@ derived from.
 - **Room mails go to a new "Requester" field.** Rooms have no owner the way a shared mailbox does,
   and the originals were addressed by hand (every `To:` is empty). Leaving it blank sends no mail.
 - **`RROOPChanges.oft` is not about booking policies** despite the name - its subject is
-  "Additional Users Authorized to Reserve …", so it maps to a membership change, and only to
-  *adding* users to a restricted room's authorized-users group. Removals and delegate-group changes
-  have no template and send nothing.
+  "Additional Users Authorized to Reserve …", so it maps to the access change, where it only
+  covered *adding* people to a restricted room's booking list. The service desk ticket ("Access
+  Change to Restricted Room") also asks for removals and delegate changes, and the app applies all
+  of them in one run - so `AccessChanged` sends one mail with one paragraph per kind of change. The
+  "added" paragraph is the template verbatim; the other three are new wording in the same voice.
+  When people were only added, subject and body are exactly the original; otherwise the subject is
+  "Access Change to &lt;room&gt; - &lt;task&gt;".
 - **A details change has no legacy template**; that wording is new and lists what actually changed.
 - Obvious grammar errors in the originals were fixed ("The existing room delegates have designated
   to manage…" → "have been designated to manage…", "you have been access to" → "have been given

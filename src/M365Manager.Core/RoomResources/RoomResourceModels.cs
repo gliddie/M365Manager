@@ -63,19 +63,3 @@ public sealed record BookingPolicy(
         _ => Standard,
     };
 }
-
-/// <summary>Which of a room's two groups a membership change targets.</summary>
-public enum RoomGroupKind
-{
-    /// <summary>The delegate group (.DE) - approves out-of-policy requests, has FullAccess on the mailbox.</summary>
-    Delegates,
-
-    /// <summary>The authorized-users group (.US) - restricted rooms only; only its members may book.</summary>
-    Users,
-}
-
-public enum MembershipChangeMode
-{
-    Add,
-    Remove,
-}
